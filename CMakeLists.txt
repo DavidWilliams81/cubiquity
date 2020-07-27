@@ -81,6 +81,7 @@ target_link_libraries(external)
 
 file(GLOB UTILITY_SRCS src/utility/*)
 add_library(utility ${UTILITY_SRCS})
+include_directories(utility ${SDL2_INCLUDE_DIRS})
 target_link_libraries(utility cubiquity external ${SDL2_LIBRARIES} ${CMAKE_DL_LIBS})
 
 ################################################################################
@@ -93,7 +94,6 @@ file(GLOB INSTANCING_SRCS
      src/demos/instancing/*
      src/demos/instancing/framework/*)
 add_executable(instancing ${INSTANCING_SRCS})
-include_directories(instancing ${SDL2_INCLUDE_DIRS})
 target_link_libraries(instancing cubiquity external utility)
 
 ################################################################################
@@ -103,7 +103,6 @@ target_link_libraries(instancing cubiquity external utility)
 ################################################################################
 
 add_executable(pathtracing src/demos/pathtracing/main.cpp)
-include_directories(pathtracing ${SDL2_INCLUDE_DIRS})
 target_link_libraries(pathtracing cubiquity external utility ${SDL2_LIBRARIES})
 
 # Set startup project in Visual Studio: https://stackoverflow.com/a/37994396
