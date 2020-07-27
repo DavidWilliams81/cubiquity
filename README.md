@@ -131,7 +131,7 @@ Cubiquity provides a simple 'setVoxel(...)' interface to its volume data, which 
 
 While you may get away with generating a limited amount of data at application start-up, you should definitely avoid *on-the-fly* generation, i.e. updating your volume data in response to the camera moving around. Instead all data should be in the volume before you start using it.
 
-### Does Cubqiuty provide a C API?
+### Does Cubiquity provide a C API?
 No, there is no C API at present. I would be interested in adding one in the future, and/or refactoring the current API to make it more C-like. If you need a C API to access Cubiquity functionality from other languages or environments then you will need to provide your own C wrappers around the parts that you want to use.
 
 ### Does Cubiquity provide integration with other engines?
