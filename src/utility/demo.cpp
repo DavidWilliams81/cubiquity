@@ -168,7 +168,7 @@ void Demo::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 	{
 		//std::cout << "x = " << event.x << ", y = " << event.y << std::endl;
 
-		Ray3d ray = mCamera.rayFromViewportPos(event.x, event.y, surface()->w, surface()->h);
+		Ray3d ray = mCamera.rayFromViewportPos(event.x, event.y, width(), height());
 
 		RayVolumeIntersection intersection = ray_parameter(mVolume, ray);
 		if (intersection)

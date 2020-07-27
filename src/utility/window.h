@@ -21,11 +21,15 @@ public:
 	void show(int width, int height);
 	void close();
 
+	// Dimensions
+	int width();
+	int height();
+
 	// Input state checking
 	KeyState keyState(SDL_Scancode scancode);
 	MouseButtonState mouseButtonState(Uint32 button);
 
-	// For rendering
+	// For software rendering
 	SDL_Surface* surface();
 
 protected:

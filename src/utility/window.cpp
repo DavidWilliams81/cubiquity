@@ -4,6 +4,7 @@
 #include <glad/glad.h>
 
 // Include standard headers
+#include <cassert>
 #include <iostream>
 
 void Window::show(int width, int height)
@@ -128,6 +129,20 @@ void Window::close()
 	mRunning = false;
 }
 
+int Window::width()
+{
+	int windowWidth = 0;
+	SDL_GetWindowSize(mSDLWindow, &windowWidth, NULL);
+	return windowWidth;
+}
+
+int Window::height()
+{
+	int windowHeight = 0;
+	SDL_GetWindowSize(mSDLWindow, NULL, &windowHeight);
+	return windowHeight;
+}
+
 KeyState Window::keyState(SDL_Scancode scancode)
 {
 	const Uint8* state = SDL_GetKeyboardState(NULL);
@@ -142,5 +157,7 @@ MouseButtonState Window::mouseButtonState(Uint32 button)
 
 SDL_Surface* Window::surface()
 {
+	assert(mWindowType == WindowType::Software);
+	if(mWindowType != WindowType::Software) { return nullptr; }
 	return SDL_GetWindowSurface(mSDLWindow);
 }
