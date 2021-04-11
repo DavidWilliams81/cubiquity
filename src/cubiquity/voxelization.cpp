@@ -633,7 +633,7 @@ namespace Cubiquity
 		Vector3f planeNormal = cross(b - a, a - c);
 
 		// Not sure if/how we should handle tiny triangles?
-		assert(length(planeNormal) > 0.01f);
+		//assert(length(planeNormal) > 0.01f);
 		if (length(planeNormal) <= 0.01f)
 		{
 			return;
@@ -891,21 +891,23 @@ namespace Cubiquity
 	class NodeFinder
 	{
 	public:
-		void operator()(NodeArray& nodeArray, uint32 nodeIndex, Box3i bounds)
+		void operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
 		{
-			if (nodeIndex >= MaterialCount)
+			if (!isMaterialNode(nodeIndex))
 			{
 				// Octree should not be merged here, so all ref counts should be '1' (except for the roor, which should always be zero).
-				const uint32 expectedRefCount = nodeIndex == RootNodeIndex ? 0 : 1;
-				(void)(expectedRefCount); // Suppress 'unused' warnings when not using asserts.
-				assert(nodeArray[nodeIndex].mRefCount == expectedRefCount && "Octree cannot be merged for this operation.");
+
+				//FIXME - Used to use ref count, wht to do here?
+				//const uint32 expectedRefCount = nodeIndex == RootNodeIndex ? 0 : 1;
+				//(void)(expectedRefCount); // Suppress 'unused' warnings when not using asserts.
+				//assert(nodes[nodeIndex].mRefCount == expectedRefCount && "Octree cannot be merged for this operation.");
 
 				uint32 nodeSideLength = bounds.upper().x() - bounds.lower().x() + 1;
 				uint32 childSideLength = nodeSideLength / 2;
 				for (unsigned int childId = 0; childId < 8; childId++)
 				{
-					uint32 childIndex = nodeArray[nodeIndex].child(childId);
-					if (childIndex < MaterialCount)
+					uint32 childIndex = nodes[nodeIndex][childId];
+					if (isMaterialNode(childIndex))
 					{
 						uint32_t childX = (childId >> 0) & 0x01;
 						uint32_t childY = (childId >> 1) & 0x01;
@@ -966,7 +968,7 @@ namespace Cubiquity
 		if (threadId == 0 && progMon) { progMon->finishTask(); }
 	}
 
-	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeArray& /*nodeData*/, ClosedTriangleTreeList& closedTriangleTreeList, ProgressMonitor* progMon)
+	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, ClosedTriangleTreeList& closedTriangleTreeList, ProgressMonitor* progMon)
 	{
 		const int threadCount = 4;
 		std::vector<std::thread> threads;
@@ -1052,99 +1054,27 @@ namespace Cubiquity
 		if (progMon) { progMon->finishTask(); }
 	}
 
-	void prune(Cubiquity::Volume& volume)
+	uint32 prune(NodeDAG& nodes, uint32 nodeIndex)
 	{
-		Internals::NodeArray& mNodeArray = Internals::getNodeArray(volume);
-
-		struct NodeState
+		Node node = nodes[nodeIndex];
+		for (int i = 0; i < 8; i++)
 		{
-			NodeState()
-				: mIndex(0)
-				, mCurrentChildIndex(0)
-				, mLowerCorner(std::numeric_limits<int32_t>::min()) {}
-
-			uint32_t mIndex;
-			uint32_t mCurrentChildIndex;
-			Vector3i mLowerCorner;
-		};
-
-		Box3i bounds;
-
-		const int rootHeight = Internals::logBase2(VolumeSideLength);
-		// Note that the first two elements of this stack never actually get used.
-		// Leaf and almost-leaf nodes(heights 0 and 1) never get put on the stack.
-		// We accept this wasted space, rather than subtracting two on every access.
-		std::vector<NodeState> nodeStateStack(rootHeight + 1);
-
-		int nodeHeight = rootHeight;
-		nodeStateStack[nodeHeight].mIndex = Internals::RootNodeIndex; // Root node is always at index 0.
-
-		Vector3i rootLowerBound(std::numeric_limits<int32>::min());
-		Vector3i rootUpperBound(std::numeric_limits<int32>::max());
-
-		//callback(mNodeArray, Internals::RootNodeIndex, Box3i(rootLowerBound, rootUpperBound));
-
-		while (true)
-		{
-			NodeState& nodeState = nodeStateStack[nodeHeight];
-
-			if (nodeState.mCurrentChildIndex < 8)
+			uint32 nodeChildIndex = node[i];
+			if (!isMaterialNode(nodeChildIndex))
 			{
-				uint32_t childId = nodeState.mCurrentChildIndex;
-				nodeState.mCurrentChildIndex++;
-
-				Internals::Node node = mNodeArray[nodeState.mIndex];
-
-				NodeState& childNodeState = nodeStateStack[nodeHeight - 1];
-
-				uint32_t childHeight = nodeHeight - 1;
-				uint32_t childSideLength = 1 << (childHeight);
-				uint32_t childX = (childId >> 0) & 0x01;
-				uint32_t childY = (childId >> 1) & 0x01;
-				uint32_t childZ = (childId >> 2) & 0x01;
-
-				// childX/Y/Z are all zero or one.
-				childNodeState.mLowerCorner[0] = nodeState.mLowerCorner[0] + (childSideLength * childX);
-				childNodeState.mLowerCorner[1] = nodeState.mLowerCorner[1] + (childSideLength * childY);
-				childNodeState.mLowerCorner[2] = nodeState.mLowerCorner[2] + (childSideLength * childZ);
-
-				childNodeState.mIndex = node.child(childId);
-
-				// Descend to any further children
-				if (childNodeState.mIndex >= Internals::MaterialCount)
-				{
-					childNodeState.mCurrentChildIndex = 0;
-
-					nodeHeight -= 1;
-				}
-			}
-			else
-			{
-				Internals::Node node = mNodeArray[nodeState.mIndex];
-
-				for (uint32 childId = 0; childId < 8; childId++)
-				{
-					// Do we need this test?
-					if (node.child(childId) >= MaterialCount)
-					{
-						const Node& childNode = mNodeArray[node.child(childId)];
-						MaterialId firstMaterial = childNode.child(0);
-						if (childNode.allChildrenAre(firstMaterial))
-						{
-							mNodeArray.setChild(nodeState.mIndex, childId, firstMaterial);
-						}
-					}
-				}
-
-				// If we get this far then the current node has no more children to process, so
-				// we are done with it. Pop it's parent off the stack and carry on processing that.
-				nodeHeight += 1;
-				if (nodeHeight > rootHeight)
-				{
-					break;
-				}
+				node[i] = prune(nodes, nodeChildIndex);
 			}
 		}
+
+		return nodes.isPrunable(node) ? node[0] : nodes.insert(node);
+	}
+
+	void prune(Volume& volume)
+	{
+		uint32 rootNodeIndex = getRootNodeIndex(volume);
+		NodeDAG& nodes = getNodes(volume);
+		uint32 newRootNodeIndex = prune(nodes, rootNodeIndex);
+		volume.setRootNodeIndex(newRootNodeIndex);
 	}
 
 	void fillInsideMeshNodeBased(Volume& volume, ClosedTriangleTreeList& closedTriangleTreeList, bool preserveSurfaceMaterials, ProgressMonitor* progMon)
@@ -1153,17 +1083,17 @@ namespace Cubiquity
 		// as zeros. Therefore any zero nodes at this point do not correspond to boundaries, and should be classified.
 		auto nodesToTest = findNodes(volume);
 
-		NodeArray& nodeData = Internals::getNodeArray(volume);
+		NodeDAG& nodeData = Internals::getNodes(volume);
 
 		std::cout << "Classifying " << nodesToTest.size() << " nodes..." << std::endl;
 		classifyNodes(nodesToTest, nodeData, closedTriangleTreeList, progMon);
 		// Apply the results to the volume
 		for (auto& toTest : nodesToTest)
 		{
-			Node& myNode = const_cast<Node&>(nodeData[toTest.index]);
+			Node myNode = nodeData[toTest.index];
 
 			// Read the current material, while also clearing the checkerboard pattern.
-			MaterialId matId = myNode.mChildren[toTest.childId] & (~gCheckerBoardBit);
+			MaterialId matId = myNode[toTest.childId] & (~gCheckerBoardBit);
 
 			// Determine the suggested new material
 			MaterialId newMatId = toTest.result;
@@ -1181,7 +1111,7 @@ namespace Cubiquity
 			}
 
 			// Write back result (clearing the checkerboard if nothing else).
-			myNode.mChildren[toTest.childId] = matId;
+			nodeData.nodes().setNodeChild(toTest.index, toTest.childId, matId);
 		}
 	}
 
@@ -1355,7 +1285,7 @@ namespace Cubiquity
 
 		// Brute-force mode is only really useful for testing and debugging purposes. It applies
 		// the inside/outside test directly on each voxel, rather than on the nodes resulting
-		// dividing up the volume during scan conversion.
+		// from dividing up the volume during scan conversion.
         if (useBruteForce)
         {
 			Cubiquity::Box3f bounds = computeBounds(splitTriangles);
@@ -1369,10 +1299,13 @@ namespace Cubiquity
             // suspect it happens mostly when the voxelised shell thickness is to great, though perhaps it also happens with
             // difficult geometry? Taking the former case, we might submit too many nodes for classification and a group of
             // eight children might all fall the same side of a boundary and so get the same value. These are then unpruned.
-            prune(volume);
+			prune(volume);
+			//volume.validate();
 
             // Sanity check that there are no unpruned nodes. Should be moved into utility/test function?
-            NodeArray& nodeData = Internals::getNodeArray(volume);
+
+			//FIXME - Used to use ref count, wht to do here?
+            /*NodeDAG& nodeData = Internals::getNodes(volume);
             for (uint32 index = RootNodeIndex; index < nodeData.size(); index++)
             {
                 const Node& node = nodeData[index];
@@ -1381,9 +1314,9 @@ namespace Cubiquity
                     std::cerr << "Unexpected ref count!" << std::endl;
                 }
 
-                if (node.refCount() > 0)
+                //if (node.refCount() > 0)
                 {
-                    if (node.child(0) < MaterialCount)
+                    if (nodeData.isMaterialNode(node.child(0)))
                     {
                         bool allChildrenMatch = true;
                         for (uint32 childId = 1; childId < 8; childId++)
@@ -1400,7 +1333,7 @@ namespace Cubiquity
                         }
                     }
                 }
-            }
+            }*/
         }
 	}
 }

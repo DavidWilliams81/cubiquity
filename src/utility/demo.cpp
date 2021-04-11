@@ -89,6 +89,8 @@ void Demo::onInitialise()
 		}
 		std::cout << " done" << std::endl;
 
+		mVolume.setTrackEdits(true);
+
 		Box3i bounds = computeBounds(mVolume, [](MaterialId matId) { return matId != 0; });
 
 		// If our volume consists of empty space carved out of a solid volume then the bounds will just be the entire
@@ -148,6 +150,12 @@ void Demo::onKeyUp(const SDL_KeyboardEvent& event)
 	{
 		close();
 	}
+
+	if ((event.keysym.mod & KMOD_CTRL) && event.keysym.sym == SDLK_z)
+	{
+		event.keysym.mod& KMOD_SHIFT ? mVolume.redo() : mVolume.undo();
+		onVolumeModified();
+	}
 }
 
 void Demo::onMouseMotion(const SDL_MouseMotionEvent& event)
@@ -173,23 +181,8 @@ void Demo::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 		RayVolumeIntersection intersection = ray_parameter(mVolume, ray);
 		if (intersection)
 		{
-			//Vector3d surfaceColour = decodeMaterial(intersection.material);
-			mVolume.setVoxel(static_cast<Vector3i>(intersection.position), 0); // FIXME - Should round psition?
-			Vector3i centre = static_cast<Vector3i>(intersection.position);
-			for (int32 z = centre.z() - 30; z < centre.z() + 30; z++)
-			{
-				for (int32 y = centre.y() - 30; y < centre.y() + 30; y++)
-				{
-					for (int32 x = centre.x() - 30; x < centre.x() + 30; x++)
-					{
-						Vector3d toCentre = intersection.position - Vector3d(x, y, z);
-						if (dot(toCentre, toCentre) < 900)
-						{
-							mVolume.setVoxel(x, y, z, 0);
-						}
-					}
-				}
-			}
+			SphereBrush brush(Vector3f(intersection.position.x(), intersection.position.y(), intersection.position.z()), 30);
+			mVolume.fillBrush(brush, 0);
 
 			onVolumeModified();
 		}

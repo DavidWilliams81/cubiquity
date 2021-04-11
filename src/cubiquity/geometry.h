@@ -527,6 +527,19 @@ namespace Cubiquity
 		return lhs.lower() == rhs.lower() && lhs.upper() == rhs.upper();
 	}
 
+	template <int Size, typename Type>
+	bool overlaps(const Box<Size, Type>& a, const Box<Size, Type>& b)
+	{
+		for (int i = 0; i < Size; i++)
+		{
+			if (a.upper()[i] < b.lower()[i] || a.lower()[i] > b.upper()[i])
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	typedef Box<2, int> Box2i;
 	typedef Box<2, float> Box2f;
 

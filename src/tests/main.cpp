@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 
 	//testVoxelization();
 
-	//testVolume();
+	testVolume();
 
 	//testMerge();
 }

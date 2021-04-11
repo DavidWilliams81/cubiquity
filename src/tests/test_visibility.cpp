@@ -23,13 +23,6 @@ void fillVolume(Volume* volume, const Box3i& bounds, Function function)
 	{
 		std::cout << "Generating slice " << z << std::endl;
 
-		if (z % 10 == 0)
-		{
-			std::cout << "Merging... " << std::endl;
-			getNodeArray(*volume).mergeOctree();
-			std::cout << "done" << std::endl;
-		}
-
 		for (uint32_t y = bounds.lower().y(); y <= bounds.upper().y(); y++)
 		{
 			for (uint32_t x = bounds.lower().x(); x <= bounds.upper().x(); x++)

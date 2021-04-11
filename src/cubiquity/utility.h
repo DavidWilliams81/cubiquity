@@ -161,7 +161,7 @@ namespace Cubiquity
 	template<typename Functor>
 	void traverseNodes(Cubiquity::Volume& volume, Functor&& callback, Vector3d startPoint = Vector3d(0.0))
 	{
-		Internals::NodeArray& mNodeArray = Internals::getNodeArray(volume);
+		Internals::NodeDAG& mDAG = Internals::getNodes(volume);
 
 		struct NodeState
 		{
@@ -181,7 +181,7 @@ namespace Cubiquity
 
 		Box3i bounds;
 
-		const int rootHeight = Internals::logBase2(VolumeSideLength);
+		const int rootHeight = Internals::logBase2(Internals::VolumeSideLength);
 		// Note that the first two elements of this stack never actually get used.
 		// Leaf and almost-leaf nodes(heights 0 and 1) never get put on the stack.
 		// We accept this wasted space, rather than subtracting two on every access.
@@ -189,7 +189,7 @@ namespace Cubiquity
 
 		int nodeHeight = rootHeight;
 		NodeState& rootNodeState = nodeStateStack[rootHeight];
-		rootNodeState.mIndex = Internals::RootNodeIndex; // Root node is always at index 0.
+		rootNodeState.mIndex = Internals::getRootNodeIndex(volume); // Root node is always at index 0.
 		rootNodeState.mCentre = Vector3f(-0.5f);
 
 		Vector3i rootLowerBound(std::numeric_limits<int32>::min());
@@ -199,7 +199,7 @@ namespace Cubiquity
 		if (startPoint.y() > rootNodeState.mCentre.y()) rootNodeState.mNearestChild |= 0x02;
 		if (startPoint.z() > rootNodeState.mCentre.z()) rootNodeState.mNearestChild |= 0x04;
 
-		callback(mNodeArray, Internals::RootNodeIndex, Box3i(rootLowerBound, rootUpperBound));
+		callback(mDAG, Internals::getRootNodeIndex(volume), Box3i(rootLowerBound, rootUpperBound));
 
 		while (true)
 		{
@@ -213,7 +213,7 @@ namespace Cubiquity
 
 				nodeState.mProcessedChildCount++;
 
-				Internals::Node node = mNodeArray[nodeState.mIndex];
+				Internals::Node node = mDAG[nodeState.mIndex];
 
 				NodeState& childNodeState = nodeStateStack[nodeHeight - 1];
 
@@ -238,15 +238,15 @@ namespace Cubiquity
 				if (startPoint.y() > childNodeState.mCentre.y()) childNodeState.mNearestChild |= 0x02;
 				if (startPoint.z() > childNodeState.mCentre.z()) childNodeState.mNearestChild |= 0x04;
 
-				childNodeState.mIndex = node.child(childId);
+				childNodeState.mIndex = node[childId];
 
 				Vector3i childLowerBound = childNodeState.mLowerCorner;
 				Vector3i childUpperBound = childNodeState.mLowerCorner + Vector3i(childSideLength - 1, childSideLength - 1, childSideLength - 1);
 
-				callback(mNodeArray, childNodeState.mIndex, Box3i(childLowerBound, childUpperBound));
+				callback(mDAG, childNodeState.mIndex, Box3i(childLowerBound, childUpperBound));
 
 				// Descend to any further children
-				if (childNodeState.mIndex >= Internals::MaterialCount)
+				if (!Internals::isMaterialNode(childNodeState.mIndex))
 				{
 					childNodeState.mProcessedChildCount = 0;
 
@@ -267,7 +267,6 @@ namespace Cubiquity
 	}
 
 	typedef std::map<MaterialId, uint64> Histogram;
-	uint64_t countNodes(Cubiquity::Volume& volume);
 	Cubiquity::Box3i computeBounds(Cubiquity::Volume& volume, bool(*include)(Cubiquity::MaterialId));
 	std::pair<uint16_t, Cubiquity::Box3i> estimateBounds(Cubiquity::Volume& volume);
 	Histogram computeHistogram(Volume& volume, const Box3i& bounds);

@@ -78,7 +78,7 @@ namespace Cubiquity
 	class NodeCounter
 	{
 	public:
-		void operator()(NodeArray& /*nodeArray*/, uint32 nodeIndex, Box3i /*bounds*/)
+		void operator()(NodeDAG& /*nodes*/, uint32 nodeIndex, Box3i /*bounds*/)
 		{
 			mUniqueNodes.insert(nodeIndex);
 		}
@@ -86,13 +86,6 @@ namespace Cubiquity
 	private:
 		std::set<uint32> mUniqueNodes;
 	};
-
-	uint64_t countNodes(Volume& volume)
-	{
-		NodeCounter nodeCounter;
-		traverseNodes(volume, nodeCounter);
-		return nodeCounter.count();
-	}
 
 	bool isInside(MaterialId matId)
 	{
@@ -108,9 +101,9 @@ namespace Cubiquity
 			mBounds.invalidate();
 		}
 
-		void operator()(NodeArray& /*nodeArray*/, uint32 nodeIndex, Box3i bounds)
+		void operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
 		{
-			if (nodeIndex < MaterialCount)
+			if (isMaterialNode(nodeIndex))
 			{
 				MaterialId matId = static_cast<MaterialId>(nodeIndex);
 				if (mIncludeFunc(matId))

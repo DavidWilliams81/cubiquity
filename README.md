@@ -28,7 +28,7 @@ The main features of Cubiquity are:
 
 * The engine is **lightweight and easy to integrate** with external game engines and/or graphics libraries. It consists of a small number of **zero-dependency C++ files** which can be directly added to your project or built into a library. Because it is **public domain** there are **no obligations or restrictions** on what you can do with the code.
 
-* Volume data is stored in a **Sparse Voxel DAG** which allows for extremely efficient compression and hence very large environments. The implementation improves over the [original SVDAG paper](http://www.cse.chalmers.se/~uffe/HighResolutionSparseVoxelDAGs.pdf) by providing copy-on-write semantics to unshare DAG nodes when needed, thereby enabling **runtime modifications** to the volume. It also adds support for **per-voxel material identifiers**.
+* Volume data is stored in a **Sparse Voxel DAG** which allows for extremely efficient compression and hence very large environments. The implementation builds on the [original SVDAG paper](http://www.cse.chalmers.se/~uffe/HighResolutionSparseVoxelDAGs.pdf) and also includes some concepts described in the ['HashDAG' paper](https://graphics.tudelft.nl/Publications-new/2020/CBE20/ModifyingCompressedVoxels-main.pdf), along with some novel contributions of its own. Taken together, these enable **runtime modifications** to the volume as well as support for **per-voxel material identifiers**.
 
 * A robust voxelisation algorithm based on [3D rasterisation](http://web.eecs.utk.edu/~huangj/papers/polygon.pdf) and [generalised winding numbers](https://igl.ethz.ch/projects/winding-number/robust-inside-outside-segmentation-using-generalized-winding-numbers-siggraph-2013-jacobson-et-al.pdf). This allows for **true 'solid' (filled) voxelisation** while also supporting multiple materials in the source mesh. The implementation uses a spatial hierarchy to improve performance and **includes an SIMD (AVX) version** of the winding number evaluation.
 
@@ -162,7 +162,7 @@ Cubiquity makes use of a few external projects, all of which are in the public d
 * **linalg.h:** https://github.com/sgorsten/linalg
 * **MurmurHash3:** https://github.com/aappleby/smhasher/wiki/MurmurHash3
 	
-The demos, tools, and tests also use some external projects, most of which can be found in the src/external folder (excapt SDL). 
+The demos, tools, and tests also use some external projects, most of which can be found in the src/external folder (except SDL). 
 
 * **Flags library:** https://github.com/sailormoon/flags
 * **Glad OpenGL loader:** https://glad.dav1d.de/

@@ -14,107 +14,124 @@
 #define CUBIQUITY_VOLUME_H
 
 #include "base.h"
+#include "geometry.h"
 
+#include <array>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Cubiquity
 {
-	static const MaterialId MinMaterial = 0;
-	static const MaterialId MaxMaterial = 65535;
-	static const uint64 VolumeSideLength = UINT64_C(1) << 32;
-
 	namespace Internals
 	{
-		static const uint32_t EmptyNodeIndex = 0;
-		static const uint32_t MaterialCount = static_cast<uint32_t>(MaxMaterial) + 1;
-		static const uint32_t RootNodeIndex = MaterialCount;
+		extern const MaterialId MinMaterial;
+		extern const MaterialId MaxMaterial;
+		extern const uint32     MaterialCount;
+		extern const uint64     VolumeSideLength;
 
-		class Node
+		bool isMaterialNode(uint32 nodeIndex);
+
+		typedef std::array<uint32_t, 8> Node;
+
+		class NodeStore
 		{
 		public:
+			NodeStore() { mData = new Node[size()]; }
+			~NodeStore() { delete[] mData; }
 
-			Node(uint32_t initialChildValue = 0);
+			const Node& operator[](uint32_t index) const { return mData[index]; }
 
-			bool operator== (const Node& rhs) const;
-			bool operator!= (const Node& rhs) const;
-
-			uint32_t refCount() const;
-
-			uint32_t child(uint32_t id) const;
-			void setChild(uint32_t id, uint32_t value);
-
-			bool allChildrenAre(uint32_t value) const;
-			bool allChildrenAreLessThan(uint32_t value) const;
-
-		public:
-			friend class NodeArray;
-
-			uint32_t mRefCount;
-			uint32_t mChildren[8];
+			void setNode(uint32 index, const Internals::Node& node);
+			void setNodeChild(uint32 nodeIndex, uint32 childId, uint32 newChildIndex);
+			uint32 size() const { return 0xFFFFFF; };
+			
+		private:
+			Node* mData = nullptr;
 		};
 
-		// custom hash can be a standalone function object:
-		struct NodeHash
-		{
-			uint32_t operator()(Node const& node, uint32_t seed = 0) const noexcept
-			{
-				/*size_t hashResult = 0;
-
-				for (int i = 0; i < 8; i++)
-				{
-				hashResult = hashResult ^ std::hash<uint32_t>{}(node.child(i));
-				}
-
-				return hashResult;*/
-
-				return murmurHash3(&(node.mChildren[0]), sizeof(uint32_t) * 8, seed);
-			}
-
-			std::vector<Internals::Node>* mNodeData = nullptr;
-		};
-	}
-
-	namespace Internals
-	{
-		class NodeArray
+		class NodeDAG
 		{
 		public:
-			NodeArray(uint32_t size, MaterialId initialValue);
-			NodeArray(const NodeArray& other);
-			~NodeArray();
+			NodeDAG();
 
-			NodeArray& operator=(const NodeArray& other);
+			const Node& operator[](uint32_t index) const { return mNodes[index]; }
 
-			uint32_t allocateNode(uint32_t initialChildValue = 0);
-			void resize(uint32_t size);
-			uint32_t size() const;
+			uint32 bakedNodesBegin() const { return MaterialCount; }
+			uint32 bakedNodesEnd() const { return mBakedNodesEnd; }
+			uint32 editNodesBegin() const { return mEditNodesBegin; }
+			uint32 editNodesEnd() const { return mNodes.size(); }
 
-			void setChild(uint32_t nodeIndex, uint32_t childId, uint32_t newChildIndex);
+			bool isBakedNode(uint32 index) const { return index >= bakedNodesBegin() && index < bakedNodesEnd(); }
+			bool isEditNode(uint32 index) const { return index >= editNodesBegin() && index < editNodesEnd(); }
 
-			// This function chenges the structure of the tree by merging nodes, but it does not
-			// move the nodes around in memory (so the array may be fragmented after calling.
-			void mergeOctree();
-			void mergeOctreeBruteForce();
+			NodeStore& nodes() { return mNodes; }
+			const NodeStore& nodes() const { return mNodes; }
 
-			// This function does not change the structure of the tree, but
-			// it moves the nodes around in memory so that they are contiguous.
-			// We should also check if it lays the nodes out in an optimal
-			// order (whatever that might be).
-			void defragment();
-
-			const Internals::Node& operator[](uint32_t index) const;
+			uint32 countNodes(uint32 startNodeIndex) const;
+			void countNodes(uint32 startNodeIndex, std::unordered_set<uint32>& usedIndices) const;
 
 			void read(std::ifstream& file);
 			void write(std::ofstream& file);
 
-		private:
-			uint32_t mSize;
-			Internals::Node* mData;
 
-			uint32_t mLastAllocation;
+			bool isPrunable(const Node& node) const;
+
+			uint32 insert(const Node& node);
+			uint32 updateNodeChild(uint32 nodeIndex, uint32 childId, uint32 newChildNodeIndex, bool forceCopy);
+
+			void merge(uint32 index);
+			uint32 mergeNode(uint32 nodeIndex, std::unordered_map<Internals::Node, uint32>& map, uint32& nextSpace);
+
+		private:
+			NodeStore mNodes;
+			uint32 mBakedNodesEnd = MaterialCount;
+			uint32 mEditNodesBegin = 0;
 		};
 	}
+
+	class Brush
+	{
+	public:
+		virtual bool contains(const Vector3f& point) const = 0;
+		virtual Box3f bounds() const = 0;
+
+		Vector3f mCentre;
+	};
+
+	class SphereBrush : public Brush
+	{
+	public:
+		SphereBrush(const Vector3f& centre, float radius)
+			:mRadiusSquared(radius * radius)
+		{
+			mCentre = centre;
+			mBounds = Box3f(centre - Vector3f(radius), centre + Vector3f(radius));
+		}
+
+		bool contains(const Vector3f& point) const
+		{
+			// WARNING - Dubious precision here - these values can be huge!
+			float distX = point.x() - mCentre.x();
+			float distY = point.y() - mCentre.y();
+			float distZ = point.z() - mCentre.z();
+
+			int64 distSq = (distX * distX + distY * distY + distZ * distZ);
+
+			return distSq < mRadiusSquared;
+		}
+
+		Box3f bounds() const
+		{
+			return mBounds;
+		}
+
+	public:
+		
+		float mRadiusSquared;
+		Box3f mBounds;
+	};
 
 	class Volume;
 	namespace Internals
@@ -125,39 +142,65 @@ namespace Cubiquity
 		// probably shouldn't be doing it.
 
 		/// Provides access to the raw node data.
-		NodeArray& getNodeArray(Volume& volume);
-		const NodeArray& getNodeArray(const Volume& volume);
+		NodeDAG& getNodes(Volume& volume);
+		const NodeDAG& getNodes(const Volume& volume);
+		//uint32& getRootNodeIndex(Volume& volume);
+		const uint32 getRootNodeIndex(const Volume& volume);
 	}
 
 	class Volume
 	{
 	public:
 
-		Volume(MaterialId initialValue = 0);
+		Volume();
 		Volume(const std::string& filename);
 
+		void fill(MaterialId matId);
+
+		uint32 rootNodeIndex() const;
+		void setRootNodeIndex(uint32 newRootNodeIndex);
+
+		void setTrackEdits(bool trackEdits);
+		bool undo();
+		bool redo();
+
+		void setVoxelRecursive(int32_t x, int32_t y, int32_t z, MaterialId matId);
+		uint32 setVoxelRecursive(uint32 ux, uint32 uy, uint32 uz, MaterialId matId, uint32 nodeIndex, int nodeHeight);
+
 		template <typename ArrayType>
-		void setVoxel(const ArrayType& position, MaterialId matId, bool checkIfAlreadySet = true);
-		void setVoxel(int32_t x, int32_t y, int32_t z, MaterialId matId, bool checkIfAlreadySet = true);
+		void setVoxel(const ArrayType& position, MaterialId matId);
+		void setVoxel(int32_t x, int32_t y, int32_t z, MaterialId matId);
+
+		void fillBrush(const Brush& brush, MaterialId matId);
+		uint32 fillBrush(const Brush& brush, MaterialId matId, uint32 nodeIndex, int nodeHeight, int32 nodeLowerX, int32 nodeLowerY, int32 nodeLowerZ);
 
 		template <typename ArrayType>
 		MaterialId voxel(const ArrayType& position);
 		MaterialId voxel(int32_t x, int32_t y, int32_t z);
 
-		void compact();
+		void bake();
+
+		uint32 countNodes() const { return mDAG.countNodes(rootNodeIndex()); };
 
 		bool load(const std::string& filename);
 		void save(const std::string& filename);
 
-
 	private:
 
-		void splitChild(uint32_t nodeIndex, uint32_t childIndex);
+		friend Internals::NodeDAG& Internals::getNodes(Volume& volume);
+		friend const Internals::NodeDAG& Internals::getNodes(const Volume& volume);
+		//friend uint32& Internals::getRootNodeIndex(Volume& volume);
+		friend const uint32 Internals::getRootNodeIndex(const Volume& volume);
+		
+		Internals::NodeDAG mDAG;
 
-		friend Internals::NodeArray& Internals::getNodeArray(Volume& volume);
-		friend const Internals::NodeArray& Internals::getNodeArray(const Volume& volume);
-
-		Internals::NodeArray mNodeArray;
+		// Note: The undo system is linear. If we apply operation A, undo it, and then apply operation B
+		// then A is lost. But it we wanted to we could still track it, because the appropriate edit still
+		// exists (it is jst unreferenced). But having such an undo history tree will probably be confusing
+		// for the user, moving forwards and backwards is probably enough.
+		bool mTrackEdits = false;
+		std::vector<uint32> mRootNodeIndices;
+		uint32 mCurrentRoot = 0;
 	};
 
 	// Implementation of templatised accessors
@@ -166,10 +209,24 @@ namespace Cubiquity
 		return voxel(position[0], position[1], position[2]);
 	}
 
-	template <typename ArrayType> void Volume::setVoxel(const ArrayType& position, MaterialId matId, bool checkIfAlreadySet)
+	template <typename ArrayType> void Volume::setVoxel(const ArrayType& position, MaterialId matId)
 	{
-		setVoxel(position[0], position[1], position[2], matId, checkIfAlreadySet);
+		setVoxel(position[0], position[1], position[2], matId);
 	}
+}
+
+namespace std
+{
+	template<>
+	struct hash<Cubiquity::Internals::Node>
+	{
+		Cubiquity::uint32 seed = 0;
+
+		std::size_t operator()(const Cubiquity::Internals::Node& node) const noexcept
+		{
+			return Cubiquity::Internals::murmurHash3(&(node[0]), sizeof(uint32_t) * 8, seed);
+		}
+	};
 }
 
 #endif //CUBIQUITY_VOLUME_H

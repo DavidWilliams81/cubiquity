@@ -25,79 +25,85 @@ using namespace Cubiquity::Internals;
 
 bool checkIntegrity(Volume& volume)
 {
-	NodeArray& nodeArray = getNodeArray(volume);
+	const NodeStore& nodes = getNodes(volume).nodes();
 
 	// Reserved nodes always contain dummy data.
-	for (uint32_t i = 0; i < MaterialCount; i++)
+	//for (uint32_t i = 0; i < MaterialCount; i++)
 	{
-		if (!nodeArray[i].refCount() == 0xFFFFFFFF)
-			return false;
-		if (!nodeArray[i].allChildrenAre(0xFFFFFFFF))
-			return false;
+		/*if (!nodes[i].refCount() == 0xFFFFFFFF)
+			return false;*/
+		/*if (!nodes[i].allChildrenAre(0xFFFFFFFF))
+			return false;*/
 	}
 
 	// The root node should always have a ref count of zero.
 	// The children can be any mix of zeros, ones, and actual indices.
-	if (nodeArray[RootNodeIndex].refCount() != 0)
-		return false;
+	/*if (nodes[RootNodeIndex].refCount() != 0)
+		return false;*/
 
 	// Now check the rest of the nodes.
-	for (uint32_t nodeIndex = RootNodeIndex + 1; nodeIndex < nodeArray.size(); nodeIndex++)
+	//for (uint32_t nodeIndex = nodes.hashMapBegin() + 1; nodeIndex < nodes.hashMapEnd(); nodeIndex++)
 	{
 		// If a node is not referenced then it should not have any children. I'm not
 		// certain that we need to enforce this but it might get complex if we don't.
-		if (nodeArray[nodeIndex].refCount() == 0)
+
+		//FIXME - Used to use ref count, wht to do here?
+		/*if (nodes[nodeIndex].refCount() == 0)
 		{
-			if (!nodeArray[nodeIndex].allChildrenAreLessThan(MaterialCount))
+			if (!nodes[nodeIndex].allChildrenAreLessThan(MaterialCount))
 				return false;
-		}
+		}*/
 		// Otherwise if it is referenced then it should not have all children
 		// pointing to the same material (in that case the referring
 		// node should have been pointed directly at the relevent child).
 		// Howeer, note that a node can have eight identical children if they
 		// are pointing at a real (non-material) node. For example, a 3D
 		// checkerboard will be stored as a single chain of such nodes.
-		else
+		/*else
 		{
 			for (uint32_t material = 0; material < MaterialCount; material++)
 			{
-				if (nodeArray[nodeIndex].allChildrenAre(material))
+				if (nodes[nodeIndex].allChildrenAre(material))
 					return false;
 			}
-		}
+		}*/
 	}
 
 	// Also check that no node points at itself.
-	for (uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodeArray.size(); nodeIndex++)
+	/*for (uint32_t nodeIndex = nodes.hashMapBegin(); nodeIndex < nodes.hashMapEnd(); nodeIndex++)
 	{
 		for (uint32_t childId = 0; childId < 8; childId++)
 		{
-			uint32_t childIndex = nodeArray[nodeIndex].child(childId);
+			uint32_t childIndex = nodes[nodeIndex][childId];
 			if (childIndex == nodeIndex)
 				return false;
 		}
-	}
+	}*/
+
+	// Fixme - should also check all nodes are pruned.
 
 	// Lastly we re-compute ref counts for all nodes
 	// and make sure they match the existing values.
-	bool allRefCountsCorrect = true;
-	uint32_t* correctRefCounts = new uint32_t[nodeArray.size()];
-	memset(correctRefCounts, 0, sizeof(uint32_t) * nodeArray.size());
+
+	//FIXME - Used to use ref count, wht to do here?
+	/*bool allRefCountsCorrect = true;
+	uint32_t* correctRefCounts = new uint32_t[nodes.size()];
+	memset(correctRefCounts, 0, sizeof(uint32_t) * nodes.size());
 
 	// Compute ref counts
-	for (uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodeArray.size(); nodeIndex++)
+	for (uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodes.size(); nodeIndex++)
 	{
 		for(uint32_t childId = 0; childId < 8; childId++)
 		{
-			uint32_t childIndex = nodeArray[nodeIndex].child(childId);
+			uint32_t childIndex = nodes[nodeIndex].child(childId);
 			correctRefCounts[childIndex]++;
 		}
 	}
 
 	// Check ref counts
-	for(uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodeArray.size(); nodeIndex++)
+	for(uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodes.size(); nodeIndex++)
 	{
-		if (nodeArray[nodeIndex].mRefCount != correctRefCounts[nodeIndex])
+		if (nodes[nodeIndex].mRefCount != correctRefCounts[nodeIndex])
 		{
 			allRefCountsCorrect = false;
 			break;
@@ -105,29 +111,34 @@ bool checkIntegrity(Volume& volume)
 	}
 
 	delete[] correctRefCounts;
-	return allRefCountsCorrect;
+	return allRefCountsCorrect;*/
+
+	return true;
 }
 
 std::set< std::pair<uint32_t, uint32_t> > mergeOpportunities(Volume& volume)
 {
-	NodeArray& nodeArray = getNodeArray(volume);
+	NodeDAG& nodes = getNodes(volume);
 
 	std::set< std::pair<uint32_t, uint32_t> > result;
 
-	std::vector< std::vector<uint32_t> > hashTable;
+	// Early out until we fix use of ref count.
+	return result;
+
+	/*std::vector< std::vector<uint32_t> > hashTable;
 
 	hashTable.resize(100000);
 
-	Internals::NodeHash nodeHasher;
 
 	// Skip empty and full nodes, as they contain identical (but dummy) data giving a false merge opportunity.
-	for (uint32_t index = RootNodeIndex; index <= nodeArray.size(); index++)
+	for (uint32_t index = nodes.mSharedEdits.mBegin; index <= nodes.mSharedEdits.mEnd; index++)
 	{
-		const Node& node = nodeArray[index];
+		const Node& node = nodes.mNodes[index];
 
-		if (node.mRefCount == 0) continue;
+		//FIXME - Used to use ref count, wht to do here?
+		//if (node.mRefCount == 0) continue;
 
-		uint32_t hash = nodeHasher(node);
+		uint32_t hash = std::hash<Node>{}(node);
 		hashTable[hash % hashTable.size()].push_back(index);
 	}
 
@@ -139,14 +150,14 @@ std::set< std::pair<uint32_t, uint32_t> > mergeOpportunities(Volume& volume)
 		for (uint32_t outerIndex = 0; outerIndex < bucket.size(); outerIndex++)
 		{
 			uint32_t outerNodeIndex = bucket[outerIndex];
-			const Node& outerNode = nodeArray[outerNodeIndex];
-			assert(outerNode.mRefCount > 0);
+			const Node& outerNode = nodes.mNodes[outerNodeIndex];
+			//assert(outerNode.mRefCount > 0);
 
 			for (uint32_t innerIndex = outerIndex + 1; innerIndex < bucket.size(); innerIndex++)
 			{
 				uint32_t innerNodeIndex = bucket[innerIndex];
-				const Node& innerNode = nodeArray[innerNodeIndex];
-				assert(innerNode.mRefCount > 0);
+				const Node& innerNode = nodes.mNodes[innerNodeIndex];
+				//assert(innerNode.mRefCount > 0);
 
 				// '==' Ignores ref count, so two node are identical even if thier ref counts differ.
 				if(innerNode == outerNode)
@@ -158,28 +169,18 @@ std::set< std::pair<uint32_t, uint32_t> > mergeOpportunities(Volume& volume)
 		}
 	}
 
-	return result;
+	return result;*/
 }
 
 template <typename PositionEnumeratorType, typename Function>
-void applyFunction(Volume* volume, const Box3i& bounds, Function function, uint64_t mergeInterval = std::numeric_limits<uint64_t>::max())
+void applyFunction(Volume* volume, const Box3i& bounds, Function function)
 {
-	uint64_t applyCount = 0;
 	PositionEnumeratorType pe(bounds);
 
 	do
 	{
 		auto functionResult = function(pe.x(), pe.y(), pe.z());
 		volume->setVoxel(pe.x(), pe.y(), pe.z(), functionResult);
-
-		applyCount++;
-		if (applyCount % mergeInterval == 0)
-		{
-			std::cout << "Merging and defragmenting...";
-			getNodeArray(*volume).mergeOctree();
-			getNodeArray(*volume).defragment();
-			std::cout << "done." << std::endl;
-		}
 	}
 	while(pe.next());
 }
@@ -264,7 +265,7 @@ bool testBasics()
 
 	// Volume should start empty
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
-	std::cout << "Empty volume node count = " << countNodes(*volume) << std::endl;
+	std::cout << "Empty volume node count = " << volume->countNodes() << std::endl;
 	std::cout << "Empty volume has " << result.first << " matches and " << result.second << " mismatches" << std::endl << std::endl;
 
 	if(!checkIntegrity(*volume))
@@ -275,7 +276,7 @@ bool testBasics()
 	// Fill it
 	applyFunction<RandomPositionEnumerator>(volume.get(), bounds,  [](uint32_t, uint32_t, uint32_t) { return 5; });
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 5; });
-	std::cout << "Full volume node count = " << countNodes(*volume) << std::endl;
+	std::cout << "Full volume node count = " << volume->countNodes() << std::endl;
 	std::cout << "Full volume has " << result.first << " matches and " << result.second << " mismatches" << std::endl << std::endl;
 
 	if(!checkIntegrity(*volume))
@@ -286,7 +287,7 @@ bool testBasics()
 	// Empty it again
 	applyFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
-	std::cout << "Empty volume node count = " << countNodes(*volume) << std::endl;
+	std::cout << "Empty volume node count = " << volume->countNodes() << std::endl;
 	std::cout << "Empty volume has " << result.first << " matches and " << result.second << " mismatches" << std::endl << std::endl;
 
 	if(!checkIntegrity(*volume))
@@ -316,9 +317,9 @@ bool testCheckerboard()
 	applyFunction<RandomPositionEnumerator>(volume.get(), bounds,  checkerboard);
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, checkerboard);
 
-	std::cout << "Node count before merge= " << countNodes(*volume) << std::endl;
-	getNodeArray(*volume).mergeOctree();
-	std::cout << "Node count after merge= " << countNodes(*volume) << std::endl;
+	std::cout << "Node count before bake = " << volume->countNodes() << std::endl;
+	volume->bake();
+	std::cout << "Node count after bake = " << volume->countNodes() << std::endl;
 
 	if(!checkIntegrity(*volume))
 	{
@@ -350,7 +351,7 @@ bool testRandomAccess()
 		std::cerr << "Integrity check failed!!!" << std::endl;
 	}
 
-	std::cout << "Node count = " << countNodes(*volume) << std::endl;
+	std::cout << "Node count = " << volume->countNodes() << std::endl;
 
 	std::cout << "Completed test in " << timer.elapsedTimeInSeconds() << " seconds." << std::endl;
 
@@ -379,7 +380,7 @@ bool testSerialization()
 	auto validationResult = validateFunction<RandomPositionEnumerator>(volume, bounds, fractalNoise);
 
 	// Test the result
-	std::cout << "Simplex noise test gave " << validationResult.first << " matches and "
+	std::cout << "Serialization noise test gave " << validationResult.first << " matches and "
 		<< validationResult.second << " mismatches" << std::endl;
 
 	if(!checkIntegrity(*volume))
@@ -415,28 +416,20 @@ bool testFractalNoise()
 		FractalNoise fractalNoise(7, offset, offset, offset);
 		applyFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise);
 
-		// Sometimes merge/defragment the octree
+		// Sometimes bake the octree
 		if (i % 2 == 0)
 		{
-			getNodeArray(*volume).mergeOctree();
-
-			auto remainingMergeOpportunities = mergeOpportunities(*volume);
-			for (auto opp : remainingMergeOpportunities)
-			{
-				std::cout << "Warning: Remaining merge opportunity: " << opp.first << " with " << opp.second << std::endl;
-			}
+			volume->bake();
 		}
-
-		if (i % 3 == 0) { getNodeArray(*volume).defragment(); }
 
 		auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise);
 
 		// Test the result
 		std::cout << "Simplex noise test gave " << validationResult.first << " matches and "
-			<< validationResult.second << " mismatches, node count = " << countNodes(*volume) << std::endl;
+			<< validationResult.second << " mismatches, node count = " << volume->countNodes()  << std::endl;
 
 		// Just another check that the node count is as expected
-		if (i == 0) { assert(countNodes(*volume) == 36106); }
+		if (i == 0) { assert(volume->countNodes() == 22817); }
 	}
 
 	if(!checkIntegrity(*volume))
@@ -469,37 +462,28 @@ bool testMerging()
 
 	do
 	{
-		uint8_t result = fractalNoise(pe.x(), pe.y(), pe.z());
+		auto result = fractalNoise(pe.x(), pe.y(), pe.z());
 		if (result > 0)
 		{
-			volume->setVoxel(pe.x(), pe.y(), pe.z(), result, false);
+			volume->setVoxel(pe.x(), pe.y(), pe.z(), result);
 		}
 	} while (pe.next());
 
-	//applyFunction<MortonPositionEnumerator>(volume, fractalNoise);
+	//applyFunction<MortonPositionEnumerator>(volume.get(), bounds, fractalNoise);
 
 	std::cout << timer.elapsedTimeInSeconds() << " : Wrote data" << std::endl;
 
-	getNodeArray(*volume).mergeOctree();
-	std::cout << timer.elapsedTimeInSeconds() << " : Merged" << std::endl;
-
-	auto remainingMergeOpportunities = mergeOpportunities(*volume);
-	for (auto opp : remainingMergeOpportunities)
-	{
-		std::cout << "Warning: Remaining merge opportunity: " << opp.first << " with " << opp.second << std::endl;
-	}
-
-	getNodeArray(*volume).defragment();
-	std::cout << timer.elapsedTimeInSeconds() << " : Defragmented" << std::endl;
+	volume->bake();
+	std::cout << timer.elapsedTimeInSeconds() << " : Baked" << std::endl;
 
 	auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise, 1000000);
 
 	// Test the result
 	std::cout << "Simplex noise test gave " << validationResult.first << " matches and "
-		<< validationResult.second << " mismatches, node count = " << countNodes(*volume) << std::endl;
+		<< validationResult.second << " mismatches, node count = " << volume->countNodes() << std::endl;
 
 	// Just another check that the node count is as expected
-	assert(countNodes(*volume) == 126633);
+	assert(volume->countNodes() == 67065);
 
 	if(!checkIntegrity(*volume))
 	{

@@ -110,9 +110,9 @@ public:
 		mIntersection.distance = 10000000000.0f;
 	}
 
-	void operator()(NodeArray& /*nodeArray*/, uint32 nodeIndex, Box3i bounds)
+	void operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
 	{
-		if ((nodeIndex < MaterialCount) && (nodeIndex > 0)) // Non-empty leaf node
+		if ((isMaterialNode(nodeIndex)) && (nodeIndex > 0)) // Non-empty leaf node
 		{
 			Box3f dilatedBounds = static_cast<Box3f>(bounds);
 			dilatedBounds.dilate(0.5f);

@@ -26,9 +26,9 @@ namespace Cubiquity
 		//                        __/ |                                                           //
 		//                       |___/                                                            //
 		////////////////////////////////////////////////////////////////////////////////////////////
-		//                                                                                        //                                                            
-		// Various useful low-level/bitwise operations                                            //  
-		//                                                                                        //  
+		//                                                                                        //
+		// Various useful low-level/bitwise operations                                            //
+		//                                                                                        //
 		////////////////////////////////////////////////////////////////////////////////////////////
 
 		// See https://stackoverflow.com/a/1898487

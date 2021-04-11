@@ -31,11 +31,16 @@
 using namespace Cubiquity;
 using namespace Internals;
 
+int voxelizeTerrain(const std::string& heightMap, const std::string& colourMap);
+
 int main(int /*argc*/, char** /*argv*/)
 {
+	//voxelizeTerrain("", "");
+	//return 0;
+
 	// Create a volume
 	int targetSize = 256;
-	Volume volume(0);
+	Volume volume;
 
 	// Load a mesh to voxelise
 	const char* path = "../data";
@@ -85,7 +90,7 @@ int main(int /*argc*/, char** /*argv*/)
 	TerminalProgressBar progressBar;
 	voxelize(volume, splitTriangles, true, 0, &progressBar);
 	std::cout << "Voxelised in " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
-	std::cout << "Node count before merging = " << countNodes(volume) << std::endl;
+	std::cout << "Node count before merging = " << volume.countNodes() << std::endl;
 
 	// Save the result
 	std::cout << "Saving volume...";
@@ -100,4 +105,40 @@ int main(int /*argc*/, char** /*argv*/)
 	std::cout << estimatedBounds.lower() << " " << estimatedBounds.upper() << std::endl;
 	Histogram histogram = computeHistogram(volume, estimatedBounds);
 	printHistogram(histogram);
+}
+
+int voxelizeTerrain(const std::string& heightMap, const std::string& colourMap)
+{
+	Timer timer;
+	Volume volume;
+
+	uint32 width = 256;
+	uint32 height = 256;
+
+	bool doneTidy = false;
+
+	for (int x = 0; x < width; x++)
+	{
+		std::cout << "x = " << x << std::endl;
+		for (int y = 0; y < height; y++)
+		{
+			//std::cout << "y = " << y << std::endl;
+			for (int z = 0; z < 256; z++)
+			{
+				//std::cout << "z = " << z << std::endl;
+				volume.setVoxel(x, y, z, 0x0FFF);
+				if (z == 100 && !doneTidy)
+				{
+					//volume.tidyHashMap();
+					doneTidy = true;
+				}
+			}
+		}
+		//volume.tidyEdits();
+	}
+
+	volume.save("../data/terrain.vol");
+	std::cout << "Finished in " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
+
+	return 0;
 }

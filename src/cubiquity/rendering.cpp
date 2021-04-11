@@ -25,6 +25,8 @@ namespace Cubiquity
 {
 	using namespace Internals;
 
+	static const uint32_t EmptyNodeIndex = 0;
+
 	// Was in VisibilityMask.cpp
 
 	VisibilityMask::VisibilityMask(uint32_t width, uint32_t height)
@@ -1291,9 +1293,9 @@ namespace Cubiquity
 		if (cameraPos.y() > centreY) nearestChild |= 0x02;
 		if (cameraPos.z() > centreZ) nearestChild |= 0x04;
 
-		const NodeArray& nodeData = getNodeArray(*volume);
+		const NodeStore& nodeData = getNodes(*volume).nodes();
 
-		while (nodeIndex >= MaterialCount)
+		while (!isMaterialNode(nodeIndex))
 		{
 			// Based on Octree traversal method here: https://www.flipcode.com/archives/Harmless_Algorithms-Issue_02_Scene_Traversal_Algorithms.shtml#octh
 			const uint8_t bitToggles[] = { 0x00, 0x01, 0x02, 0x04, 0x03, 0x05, 0x06, 0x07 };
@@ -1301,7 +1303,7 @@ namespace Cubiquity
 			for (auto bt : bitToggles)
 			{
 				uint32_t childId = nearestChild ^ bt;
-				uint32_t childIndex = nodeData[nodeIndex].mChildren[childId];
+				uint32_t childIndex = nodeData[nodeIndex][childId];
 
 				// Zero is a material used to denote empty space. But for the purpose of this function
 				// we don't want to include it as it doesn't help provide a valid material for rendering.
@@ -1313,8 +1315,7 @@ namespace Cubiquity
 			}
 		}
 
-		assert(nodeIndex > 0);
-		assert(nodeIndex < MaterialCount);
+		assert(isMaterialNode(nodeIndex));
 
 		return nodeIndex;
 	}
@@ -1332,7 +1333,7 @@ namespace Cubiquity
 					uint8_t childId = z << 2 | y << 1 | x;
 
 					//bool hasChild = node.hasChild(childIndex);
-					const uint32_t childIndex = node.mChildren[childId];
+					const uint32_t childIndex = node[childId];
 
 					// If the child is not occupied then add a normal contribution in it's direction.
 					if (childIndex == EmptyNodeIndex)
@@ -1427,14 +1428,14 @@ namespace Cubiquity
 		//assert(rootGlyphList);
 		NodeState nodeStateStack[33];
 
-		const NodeArray& nodeData = getNodeArray(*volume);
+		const NodeStore& nodeData = getNodes(*volume).nodes();
 
 		uint32_t nodeHeight = logBase2(VolumeSideLength);
 		const uint32_t rootHeight = nodeHeight;
 
 		// Initialise the root node state
 		NodeState& rootNodeState = nodeStateStack[rootHeight];
-		rootNodeState.mIndex = RootNodeIndex;
+		rootNodeState.mIndex = getRootNodeIndex(*volume);
 		rootNodeState.mCentre = Vector3f(-0.5f);
 		rootNodeState.mLowerCorner = Vector3i(std::numeric_limits<int32_t>::min());
 		rootNodeState.mCentreX2 = (static_cast<Vector3i64>(rootNodeState.mLowerCorner) * int64_t(2)) + Vector3i64(VolumeSideLength - 1);
@@ -1577,14 +1578,14 @@ namespace Cubiquity
 			nodeState.mProcessedChildCount++;
 
 			//bool hasChild = node.hasChild(childIndex);
-			const uint32_t childIndex = node.mChildren[childId];
+			const uint32_t childIndex = node[childId];
 
 			if (childIndex == 0)
 			{
 				continue;
 			}
 
-			if (childIndex < MaterialCount)
+			if (isMaterialNode(childIndex))
 			{
 				// Note that we don't bother starting a new glyph list in this case. A single voxel is unlikly to be bigger
 				// than the max glyph list footprint, but even if it is we don't want a whole glyph list for a single voxel.
@@ -1635,7 +1636,7 @@ namespace Cubiquity
 				}
 			}
 
-			if (childIndex >= RootNodeIndex)
+			if (!isMaterialNode(childIndex))
 			{
 				// The node state is not used to 'communicate' between children, just to return to the parent's
 				// state when moving back up the tree. Therefore we clear the state when entering a new child.
@@ -1657,7 +1658,7 @@ namespace Cubiquity
 
 				childNodeState.mCentreX2 = (static_cast<Vector3i64>(childNodeState.mLowerCorner) * int64_t(2)) + Vector3i64(childNodeSize - 1);
 
-				childNodeState.mIndex = node.mChildren[childId];
+				childNodeState.mIndex = node[childId];
 
 				// Note: We store our nodes in 'zyx' order, with 'x' in the LSB.
 				// Old floating point version below.
@@ -1737,7 +1738,7 @@ namespace Cubiquity
 		return std::string(level * 2, ' ');
 	}
 
-	void proc_subtree(double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, const Internals::NodeArray& nodeArray, uint32 nodeIndex, RayVolumeIntersection& intersection, int level)
+	void proc_subtree(double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, const Internals::NodeStore& nodes, uint32 nodeIndex, RayVolumeIntersection& intersection, int level)
 	{
 		if (intersection) return;
 		//childId = reverseBits(childId);
@@ -1752,7 +1753,7 @@ namespace Cubiquity
 			return;
 		}
 
-		if (nodeIndex < MaterialCount) // Leaf node
+		if (isMaterialNode(nodeIndex))
 		{
 			if (nodeIndex > 0) // Occupied node
 			{
@@ -1804,42 +1805,42 @@ namespace Cubiquity
 			switch (currNode)
 			{
 			case 0:
-				proc_subtree(tx0, ty0, tz0, txm, tym, tzm, nodeArray, nodeArray[nodeIndex].mChildren[a], intersection, level + 1);
+				proc_subtree(tx0, ty0, tz0, txm, tym, tzm, nodes, nodes[nodeIndex][a], intersection, level + 1);
 				currNode = new_node(txm, 1, tym, 2, tzm, 4);
 				break;
 			case 1:
-				proc_subtree(txm, ty0, tz0, tx1, tym, tzm, nodeArray, nodeArray[nodeIndex].mChildren[1 ^ a], intersection, level + 1);
+				proc_subtree(txm, ty0, tz0, tx1, tym, tzm, nodes, nodes[nodeIndex][1 ^ a], intersection, level + 1);
 				currNode = new_node(tx1, 8, tym, 3, tzm, 5);
 				break;
 			case 2:
-				proc_subtree(tx0, tym, tz0, txm, ty1, tzm, nodeArray, nodeArray[nodeIndex].mChildren[2 ^ a], intersection, level + 1);
+				proc_subtree(tx0, tym, tz0, txm, ty1, tzm, nodes, nodes[nodeIndex][2 ^ a], intersection, level + 1);
 				currNode = new_node(txm, 3, ty1, 8, tzm, 6);
 				break;
 			case 3:
-				proc_subtree(txm, tym, tz0, tx1, ty1, tzm, nodeArray, nodeArray[nodeIndex].mChildren[3 ^ a], intersection, level + 1);
+				proc_subtree(txm, tym, tz0, tx1, ty1, tzm, nodes, nodes[nodeIndex][3 ^ a], intersection, level + 1);
 				currNode = new_node(tx1, 8, ty1, 8, tzm, 7);
 				break;
 			case 4:
-				proc_subtree(tx0, ty0, tzm, txm, tym, tz1, nodeArray, nodeArray[nodeIndex].mChildren[4 ^ a], intersection, level + 1);
+				proc_subtree(tx0, ty0, tzm, txm, tym, tz1, nodes, nodes[nodeIndex][4 ^ a], intersection, level + 1);
 				currNode = new_node(txm, 5, tym, 6, tz1, 8);
 				break;
 			case 5:
-				proc_subtree(txm, ty0, tzm, tx1, tym, tz1, nodeArray, nodeArray[nodeIndex].mChildren[5 ^ a], intersection, level + 1);
+				proc_subtree(txm, ty0, tzm, tx1, tym, tz1, nodes, nodes[nodeIndex][5 ^ a], intersection, level + 1);
 				currNode = new_node(tx1, 8, tym, 7, tz1, 8);
 				break;
 			case 6:
-				proc_subtree(tx0, tym, tzm, txm, ty1, tz1, nodeArray, nodeArray[nodeIndex].mChildren[6 ^ a], intersection, level + 1);
+				proc_subtree(tx0, tym, tzm, txm, ty1, tz1, nodes, nodes[nodeIndex][6 ^ a], intersection, level + 1);
 				currNode = new_node(txm, 7, ty1, 8, tz1, 8);
 				break;
 			case 7:
-				proc_subtree(txm, tym, tzm, tx1, ty1, tz1, nodeArray, nodeArray[nodeIndex].mChildren[7 ^ a], intersection, level + 1);
+				proc_subtree(txm, tym, tzm, tx1, ty1, tz1, nodes, nodes[nodeIndex][7 ^ a], intersection, level + 1);
 				currNode = 8;
 				break;
 			}
 		} while (currNode < 8);
 	}
 
-	void proc_subtree_iter(double tx0In, double ty0In, double tz0In, double tx1In, double ty1In, double tz1In, const Internals::NodeArray& nodeArray, uint32 nodeIndexIn, RayVolumeIntersection& intersection, int level)
+	void proc_subtree_iter(double tx0In, double ty0In, double tz0In, double tx1In, double ty1In, double tz1In, const Internals::NodeStore& nodes, uint32 nodeIndexIn, RayVolumeIntersection& intersection, int level)
 	{
 		struct State
 		{
@@ -1870,7 +1871,7 @@ namespace Cubiquity
 					continue;
 				}
 
-				if (pState->nodeIndex < MaterialCount) // Leaf node
+				if (isMaterialNode(pState->nodeIndex))
 				{
 					if (pState->nodeIndex > 0) // Occupied node
 					{
@@ -1919,36 +1920,36 @@ namespace Cubiquity
 			switch (pState->currNode)
 			{
 			case 0:
-				pNextState->set(pState->tx0, pState->ty0, pState->tz0, pState->txm, pState->tym, pState->tzm, nodeArray[pState->nodeIndex].mChildren[a]);
+				pNextState->set(pState->tx0, pState->ty0, pState->tz0, pState->txm, pState->tym, pState->tzm, nodes[pState->nodeIndex][a]);
 				pState->currNode = new_node(pState->txm, 1, pState->tym, 2, pState->tzm, 4);
 				break;
 			case 1:
-				//if (nodeArray[pState->nodeIndex].mChildren[1 ^ a] == 0) { level--; pState--; continue; }
-				pNextState->set(pState->txm, pState->ty0, pState->tz0, pState->tx1, pState->tym, pState->tzm, nodeArray[pState->nodeIndex].mChildren[1 ^ a]);
+				//if (nodes[pState->nodeIndex].mChildren[1 ^ a] == 0) { level--; pState--; continue; }
+				pNextState->set(pState->txm, pState->ty0, pState->tz0, pState->tx1, pState->tym, pState->tzm, nodes[pState->nodeIndex][1 ^ a]);
 				pState->currNode = new_node(pState->tx1, 8, pState->tym, 3, pState->tzm, 5);
 				break;
 			case 2:
-				pNextState->set(pState->tx0, pState->tym, pState->tz0, pState->txm, pState->ty1, pState->tzm, nodeArray[pState->nodeIndex].mChildren[2 ^ a]);
+				pNextState->set(pState->tx0, pState->tym, pState->tz0, pState->txm, pState->ty1, pState->tzm, nodes[pState->nodeIndex][2 ^ a]);
 				pState->currNode = new_node(pState->txm, 3, pState->ty1, 8, pState->tzm, 6);
 				break;
 			case 3:
-				pNextState->set(pState->txm, pState->tym, pState->tz0, pState->tx1, pState->ty1, pState->tzm, nodeArray[pState->nodeIndex].mChildren[3 ^ a]);
+				pNextState->set(pState->txm, pState->tym, pState->tz0, pState->tx1, pState->ty1, pState->tzm, nodes[pState->nodeIndex][3 ^ a]);
 				pState->currNode = new_node(pState->tx1, 8, pState->ty1, 8, pState->tzm, 7);
 				break;
 			case 4:
-				pNextState->set(pState->tx0, pState->ty0, pState->tzm, pState->txm, pState->tym, pState->tz1, nodeArray[pState->nodeIndex].mChildren[4 ^ a]);
+				pNextState->set(pState->tx0, pState->ty0, pState->tzm, pState->txm, pState->tym, pState->tz1, nodes[pState->nodeIndex][4 ^ a]);
 				pState->currNode = new_node(pState->txm, 5, pState->tym, 6, pState->tz1, 8);
 				break;
 			case 5:
-				pNextState->set(pState->txm, pState->ty0, pState->tzm, pState->tx1, pState->tym, pState->tz1, nodeArray[pState->nodeIndex].mChildren[5 ^ a]);
+				pNextState->set(pState->txm, pState->ty0, pState->tzm, pState->tx1, pState->tym, pState->tz1, nodes[pState->nodeIndex][5 ^ a]);
 				pState->currNode = new_node(pState->tx1, 8, pState->tym, 7, pState->tz1, 8);
 				break;
 			case 6:
-				pNextState->set(pState->tx0, pState->tym, pState->tzm, pState->txm, pState->ty1, pState->tz1, nodeArray[pState->nodeIndex].mChildren[6 ^ a]);
+				pNextState->set(pState->tx0, pState->tym, pState->tzm, pState->txm, pState->ty1, pState->tz1, nodes[pState->nodeIndex][6 ^ a]);
 				pState->currNode = new_node(pState->txm, 7, pState->ty1, 8, pState->tz1, 8);
 				break;
 			case 7:
-				pNextState->set(pState->txm, pState->tym, pState->tzm, pState->tx1, pState->ty1, pState->tz1, nodeArray[pState->nodeIndex].mChildren[7 ^ a]);
+				pNextState->set(pState->txm, pState->tym, pState->tzm, pState->tx1, pState->ty1, pState->tz1, nodes[pState->nodeIndex][7 ^ a]);
 				pState->currNode = 8;
 				break;
 			case 8:
@@ -1999,7 +2000,7 @@ namespace Cubiquity
 
 		a = 0;
 
-		const Internals::NodeArray& mNodeArray = Internals::getNodeArray(volume);
+		const Internals::NodeStore& nodes = Internals::getNodes(volume).nodes();
 
 		Vector3i rootLowerBound(std::numeric_limits<int32>::min());
 		Vector3i rootUpperBound(std::numeric_limits<int32>::max());
@@ -2039,7 +2040,7 @@ namespace Cubiquity
 
 		if (std::max(std::max(tx0, ty0), tz0) < std::min(std::min(tx1, ty1), tz1))
 		{
-			proc_subtree_iter(tx0, ty0, tz0, tx1, ty1, tz1, mNodeArray, Internals::RootNodeIndex, intersection, 0);
+			proc_subtree_iter(tx0, ty0, tz0, tx1, ty1, tz1, nodes, getRootNodeIndex(volume), intersection, 0);
 		}
 
 		intersection.position = inputRay.mOrigin + (inputRay.mDir * intersection.distance);
