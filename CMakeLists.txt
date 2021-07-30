@@ -39,7 +39,7 @@ include_directories(src/utility)
 
 # SDL 2 is needed for the demos. See https://stackoverflow.com/a/44347594
 # and https://trenki2.github.io/blog/2017/06/02/using-sdl2-with-cmake/
-find_package(SDL2 REQUIRED)
+find_package(SDL2)
 
 # I'm not quite clear on why we need this for a standard library feature but it
 # seems that we do (at least on GCC?). See https://stackoverflow.com/a/39547577
@@ -79,10 +79,12 @@ target_link_libraries(external)
 #
 ################################################################################
 
-file(GLOB UTILITY_SRCS src/utility/*)
-add_library(utility ${UTILITY_SRCS})
-include_directories(utility ${SDL2_INCLUDE_DIRS})
-target_link_libraries(utility cubiquity external ${SDL2_LIBRARIES} ${CMAKE_DL_LIBS})
+if (SDL2_FOUND) # Should probably not need SDL for utility?
+    file(GLOB UTILITY_SRCS src/utility/*)
+    add_library(utility ${UTILITY_SRCS})
+    include_directories(utility ${SDL2_INCLUDE_DIRS})
+    target_link_libraries(utility cubiquity external ${SDL2_LIBRARIES} ${CMAKE_DL_LIBS})
+endif()
 
 ################################################################################
 #
@@ -90,11 +92,13 @@ target_link_libraries(utility cubiquity external ${SDL2_LIBRARIES} ${CMAKE_DL_LI
 #
 ################################################################################
 
-file(GLOB INSTANCING_SRCS
-     src/demos/instancing/*
-     src/demos/instancing/framework/*)
-add_executable(instancing ${INSTANCING_SRCS})
-target_link_libraries(instancing cubiquity external utility)
+if (SDL2_FOUND)
+    file(GLOB INSTANCING_SRCS
+        src/demos/instancing/*
+        src/demos/instancing/framework/*)
+    add_executable(instancing ${INSTANCING_SRCS})
+    target_link_libraries(instancing cubiquity external utility)
+endif()
 
 ################################################################################
 #
@@ -102,11 +106,13 @@ target_link_libraries(instancing cubiquity external utility)
 #
 ################################################################################
 
-add_executable(pathtracing src/demos/pathtracing/main.cpp)
-target_link_libraries(pathtracing cubiquity external utility ${SDL2_LIBRARIES})
+if (SDL2_FOUND)
+    add_executable(pathtracing src/demos/pathtracing/main.cpp)
+    target_link_libraries(pathtracing cubiquity external utility ${SDL2_LIBRARIES})
 
-# Set startup project in Visual Studio: https://stackoverflow.com/a/37994396
-set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT pathtracing)
+    # Set startup project in Visual Studio: https://stackoverflow.com/a/37994396
+    set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT pathtracing)
+endif()
 
 ################################################################################
 #
@@ -114,9 +120,11 @@ set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT pathtracing)
 #
 ################################################################################
 
-file(GLOB TEST_SRCS src/tests/*.cpp src/tests/*.h src/tests/*.inl)
-add_executable(test ${TEST_SRCS})
-target_link_libraries(test cubiquity external utility)
+if (SDL2_FOUND) # Tests use utility, which currently uses SDL2.
+    file(GLOB TEST_SRCS src/tests/*.cpp src/tests/*.h src/tests/*.inl)
+    add_executable(test ${TEST_SRCS})
+    target_link_libraries(test cubiquity external utility)
+endif()
 
 ################################################################################
 #
