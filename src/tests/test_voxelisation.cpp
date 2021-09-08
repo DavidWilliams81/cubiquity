@@ -98,7 +98,7 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	return true;
 }
 
-bool testVoxelize(Geometry& geometry, bool preserveSurfaceMaterials = false,
+/*bool testVoxelize(Geometry& geometry, bool preserveSurfaceMaterials = false,
 	uint16 internalMaterialOveride = 0, bool useBruteForce = false)
 {
 	std::cout << "Testing voxelisation" << std::endl;
@@ -106,7 +106,13 @@ bool testVoxelize(Geometry& geometry, bool preserveSurfaceMaterials = false,
 
 	Volume volume;
 	TerminalProgressBar progressBar;
-	voxelize(volume, geometry, preserveSurfaceMaterials, internalMaterialOveride, &progressBar, useBruteForce);
+
+	for (auto& object : geometry)
+	{
+		std::cout << "Voxelising " << object.name << "..." << std::endl;
+		voxelize(volume, object, preserveSurfaceMaterials, internalMaterialOveride, &progressBar, useBruteForce);
+		std::cout << std::endl;
+	}
 
 	auto result = estimateBounds(volume);
 	Box3i bounds = result.second;
@@ -149,11 +155,11 @@ bool testVoxelize(Geometry& geometry, bool preserveSurfaceMaterials = false,
 	saveVolumeAsImages(volume, "..", &progressBar);
 
 	return true;
-}
+}*/
 
 bool testVoxelization()
 {
-	const char* filename = "shapes.obj";
+	/*const char* filename = "shapes.obj";
 	auto geometry = loadObjFile("../../Data", filename);
 
 	// The 'shapes' model is relatively small so we need to scale it up to be representitive
@@ -176,6 +182,6 @@ bool testVoxelization()
 	std::cout << std::endl;
 	testVoxelize(geometry, false, 0, true); // Brute force, slow.
 	//testVoxelizeWithPreserveSurface(geometry);
-
+	*/
 	return true;
 }

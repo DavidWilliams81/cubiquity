@@ -16,10 +16,19 @@
 
 #include "storage.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+
+// g++ currently doesn't support std::execution.
+#if defined (_MSC_VER) && _MSC_VER >= 1900
+#include <execution>
+#endif
+
+
+#include <mutex>
+#include <sstream>
 #include <thread>
-#include <unordered_map>
 
 #ifdef CUBIQUITY_USE_AVX
 	#include <immintrin.h>
@@ -28,9 +37,6 @@
 namespace Cubiquity
 {
 	using namespace Internals;
-
-	static const int gCheckerBoardBitShift = 15;
-	static const MaterialId gCheckerBoardBit = 1 << gCheckerBoardBitShift;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////
 	//   _    _ _           _ _               _   _                 _                             //
@@ -43,6 +49,12 @@ namespace Cubiquity
 	//                                |___/                                                       //
 	////////////////////////////////////////////////////////////////////////////////////////////////
 	typedef std::pair<Vector3f, Vector3f> TriangleEdge;
+
+	// Theorectcally the threshold should be 0.5f. However, triangles often pass *exactly*
+	// through the centre of a voxel due to e.g. being modelled on a grid in a DCC package,
+	// and/or being scaled by interger amounts. Rounding errors mean that such triangles can
+	// end up with a noisy surface, and the epsilon below helps to avoid this.
+	const float gWindingNumberThreshold = 0.5 + 0.001f;
 
 	TriangleEdge flip(const TriangleEdge& edge)
 	{
@@ -588,6 +600,92 @@ namespace Cubiquity
 		mChildren[1] = std::unique_ptr<ClosedTriangleTree>(new ClosedTriangleTree(triangles1, false));
 	}
 
+	Surface::Surface()
+		:mainMaterial(0) {}
+
+	void Surface::addTriangle(const Triangle& tri, MaterialId matId)
+	{
+		triangles.push_back(tri);
+		materials.push_back(matId);
+	}
+
+	void Surface::build()
+	{
+		assert(triangles.size() == materials.size());
+
+		// The mean winding number of the samples can be used to determine how well-formed the surface is.
+		//
+		// For a well-formed mesh we expect samples to have a winding number of +/-1.0 inside the surface
+		// and 0.0 outside the surface. If we assume that there are approximately the same number of inside
+		// vs. outside samples then we would expect to see a mean winding number of +/-0.5 for a well formed 
+		// mesh, but it would be closer zero for a inconsistently wound mesh (as there would be a mix of
+		// positive and negative winding numbers).
+		//
+		// In practice there may not be an equal number of inside vs. outside samples. If the mesh is long
+		// and thin then it may actually miss most of the samples, which will push the mean winding number
+		// towards zero and incorrectly suggest that it is inconsistently-wound. On the other hand, if it
+		// is a large cubic mesh it may catch most of the samples and push the winding number towards one.
+		// Note that this is less of a problem, because it should still detect an inconsistenly-wound
+		// surfaces as they will still have a mix of positive and negative values.
+		//
+		// To resolve the above we only include samples in the mean if their absolute value is above a
+		// threshold. A well formed mesh will then have amean winding number of 1.0 (as all the included
+		// samples will have a value of 1.0). If the mean winding number has a smaller magnitude it is likely
+		// to suggest that the surface is either inconsistenly-wound or is not properly closed (both of these
+		// make it difficult to fill the interiour). A mean winding number greater than 1.0 has been seen to
+		// occur when an otherwise-closed surface has extra details or protrusions seperately modelled on it.
+		// Anecdotally these do not see to cause such a problem for voxelisation (possibly just because they
+		// are typically small compred to the surface itself?)
+		const int sampleCount = 100;
+		int validSamples = 0;
+		meanWindingNumber = 0.0f;
+
+		bounds = computeBounds(triangles);
+		Cubiquity::Box3fSampler sampler(bounds);
+		for (uint32_t i = 0; i < sampleCount; i++)
+		{
+			Vector3f point = sampler.next();
+			float windingNumber = computeWindingNumber(point, triangles);
+
+			const float inclusionThreshold = 0.5f; // No real basis for this value. It can be tweaked as required.
+			if (std::abs(windingNumber) > inclusionThreshold)
+			{
+				meanWindingNumber += windingNumber;
+				validSamples++;
+			}
+		}
+		meanWindingNumber /= validSamples;
+
+		// Warn the user if the surface does not appear to be well formed.
+		const float windingNumberTolerance = 0.001;
+		if(std::abs(meanWindingNumber) < (1.0f - windingNumberTolerance))
+		{
+			std::cerr << "Warning: Surface " << name << " has a mean winding number of "
+				<< meanWindingNumber << ", which is closer to zero than expected. Perhaps it "
+				<< "contains inconsistently-wound faces or is not properly closed?" << std::endl;
+		}
+
+		if (std::abs(meanWindingNumber) > (1.0f + windingNumberTolerance))
+		{
+			std::cerr << "Warning: Surface " << name << " has a mean winding number of "
+				<< meanWindingNumber << ", which is further from zero than expected. Perhaps "
+				<< "it contains doubled-up geometry or separate surface details?" << std::endl;
+		}
+
+		// Find the main material of the surface as the material which covers the greatest area. 
+		// Attempts to use winding numbers have less obvious behaviour for open/inverted surfaces.
+		std::vector<float> areas(MaterialCount);
+		std::fill(areas.begin(), areas.end(), 0.0f);
+		for (uint i = 0; i < triangles.size(); i++)
+		{
+			areas[materials[i]] += triangles[i].area();
+		}
+		mainMaterial = std::distance(areas.begin(), std::max_element(areas.begin(), areas.end()));
+
+		// Build the closed triangle tree representaton from the list of triangles.
+		closedTriangleTree = std::make_unique<ClosedTriangleTree>(triangles);
+	}
+
 	////////////////////////////////////////////////////////////////////////////////////////////////
 	//   ___________   _____                   _____                               _              //
 	//  |____ |  _  \ /  ___|                 /  __ \                             (_)             //
@@ -620,28 +718,8 @@ namespace Cubiquity
 	// details.                                                                                   //
 	//                                                                                            //
 	////////////////////////////////////////////////////////////////////////////////////////////////
-	void scanConvert3D(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier)
+	float computeMinThickness(const Triangle& triangle)
 	{
-		// Now that we have the threshold we iterate over all voxels in the
-		// triangle's bounding box and output those which are close enough to it.
-
-		const Vector3f a = triangle.vertices[0];
-		const Vector3f b = triangle.vertices[1];
-		const Vector3f c = triangle.vertices[2];
-
-		// Compute threshold based on Section 4.2 of "An Accurate Method To Voxelize Polygonal Meshes" by Huang et al.
-		Vector3f planeNormal = cross(b - a, a - c);
-
-		// Not sure if/how we should handle tiny triangles?
-		//assert(length(planeNormal) > 0.01f);
-		if (length(planeNormal) <= 0.01f)
-		{
-			return;
-		}
-
-		const float L = 1.0f; // From figure 10 in the paper, our voxels have unity side length.
-		float distThreshold = 0.0f;
-
 		// Note: There seems to be some errors/inconsistencies in the paper. Perhaps it is a pre-print? I'm looking at this copy:
 		//
 		//		https://pdfs.semanticscholar.org/2827/c00e687c870f84e5006b851aa038ca9f971a.pdf
@@ -662,8 +740,18 @@ namespace Cubiquity
 		//
 		// Unless I find a better copy I think I'll just do what I think is correct, ensuring that a seperabilty of 6 gives the thicker surface.
 
+		const uint seperation = 26; // Amount of seperation, must be '6' (thicker) or '26' (thinner).
+		const float L = 1.0f; // From figure 10 in the paper, our voxels have unity side length.
+
+		const Vector3f a = triangle.vertices[0];
+		const Vector3f b = triangle.vertices[1];
+		const Vector3f c = triangle.vertices[2];
+
+		// Compute threshold based on Section 4.2 of "An Accurate Method To Voxelize Polygonal Meshes" by Huang et al.
+		Vector3f planeNormal = cross(b - a, a - c);
+
 		// For thick surfaces
-		if (thickness == Thickness::Separate6)
+		if (seperation == 6)
 		{
 			// Compute a 'normal' vector to the appropriate corner.
 			// This roughly corresponds to 'K' in Figure 10 of the paper.
@@ -675,11 +763,11 @@ namespace Cubiquity
 
 			float cosAlpha = dot(cornerNormal, planeNormal) / (length(cornerNormal) * length(planeNormal));
 
-			distThreshold = (L / 2) * sqrt(3.0f) * cosAlpha;
+			return (L / 2) * sqrt(3.0f) * cosAlpha;
 		}
 
 		// For thin surfaces.
-		if (thickness == Thickness::Separate26)
+		if (seperation == 26)
 		{
 			// Compute the normal to the face which is best
 			// aligned (most co-planar) with the input triangle;
@@ -691,8 +779,55 @@ namespace Cubiquity
 
 			// The paper says "For generating 6-separating line we define t6 = (L/2)cos[Beta]". I think
 			// they  mean 'surface' instead of 'line', to match the previous sentence in the paper?
-			distThreshold = (L / 2) * cosBeta;
+			return (L / 2) * cosBeta;
 		}
+
+		assert(false && "Seperation must be '6' or '26'");
+		return 0;
+	}
+
+	void drawFragment(int32 x, int32 y, int32 z, MaterialId matId, MaterialId externalMaterial, Volume& volume, uint pass)
+	{
+		const MaterialId checkerboard = ((x & 0x1) ^ (y & 0x1) ^ (z & 0x1)) + 1; // '1' or '2'.
+
+		switch (pass)
+		{
+		case 0:
+			// Write a checkerboard of values which are different from the exteriour material.
+			volume.setVoxel(x, y, z, externalMaterial + checkerboard);
+			break;
+		case 1:
+			// Draw surface only for interiour voxels.
+			if (volume.voxel(x, y, z) != externalMaterial)
+			{
+				volume.setVoxel(x, y, z, matId);
+			}
+			break;
+		default:
+			assert(false && "Invalid pass");
+		}
+	}
+
+	void scanConvert3D(const Triangle& triangle, MaterialId matId, MaterialId externalMaterial, Volume& volume, Thickness thickness, float multiplier, uint pass)
+	{
+		// Now that we have the threshold we iterate over all voxels in the
+		// triangle's bounding box and output those which are close enough to it.
+
+		const Vector3f a = triangle.vertices[0];
+		const Vector3f b = triangle.vertices[1];
+		const Vector3f c = triangle.vertices[2];
+
+		// Compute threshold based on Section 4.2 of "An Accurate Method To Voxelize Polygonal Meshes" by Huang et al.
+		Vector3f planeNormal = cross(b - a, a - c);
+
+		// Not sure if/how we should handle tiny triangles?
+		//assert(length(planeNormal) > 0.01f);
+		if (length(planeNormal) <= 0.01f)
+		{
+			return;
+		}
+
+		float distThreshold = computeMinThickness(triangle);
 
 		distThreshold *= multiplier;
 
@@ -728,18 +863,14 @@ namespace Cubiquity
 					const float epsilon = 0.001f;
 					if (dist <= (distThreshold + epsilon))
 					{
-						// Logical OR the mateiral id with a checkerboard pattern, in order to  
-						// prevent neighbouring voxels from being identical and therefore pruned.
-						MaterialId checkerboard = (x & 0x1) ^ (y & 0x1) ^ (z & 0x1);
-						checkerboard <<= gCheckerBoardBitShift;
-						volume.setVoxel(x, y, z, matId | checkerboard);
+						drawFragment(x, y, z, matId, externalMaterial, volume, pass);
 					}
 				}
 			}
 		}
 	}
 
-	void scanConvert3DRecursive(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier)
+	void scanConvert3DRecursive(const Triangle& triangle, MaterialId matId, MaterialId externalMaterial, Volume& volume, Thickness thickness, float multiplier, uint pass)
 	{
 		const float splitThreshold = 20.0f;
 
@@ -763,12 +894,12 @@ namespace Cubiquity
 			output0.vertices[longestSideIndex] = longestSideMidpoint;
 			output1.vertices[(longestSideIndex + 1) % 3] = longestSideMidpoint;
 
-			scanConvert3DRecursive(output0, matId, volume, thickness, multiplier);
-			scanConvert3DRecursive(output1, matId, volume, thickness, multiplier);
+			scanConvert3DRecursive(output0, matId, externalMaterial, volume, thickness, multiplier, pass);
+			scanConvert3DRecursive(output1, matId, externalMaterial, volume, thickness, multiplier, pass);
 		}
 		else
 		{
-			scanConvert3D(triangle, matId, volume, thickness, multiplier);
+			scanConvert3D(triangle, matId, externalMaterial, volume, thickness, multiplier, pass);
 		}
 	}
 
@@ -782,69 +913,93 @@ namespace Cubiquity
 	//                                                                                            //
 	////////////////////////////////////////////////////////////////////////////////////////////////
 
-	// Finds the main material for an object by looking for the subobject with the biggest
-	// winding number with respect to the object centre, and returning the material from that.
-	MaterialId findMainMaterial(const Object& object)
+	void voxelizeShell(Volume& volume, const TriangleList& triList, const MaterialList& materialList, MaterialId externalMaterial, uint pass, ProgressMonitor* progMon)
 	{
-		Box3f bounds = computeBounds(object);
-		Vector3f queryPoint = bounds.centre();
+		uint32_t triCount = triList.size();
 
-		MaterialId materialId = 0;
-		float biggestWindingNumber = std::numeric_limits<float>::lowest();
+		uint32_t trianglesDrawn = 0;
+		if (progMon) { progMon->startTask("Performing 3D scan conversion"); }
 
-		for (const auto& subObject : object.subObjects)
+		assert(triList.size() == materialList.size());
+
+		//for (const auto triangle : triList)
+		for (uint i = 0; i < triList.size(); i++)
 		{
-			float windingNumber = computeWindingNumber(queryPoint, subObject.second);
-			if (windingNumber > biggestWindingNumber)
+			const Triangle& triangle = triList[i];
+			const MaterialId& matId = materialList[i];
+			if ((trianglesDrawn % 1000 == 0))
 			{
-				biggestWindingNumber = windingNumber;
-				materialId = subObject.first;
+				if (progMon) { progMon->setProgress(0, trianglesDrawn, triCount); };
 			}
+
+			/*if (index % 300 == 0)
+			{
+			std::cout << "Writing triangle... " << index / 3 << std::endl;
+			}*/
+
+			//uint32_t i0 = mesh.triangles()[index].indices[0];
+			//uint32_t i1 = mesh.triangles()[index].indices[1];
+			//uint32_t i2 = mesh.triangles()[index].indices[2];
+
+			Triangle scaled(triangle);
+			const float scaleFactor = 1.01f;
+			Vector3f centre = (scaled.vertices[0] + scaled.vertices[1] + scaled.vertices[2]) / 3.0f;
+
+			scaled.translate(centre * -1.0f);
+			scaled.scale(scaleFactor);
+			scaled.translate(centre);
+
+			// We want to draw the thinnest triangles we can (while still seperating nodes on
+			// one side from nodes on the other) in order to minimise the number of nodes we
+			// have to classify. Intuitively this should mean 26-seperating triangles. But this
+			// is not enough because some (roughly half) of the generated 'fragments' actually 
+			// fall outside of the object. Once we remove these during the subsequent inside/outside
+			// test we end up with holes in our surface. I believe this is a problem both for
+			// seperating the inside vs. outside, and also if we later colour the surface (as we
+			// need to make sure underlying voxels don't show through).
+			//
+			// Therefore we need to draw a thicker surface. It can be as thick as we like
+			// (and perhaps we should let the user configure it) but must be at least enough
+			// to avoid the aforementioned holes. I don't have a mathematical derivation for
+			// this but have simply found that scaling the thickness by the multiplier below
+			// gives visually satisfactory results. Any less and we start to see holes.
+			//
+			// We could also use 6-seperating triangles in this case a multiplier is still
+			// needed, but the slightly smaller value of 1.9 seemed to work), but overall I
+			// prefered the qualty and consistancy of the 26-seperating triangles.
+			float multiplier = pass == 0 ? 1.0f : 2.1f;
+			scanConvert3DRecursive(scaled, matId, externalMaterial, volume, Thickness::Separate26, multiplier, pass);
+			trianglesDrawn++;
 		}
 
-		return materialId;
+		if (progMon) { progMon->finishTask(); }
 	}
 
-	float threshold = 0.0f;
-
-	MaterialId determineMaterial(const Vector3f& queryPoint, ClosedTriangleTreeList& triangleMap)
+	bool isInside(const Vector3f& queryPoint, const Surface& surface, bool useHierarchicalEval)
 	{
 		float sum = 0.0f;
-		float biggestWindingNumber = std::numeric_limits<float>::lowest();
-		MaterialId biggestMaterial = 0x0;
-
-		for (auto& triangleContainer : triangleMap)
+		if (useHierarchicalEval)
 		{
-			float windingNumber = computeWindingNumber(queryPoint, triangleContainer.second);
-
-			sum += windingNumber;
-
-			// It is quite common for a voxel to be inside two closed objects, meaning it could get the material.
-			// from either. The epsilon below causes it to choose the first unless the second is signifcantly larger.
-			float epsilon = 0.5f;
-			if (windingNumber > biggestWindingNumber + epsilon)
-			{
-				biggestWindingNumber = windingNumber;
-				biggestMaterial = triangleContainer.first;
-			}
+			sum = computeWindingNumber(queryPoint, *(surface.closedTriangleTree));
 		}
-
-		return sum > threshold ? biggestMaterial : 0;
+		else
+		{
+			sum = computeWindingNumber(queryPoint, surface.triangles);
+		}
+		return std::abs(sum) > gWindingNumberThreshold;
 	}
 
-	void fillInsideMeshBruteForce(Volume& volume, ClosedTriangleTreeList& closedTriangleTreeList, Box3f bounds, bool preserveSurfaceMaterials, ProgressMonitor* progMon)
+	void doBruteForceVoxelisation(Volume& volume, Surface& surface, MaterialId internalMaterial,
+		MaterialId externalMaterial, bool useHierarchicalMeshEval, ProgressMonitor* progMon)
 	{
-		// In the current implementation the bouds we receive are actually for the mesh, but some 
-		// dilation occurs due to the threshold used in the 3D scan conversion. Therefore we need
-		// to dilate the bounds slightly to ensure we capture all voxels set during this process.
-		bounds.dilate(3.0f);
+		Box3i voxelisationBounds = static_cast<Box3i>(surface.bounds);
+		voxelisationBounds.dilate(2); // Make sure we really cover everything
 
-		Vector3f minBound = bounds.lower();
-		Vector3f maxBound = bounds.upper();
+		Vector3i minBound = voxelisationBounds.lower();
+		Vector3i maxBound = voxelisationBounds.upper();
 
-		//ProgressBar progressBar(maxBound.z() - minBound.z(), 70);
-
-		if (progMon) { progMon->startTask("Classifying nodes (Brute Force!)"); }
+		// Iterate over each voxel within the bounds and classify as inside or outside
+		if (progMon) { progMon->startTask("Classifying voxels (Brute Force!)"); }
 		for (int32 volZ = minBound.z(); volZ <= maxBound.z(); volZ++)
 		{
 			if (progMon){ progMon->setProgress(minBound.z(), volZ, maxBound.z()); }
@@ -852,31 +1007,17 @@ namespace Cubiquity
 			{
 				for (int32 volX = minBound.x(); volX <= maxBound.x(); volX++)
 				{
-					// Read the current material, while also clearing the checkerboard pattern.
-					MaterialId matId = volume.voxel(volX, volY, volZ) & (~gCheckerBoardBit);
-
-					// Determine the suggested new material
-					MaterialId newMatId = determineMaterial(
-						Vector3f(volX, volY, volZ), closedTriangleTreeList);
-
-					// This condition preserves the materials generated by scan conversion. When
-					// preserving, we can only write to a voxel if it is currently empty or if it
-					// is being deleted. We cannot replace one valid material with another.
-					//
-					// This flag might cause differences at material boundaries, e.g. if two 
-					// differnt polygons affect a voxel then with this condition the result will be
-					// whatever was drawn last, rather than which has the biggest winding number.
-					if ((!preserveSurfaceMaterials) || (matId == 0) || (newMatId == 0))
+					if (isInside(Vector3f(volX, volY, volZ), surface, useHierarchicalMeshEval))
 					{
-						matId = newMatId;
+						volume.setVoxel(volX, volY, volZ, internalMaterial);
 					}
-
-					// Write back result (clearing the checkerboard if nothing else).
-					volume.setVoxel(volX, volY, volZ, matId);
+					else
+					{
+						volume.setVoxel(volX, volY, volZ, externalMaterial);
+					}
 				}
 			}			
 		}
-
 		if (progMon) { progMon->finishTask(); }
 	}
 
@@ -885,51 +1026,40 @@ namespace Cubiquity
 		uint32_t index;
 		uint32_t childId;
 		Vector3f centre;
-		MaterialId result; // FIXME - Should this actually be a bool?
+		bool result;
 	};
 
 	class NodeFinder
 	{
 	public:
-		void operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
+		bool operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i nodeBounds)
 		{
+			// Signal to stop traversing parts of the tree which do not overlap our voxelised object.
+			if (!overlaps(nodeBounds, mBounds)) { return false; }
+
+			// If this is a non-leaf (internal) node then check if any of its children are leaves.
+			// If so, add them to the list of nodes on which the inside/outside test will be performed.
 			if (!isMaterialNode(nodeIndex))
 			{
-				// Octree should not be merged here, so all ref counts should be '1' (except for the roor, which should always be zero).
-
-				//FIXME - Used to use ref count, wht to do here?
-				//const uint32 expectedRefCount = nodeIndex == RootNodeIndex ? 0 : 1;
-				//(void)(expectedRefCount); // Suppress 'unused' warnings when not using asserts.
-				//assert(nodes[nodeIndex].mRefCount == expectedRefCount && "Octree cannot be merged for this operation.");
-
-				uint32 nodeSideLength = bounds.upper().x() - bounds.lower().x() + 1;
-				uint32 childSideLength = nodeSideLength / 2;
 				for (unsigned int childId = 0; childId < 8; childId++)
 				{
-					uint32 childIndex = nodes[nodeIndex][childId];
-					if (isMaterialNode(childIndex))
+					uint32 childNodeIndex = nodes[nodeIndex][childId];
+					if (isMaterialNode(childNodeIndex))
 					{
-						uint32_t childX = (childId >> 0) & 0x01;
-						uint32_t childY = (childId >> 1) & 0x01;
-						uint32_t childZ = (childId >> 2) & 0x01;
-
-						Vector3i childLowerCorner;
-
-						// childX/Y/Z are all zero or one.
-						childLowerCorner[0] = bounds.lower()[0] + (childSideLength * childX);
-						childLowerCorner[1] = bounds.lower()[1] + (childSideLength * childY);
-						childLowerCorner[2] = bounds.lower()[2] + (childSideLength * childZ);
-
-						Vector3i childUpperCorner = childLowerCorner + Vector3i(childSideLength - 1);
-
-						NodeToTest toTest;
-						toTest.index = nodeIndex;
-						toTest.childId = childId;
-						toTest.centre = static_cast<Vector3f>(childUpperCorner + childLowerCorner) * 0.5f;
-						mNodes.push_back(toTest);
+						Box3i childNodeBounds = childBounds(nodeBounds, childId);
+						if (overlaps(childNodeBounds, mBounds))
+						{
+							NodeToTest toTest;
+							toTest.index = nodeIndex;
+							toTest.childId = childId;
+							toTest.centre = static_cast<Vector3f>(childNodeBounds.lower() + childNodeBounds.upper()) * 0.5f;
+							mNodes.push_back(toTest);
+						}
 					}
 				}
 			}
+
+			return true;
 		}
 
 		std::vector<NodeToTest> nodes()
@@ -940,117 +1070,42 @@ namespace Cubiquity
 	private:
 		std::vector<NodeToTest> mNodes;
 
+	public:
+		Box3i mBounds;
+
 	};
 
-	std::vector<NodeToTest> findNodes(Volume& volume)
+	std::vector<NodeToTest> findNodes(Volume& volume, Box3i bounds)
 	{
 		NodeFinder nodeFinder;
-		traverseNodes(volume, nodeFinder);
+		nodeFinder.mBounds = bounds;
+		traverseNodesRecursive(volume, nodeFinder);
 		return nodeFinder.nodes();
 	}
 
-
-	void classifyNodesWorker(std::vector<NodeToTest>& nodesToTest, std::list<std::pair<MaterialId, ClosedTriangleTree> >& nodes, int threadId, int threadCount, ProgressMonitor* progMon)
+	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, Surface& surface, ProgressMonitor* progMon, bool useHierarchicalMeshEval)
 	{
-		if (progMon) { progMon->startTask("Classifying nodes"); }
-		for (uint32_t index = threadId; index < nodesToTest.size(); index += threadCount)
+		int i = 0;
+		std::stringstream ss;
+		ss << "Classifying " << nodesToTest.size() << " nodes";
+		if (progMon) { progMon->startTask(ss.str()); }
+
+		std::mutex m;
+
+#if defined (_MSC_VER) && _MSC_VER >= 1900
+		std::for_each(std::execution::par, nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
+#else
+		std::for_each(nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
+#endif
 		{
-			// FIXME - index % 1000 might never be hit as we increament by threadCount.
-			if (threadId == 0 && (index % 1000 == 0))
-			{
-				if (progMon) { progMon->setProgress(threadId, index, nodesToTest.size()); }
-			}
+			nodeToTest.result = isInside(nodeToTest.centre, surface, useHierarchicalMeshEval);
+			std::lock_guard<std::mutex> guard(m);
 
-			auto& toTest = nodesToTest[index];
+			if (progMon && i % 1000 == 0) { progMon->setProgress(0, i, nodesToTest.size()); }
+			i++;
+		});
 
-			toTest.result = determineMaterial(toTest.centre, nodes);
-		}
-		if (threadId == 0 && progMon) { progMon->finishTask(); }
-	}
 
-	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, ClosedTriangleTreeList& closedTriangleTreeList, ProgressMonitor* progMon)
-	{
-		const int threadCount = 4;
-		std::vector<std::thread> threads;
-		for (int i = 0; i < threadCount; i++)
-		{
-			threads.push_back(std::thread(classifyNodesWorker, std::ref(nodesToTest), std::ref(closedTriangleTreeList), i, threadCount, progMon));
-		}
-
-		for (auto& thread : threads)
-		{
-			thread.join();
-		}
-	}
-
-	void voxelizeShell(Volume& volume, const Geometry& splitTriangles, bool preserveSurfaceMaterials, ProgressMonitor* progMon)
-	{
-		uint32_t triCount = 0;
-		for (auto& object : splitTriangles)
-		{
-			for (auto& subObject : object.subObjects)
-			{
-				triCount += subObject.second.size();
-			}
-		}
-
-		std::vector<NodeToTest> boundaryNodesToTest;
-
-		uint32_t trianglesDrawn = 0;
-		if (progMon) { progMon->startTask("Performing 3D scan conversion"); }
-		for (auto& object : splitTriangles)
-		{
-			for (auto& subObject : object.subObjects)
-			{
-				for (const auto triangle : subObject.second)
-				{
-					if ((trianglesDrawn % 1000 == 0))
-					{
-						if (progMon) { progMon->setProgress(0, trianglesDrawn, triCount); };
-					}
-
-					/*if (index % 300 == 0)
-					{
-					std::cout << "Writing triangle... " << index / 3 << std::endl;
-					}*/
-
-					//uint32_t i0 = mesh.triangles()[index].indices[0];
-					//uint32_t i1 = mesh.triangles()[index].indices[1];
-					//uint32_t i2 = mesh.triangles()[index].indices[2];
-
-					Triangle scaled(triangle);
-					const float scaleFactor = 1.01f;
-					Vector3f centre = (scaled.vertices[0] + scaled.vertices[1] + scaled.vertices[2]) / 3.0f;
-
-					scaled.translate(centre * -1.0f);
-					scaled.scale(scaleFactor);
-					scaled.translate(centre);
-
-					MaterialId materialId = subObject.first;
-
-					// When *not* preserving surface materials we draw the thinnest triangles we
-					// can (while still seperating nodes on one side from nodes on the other)
-					// which is are 26-seperating triangles. But this is not enough if we are
-					// trying to preserve the surface material, because some (roughly half) of the
-					// generated 'fragments' actually fall outside of the object. Once we remove
-					// these during the subsequent inside/outside test we end up with holes in our
-					// surface.
-					//
-					// Therefore we need to draw a thicker surface. It can be as thick as we like
-					// (and perhaps we should let the user configure it) but must be at least enough
-					// to avoid the aforementioned holes. I don't have a mathematical derivation for
-					// this but have simply found that scaling the thickness by the multiplier below
-					// gives visually satisfactory results. Any less and we start to see holes.
-					//
-					// We could also use 6-seperating triangles in this case  a multiplier is still
-					// needed, but the slightly smaller value of 1.9 seemed to work), but overall I
-					// prefered the qualty and consistancy of the 26-seperating triangles.
-					float multiplier = preserveSurfaceMaterials ? 2.1f : 1.0f;
-					scanConvert3DRecursive(scaled, materialId, volume, Thickness::Separate26, multiplier);
-					trianglesDrawn++;
-				}
-			}
-		}
 		if (progMon) { progMon->finishTask(); }
 	}
 
@@ -1077,263 +1132,73 @@ namespace Cubiquity
 		volume.setRootNodeIndex(newRootNodeIndex);
 	}
 
-	void fillInsideMeshNodeBased(Volume& volume, ClosedTriangleTreeList& closedTriangleTreeList, bool preserveSurfaceMaterials, ProgressMonitor* progMon)
+	void doHierarchicalVoxelisation(Volume& volume, Surface& surface, MaterialId internalMaterial,
+		MaterialId externalMaterial, bool useHierarchicalMeshEval, ProgressMonitor* progMon)
 	{
-		// The volume starts off full of zeros before the boudaries are written. A boundary should never be written.
-		// as zeros. Therefore any zero nodes at this point do not correspond to boundaries, and should be classified.
-		auto nodesToTest = findNodes(volume);
+		Box3i voxelisationBounds = computeBounds(volume, externalMaterial);
 
+		// Find all the nodes - both the single-voxel nodes which are part of the
+		// voxelised surface and (hopefully larger) nodes which are either side of it.
+		auto nodesToTest = findNodes(volume, voxelisationBounds);
+
+		// Classify all nodes according to which side of the surface they are on.
 		NodeDAG& nodeData = Internals::getNodes(volume);
+		classifyNodes(nodesToTest, nodeData, surface, progMon, useHierarchicalMeshEval);
 
-		std::cout << "Classifying " << nodesToTest.size() << " nodes..." << std::endl;
-		classifyNodes(nodesToTest, nodeData, closedTriangleTreeList, progMon);
 		// Apply the results to the volume
 		for (auto& toTest : nodesToTest)
 		{
-			Node myNode = nodeData[toTest.index];
-
-			// Read the current material, while also clearing the checkerboard pattern.
-			MaterialId matId = myNode[toTest.childId] & (~gCheckerBoardBit);
-
-			// Determine the suggested new material
-			MaterialId newMatId = toTest.result;
-
-			// This condition preserves the materials generated by scan conversion. When
-			// preserving, we can only write to a voxel if it is currently empty or if it
-			// is being deleted. We cannot replace one valid material with another.
-			//
-			// This flag might cause differences at material boundaries, e.g. if two 
-			// differnt polygons affect a voxel then with this condition the result will be
-			// whatever was drawn last, rather than which has the biggest winding number.
-			if ((!preserveSurfaceMaterials) || (matId == 0) || (newMatId == 0))
-			{
-				matId = newMatId;
-			}
-
-			// Write back result (clearing the checkerboard if nothing else).
-			nodeData.nodes().setNodeChild(toTest.index, toTest.childId, matId);
+			MaterialId resultingMaterial = toTest.result ? internalMaterial : externalMaterial;
+			nodeData.nodes().setNodeChild(toTest.index, toTest.childId, resultingMaterial);
 		}
+
+		// The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state.
+		// This might be because the shell voxelisaion is too thick, though I think we have avoided that. But even so,
+		// the mesh might represent a small box touching eight voxels, all of which are inside. These would be
+		// individually classified and would all get the same value, so they should be pruned and replaced by the parent.
+		prune(volume);
 	}
 
-	float findThreshold(const Geometry& geometry)
+	void voxelize(Volume& volume, Surface& surface, bool useSurfaceMaterials,
+		MaterialId* internalMaterialOverride, MaterialId* externalMaterialOverride,
+		ProgressMonitor* progMon)
 	{
-		// Determine whether the threshold should be positive or negative (+0.5 or -0.5).
-		//
-		// A given mesh may represent a solid object in the world or it may represent a space to be
-		// carved out of the world. Assuming the triangle windings are correctly and consistently
-		// defined, a solid object should have winding number of +1.0 on the inside with the
-		// surrounding winding number of 0.0 representing empty space, while a hollow object would have
-		// a winding number of -1.0 in the inside with the surrounding winding number of 0.0
-		// representing solid material. In other words, a winding number of 0.0 can represent either
-		// empty of solid space depending on the nature of the scene.
-		//
-		// A typical scene will contain multiple solid object which may be intersecting or placed
-		// inside of eachother (for example to give the centre of an object a different material to the
-		// rest of it). These solid objects may be placed inside an object representing empty space,
-		// such the surrounding room. It is unlikely that multiple objects representing empty space
-		// will intersect of be placed inside eachother, because this does not make sense from a
-		// physical point of view. You can't carve empty space out of other emty space. Or from another
-		// point of view, Cubiquity only has one representation of empty space (a material id of zero)
-		// but many representation of solid space (any other material id). 
-		//
-		// We therefore attempt to determine the threshold automatically by sampling numerous random points, some of which will
-		// hopefully be inside the mesh and some of which will be outside. Ideally we simply check the sign of all non-
-		// zero values, find they are consistant and that the magnitude is an integer, and we have our answer. In practice, many
-		// meshes are not well formed due to holes and inconsistant windings, and so we get a range of generalised winding
-		// numbers.
-		//
-		// Therefore we need to do a bit of statistical analysis on the results. At a basic level we could just look at the
-		// sign of the average or count the number of positive vs. negative results. More advanced approaches could explore
-		// the distribution further but we'll leave that until we encounter a need for it.
-		std::vector<float> samples;
+		const bool useHierarchicalMeshEval = true;
+		// Perform the classification per-octree-node instead of per-voxel.This is
+		// much faster and for a well formed mesh the result should be the same, but it 
+		// may have problems on scenes with open meshes, ground planes, windows, etc.
+		const bool useHierarchicalNodeEval = true;
 
-		Cubiquity::Box3f inputBounds = computeBounds(geometry);
+		MaterialId internalMaterial = internalMaterialOverride ? *internalMaterialOverride : surface.mainMaterial;
+		MaterialId externalMaterial = externalMaterialOverride ? *externalMaterialOverride : 0;
 
-		Cubiquity::Box3fSampler sampler(inputBounds);
+		// A negative mean winding number indcates that the mesh is inside-out.
+		if (surface.meanWindingNumber < 0.0f) { std::swap(internalMaterial, externalMaterial); }
 
-		// Generate the samples.
-		const int sampleCount = 100;
-		for (uint32_t i = 0; i < sampleCount; i++)
+		volume.fill(externalMaterial);
+
+		voxelizeShell(volume, surface.triangles, surface.materials, externalMaterial, 0, progMon);
+
+		if(std::abs(surface.meanWindingNumber) > 0.9f)
 		{
-			auto v = sampler.next();
-			float windingNumber = 0.0f;
-			for (const auto& object : geometry)
+			if (useHierarchicalNodeEval)
 			{
-				for (const auto& subobject : object.subObjects)
-				{
-					windingNumber += computeWindingNumber(v, subobject.second);
-				}
-			}
-			samples.push_back(windingNumber);
-		}
-
-		// Compute some basic statistics about them.
-		uint32_t positiveCount = 0;
-		uint32_t negativeCount = 0;
-		for (auto sample : samples)
-		{
-			const float inclusionThreshold = 0.5f; // No real basis for this value. It can be tweaked as required.
-
-			// I believe that samples with a samll magnitude are more likely to be errornous (unless they are zero, but
-			// those don't tell us anything about the winding anyway?). Let's focus on analysing the bigger samples.
-			if (std::abs(sample) > inclusionThreshold)
-			{
-				sample > 0.0f ? positiveCount++ : negativeCount++;
-			}
-		}
-
-		std::cout << "Positive count = " << positiveCount << std::endl;
-		std::cout << "Negative count = " << negativeCount << std::endl;
-
-		// For a good quality mesh we expect that all non-zero samples have the same sign. Warn the user if this is not the
-		// case. Note that this won't detect all poor-quality meshes, it depends on the sampling and inclusion threshold.
-		if (positiveCount > 0 && negativeCount > 0)
-		{
-			std::cout << "WARNING - Mixed face orientations in mesh?" << std::endl;
-		}
-
-		// If the mesh is watertight then then all generalised winding number should be integers.
-		for (auto sample : samples)
-		{
-			if (fabsf(roundf(sample) - sample) > 0.001f)
-			{
-				std::cout << "WARNING - Non-integer sample found. Is the mesh open or with missing faces?" << std::endl;
-				break;
-			}
-		}
-
-		// Theorectcally the thresholds should be +/-0.5f. However, triangles often pass *exactly*
-		// through the centre of a voxel due to e.g. being modelled on a grid in a DCC package,
-		// and/or being scaled by interger amounts. Rounding errors mean that such triangles can
-		// end up with a noisy surface, and the epsilon below helps to avoid this.
-		float epsilon = 0.001f;
-		float threshold = 0.5f + epsilon;
-		return positiveCount >= negativeCount ? threshold : -threshold;
-
-		//if (negativeCount > positiveCount)
-		//{
-		//	std::cout << "WARNING - Flipping triangles" << std::endl;
-		//	for (auto& triangle : triangles)
-		//	{
-		//		triangle.flip();
-		//	}
-		//}
-	}
-
-	void voxelize(Volume& volume, Geometry& splitTriangles, bool preserveSurfaceMaterials,
-		uint16 internalMaterialOveride,	ProgressMonitor* progMon, bool useBruteForce)
-	{
-		threshold = findThreshold(splitTriangles);
-
-		// Voxelise the shell even in brute force mode to support surface material preservation.
-		voxelizeShell(volume, splitTriangles, preserveSurfaceMaterials, progMon);
-
-		// We may now merge objects and/or sub-objects before doing the inside vs. outside testing.
-		// If the user has requested that a single material be used to fill all objects then we no
-		// longer care about the individual objects and they can be merged into one. It's not yet
-		// clear if this makes the process fastr - on one hand the original objects are quite
-		// possibly closed or require less closing triangles (which makes for a nice grouping), but
-		// on the other hand there may be a lot (and they have no hierarchy) so they may lose out
-		// to a single ClosedTriangleTree culling more aggressively.
-		Geometry mergedGeometry;
-		if (internalMaterialOveride)
-		{
-			Object mergedObject = mergeObjects(splitTriangles, "Merged Object", internalMaterialOveride);
-			mergedGeometry.push_back(mergedObject);
-		}
-		else
-		{
-
-			// A single object in a scene is often closed, but if it consists of multiple subobjects
-			// then there is a good chance that each of those is more open. Triangle lists which are 
-			// 'more closed' need less closing triagles and so are faster to process, and there will 
-			// also be less triangle lists if subobjects have been merged. However, it may result in
-			// a less optimal choice of material allocation because we have to choose a single
-			// material for the whole interior of the object. It is not yet clear what the best
-			// approach is, so for now it can be toggled via the constant below.
-			const bool doMergeSubObjects = true;
-			if (doMergeSubObjects)
-			{
-				for (auto& inputObject : splitTriangles)
-				{
-					MaterialId mainMaterialId = findMainMaterial(inputObject);
-					SubObject mergedSubObject = mergeSubObjects(inputObject.subObjects, mainMaterialId);
-
-					Object outputObject;
-					outputObject.subObjects.push_back(mergedSubObject);
-
-					mergedGeometry.push_back(outputObject);
-				}
+				doHierarchicalVoxelisation(volume, surface, internalMaterial, externalMaterial, useHierarchicalMeshEval, progMon);
 			}
 			else
 			{
-				mergedGeometry = splitTriangles;
+				doBruteForceVoxelisation(volume, surface, internalMaterial, externalMaterial, useHierarchicalMeshEval, progMon);
 			}
 		}
-
-		// We now build a list of ClosedTriangleTrees with associated materials. There will be one
-		// entry for each object or sub-object in the scene (which might mean one entry in total if
-		// objects/sub-objects were merged above). These are used for the point-in-mesh tests.
-		ClosedTriangleTreeList closedTriangleTreeList;
-		for (auto& object : mergedGeometry)
+		else
 		{
-			for (auto& subObject : object.subObjects)
-			{
-				closedTriangleTreeList.push_back(std::make_pair(subObject.first, ClosedTriangleTree(subObject.second)));
-			}
+			std::cout << "Warning: Skipping fill for badly-formed surface \'" << surface.name << "\'" << std::endl;
 		}
 
-		// Brute-force mode is only really useful for testing and debugging purposes. It applies
-		// the inside/outside test directly on each voxel, rather than on the nodes resulting
-		// from dividing up the volume during scan conversion.
-        if (useBruteForce)
-        {
-			Cubiquity::Box3f bounds = computeBounds(splitTriangles);
-			fillInsideMeshBruteForce(volume, closedTriangleTreeList, bounds, preserveSurfaceMaterials, progMon);
-        }
-        else
-        {
-            fillInsideMeshNodeBased(volume, closedTriangleTreeList, preserveSurfaceMaterials, progMon);
-
-            // The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state. I
-            // suspect it happens mostly when the voxelised shell thickness is to great, though perhaps it also happens with
-            // difficult geometry? Taking the former case, we might submit too many nodes for classification and a group of
-            // eight children might all fall the same side of a boundary and so get the same value. These are then unpruned.
-			prune(volume);
-			//volume.validate();
-
-            // Sanity check that there are no unpruned nodes. Should be moved into utility/test function?
-
-			//FIXME - Used to use ref count, wht to do here?
-            /*NodeDAG& nodeData = Internals::getNodes(volume);
-            for (uint32 index = RootNodeIndex; index < nodeData.size(); index++)
-            {
-                const Node& node = nodeData[index];
-                if (node.refCount() > 1)
-                {
-                    std::cerr << "Unexpected ref count!" << std::endl;
-                }
-
-                //if (node.refCount() > 0)
-                {
-                    if (nodeData.isMaterialNode(node.child(0)))
-                    {
-                        bool allChildrenMatch = true;
-                        for (uint32 childId = 1; childId < 8; childId++)
-                        {
-                            if (node.child(0) != node.child(childId))
-                            {
-                                allChildrenMatch = false;
-                            }
-                        }
-
-                        if (allChildrenMatch)
-                        {
-                            std::cerr << "All children match! " << index << ", " << node.child(0) << std::endl;
-                        }
-                    }
-                }
-            }*/
-        }
+		if (useSurfaceMaterials)
+		{
+			// Write the surface voxels with their correct materials as specified in the mesh. 
+			voxelizeShell(volume, surface.triangles, surface.materials, externalMaterial, 1, progMon);
+		}
 	}
 }

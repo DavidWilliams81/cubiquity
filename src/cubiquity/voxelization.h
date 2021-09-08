@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <unordered_set>
 
 namespace Cubiquity
 {
@@ -56,16 +57,32 @@ namespace Cubiquity
 	//!       improve floating-point comparisons (see ClosedTriangleTree).
 	float computeWindingNumber(const Vector3f& queryPoint, const ClosedTriangleTree& meshNode);
 
-	typedef std::list<std::pair<MaterialId, ClosedTriangleTree> > ClosedTriangleTreeList;
-
 	enum class Thickness { Separate6, Separate26, Custom };
 
-	void scanConvert3D(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier = 1.0f);
-	void scanConvert3DRecursive(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier = 1.0f);
+	void scanConvert3D(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier, uint pass);
+	void scanConvert3DRecursive(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier, uint pass);
 
-	Geometry mergeSubObjects(const Geometry& input);
+	typedef std::vector<MaterialId> MaterialList;
 
-	void voxelizeShell(Volume& volume, const Geometry& splitTriangles, bool preserveSurfaceMaterials, ProgressMonitor* progMon = nullptr);
+	class Surface
+	{
+	public:
+		Surface();
+
+		void addTriangle(const Triangle& tri, MaterialId matId);
+		void build();
+
+		std::string name;
+		TriangleList triangles;
+		MaterialList materials;
+		Box3f bounds;
+		float meanWindingNumber;
+		MaterialId mainMaterial;
+		std::unique_ptr<ClosedTriangleTree> closedTriangleTree;
+	};
+
+	float findThreshold(const Surface& surface);
+	MaterialId findMainMaterial(const Surface& surface);
 
 	//! Perform a solid voxelisation of the given geometry into the volume.
 	//!
@@ -96,11 +113,9 @@ namespace Cubiquity
 	//!        instead of their own. If 'preserveSurfaceMaterials' is disabled then this results in a
 	//!        binary voxelisation.
 	//! \param progMon An implementation of ProgressMonitor to monitor the voxelisation.
-	//! \param useBruteForce Perform the classification per-voxel instead of per-octree-node. This is
-	//!        much slower and for a well formed mesh the result should be the same, but it may be
-	//!        useful on scenes with open meshes, ground planes, windows, etc.
-	void voxelize(Volume& volume, Geometry& splitTriangles,	bool preserveSurfaceMaterials = false,
-		uint16 internalMaterialOveride = 0, ProgressMonitor* progMon = nullptr, bool useBruteForce = false);
+	void voxelize(Volume& volume, Surface& surface, bool useSurfaceMaterials = true,
+		MaterialId* internalMaterialOverride = nullptr, MaterialId* externalMaterialOverride = nullptr,
+		ProgressMonitor* progMon = nullptr);
 }
 
 #endif //CUBIQUITY_VOXELIZATION_H

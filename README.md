@@ -44,7 +44,7 @@ The tests, tools and demos do have a small number of external dependencies, most
 <p align="center"><img src="docs/images/structure.png" alt="Structure"></p>
 
 ## Usage
-> :warning: **Warning**: You cannot actually do much with Cubiquity in its current state! But the instruction below should at least get you an image on the screen.
+> :warning: **Warning**: You cannot actually do much with Cubiquity in its current state! But the instructions below should at least get you an image on the screen.
 
 ### Prerequisites
 Cubiquity uses CMake as its build system and SDL for window/input management in the demos. If you are running Linux these should be easily available from your package manager, but Windows users may need to put in a bit more work (not yet documented here).

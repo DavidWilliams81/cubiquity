@@ -44,19 +44,20 @@ Vector3f Camera::forward() const
 	// Direction : Spherical coordinates to Cartesian coordinates conversion
 	return Vector3f
 	(
+		// Looking along (0,1,0) when pitch and yaw are both zero.
 		cos(pitch) * sin(yaw),
-		sin(pitch),
-		cos(pitch) * cos(yaw)
+		cos(pitch) * cos(yaw),
+		sin(pitch)
 	);
 }
 
 Vector3f Camera::right() const
 {
-	// Right vector
+	// Looking along (1,0,0) when pitch and yaw are both zero.
 	return Vector3f(
-		sin(yaw - 3.14f / 2.0f),
-		0,
-		cos(yaw - 3.14f / 2.0f)
+		sin(yaw + (Pi/2)),
+		cos(yaw + (Pi/2)),
+		0
 	);
 }
 

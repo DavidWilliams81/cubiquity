@@ -16,12 +16,12 @@ int main(int argc, char *argv[])
 
 	//testLinearAlgebra();
 
-	/*if (!testRasterization())
+	if (!testRasterization())
 	{
 		std::cout << "TEST FAILED!" << std::endl;
-	}*/
+	}
 
-	/*if (!testRaytracingBehaviour())
+	if (!testRaytracingBehaviour())
 	{
 		std::cout << "TEST FAILED!" << std::endl;
 	}
@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 	if (!testRaytracingPerformance())
 	{
 		std::cout << "TEST FAILED!" << std::endl;
-	}*/
+	}
 
 	if (!testVisibility())
 	{

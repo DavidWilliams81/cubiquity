@@ -27,54 +27,6 @@ namespace Cubiquity
 {
 	using namespace Internals;
 
-	uint32_t Image::hash()
-	{
-		return Internals::murmurHash3(mData.get(), mWidth * mHeight * sizeof(Colour));
-	}
-
-	void Image::save(const std::string& filename)
-	{
-		// Get the file extension
-		std::string ext = filename.substr(filename.find_last_of(".") + 1);
-		std::transform(ext.begin(), ext.end(), ext.begin(),
-			[](unsigned char c) { return std::tolower(c); });
-
-		if (ext == "ppm")
-		{
-			std::fstream file;
-			file = std::fstream(filename, std::ios::out | std::ios::binary);
-			if (!file)
-			{
-				std::cerr << "Failed to open '" << filename << "' for writing" << std::endl;
-			}
-
-			//file.write((char*)&a, size * sizeof(unsigned long long));
-			file << "P6\n";
-			file << mWidth << " " << mHeight << "\n";
-			file << "255\n";
-
-			uint8* ptr = reinterpret_cast<uint8*>(mData.get());
-			for (uint i = 0; i < mWidth * mHeight; i++)
-			{
-				file << *ptr;
-				ptr++;
-				file << *ptr;
-				ptr++;
-				file << *ptr;
-				ptr++;
-				ptr++;
-			}
-
-			file.close();
-		}
-		else
-		{
-			std::cerr << "Unrecognised extension '" << ext << "'" << std::endl;
-		}
-	}
-
-	MaterialId gOutsideMaterialId;
-
 	class NodeCounter
 	{
 	public:
@@ -87,31 +39,28 @@ namespace Cubiquity
 		std::set<uint32> mUniqueNodes;
 	};
 
-	bool isInside(MaterialId matId)
-	{
-		return matId != gOutsideMaterialId;
-	}
-
 	class BoundsCalculator
 	{
 	public:
-		BoundsCalculator(bool(*include)(MaterialId))
+		BoundsCalculator(MaterialId externalMaterial)
 		{
-			mIncludeFunc = include;
+			mExternalMaterial = externalMaterial;
 			mBounds.invalidate();
 		}
 
-		void operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
+		bool operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
 		{
 			if (isMaterialNode(nodeIndex))
 			{
 				MaterialId matId = static_cast<MaterialId>(nodeIndex);
-				if (mIncludeFunc(matId))
+				if (matId != mExternalMaterial)
 				{
 					mBounds.accumulate(bounds.lower());
 					mBounds.accumulate(bounds.upper());
 				}
 			}
+
+			return true; // Signal to process children
 		}
 
 		Box3i bounds()
@@ -121,14 +70,13 @@ namespace Cubiquity
 
 	private:
 		Box3i mBounds;
-
-		bool(*mIncludeFunc)(MaterialId);
+		MaterialId mExternalMaterial;
 	};
 
-	Box3i computeBounds(Cubiquity::Volume& volume, bool(*include)(MaterialId))
+	Box3i computeBounds(Cubiquity::Volume& volume, MaterialId externalMaterial)
 	{
-		BoundsCalculator boundsCalculator(include);
-		traverseNodes(volume, boundsCalculator);
+		BoundsCalculator boundsCalculator(externalMaterial);
+		traverseNodesRecursive(volume, boundsCalculator);
 		return boundsCalculator.bounds();
 
 	}
@@ -145,11 +93,10 @@ namespace Cubiquity
 			std::cout << "Warning: Unable to accurately determine outside voxel" << std::endl;
 		}
 		uint16_t outsideMaterialId = mostPositiveVoxel;
-		gOutsideMaterialId = outsideMaterialId;
 
 		std::cout << "Outside material = " << outsideMaterialId << std::endl;
 
-		Box3i bounds = computeBounds(volume, isInside);
+		Box3i bounds = computeBounds(volume, outsideMaterialId);
 
 		// If the bounds are the whole volume then we probably choose the wrong material to compute bounds for.
 		// FIXME - Also check for Invalid here (max < min). A volume could be *all* empty or *not at all* empty.
@@ -164,6 +111,23 @@ namespace Cubiquity
 		}
 
 		return std::make_pair(outsideMaterialId, bounds);
+	}
+
+	// Not for general boxes - only works for node bounds which are cubic,
+	// powers-of-two sizes, aligned to power-of-two boundaries, etc.
+	Box3i childBounds(Box3i nodeBounds, uint childId)
+	{
+		uint childX = (childId >> 0) & 0x01;
+		uint childY = (childId >> 1) & 0x01;
+		uint childZ = (childId >> 2) & 0x01;
+		Vector3i childOffset(childX, childY, childZ); // childOffset holds zeros or ones.
+
+		// Careful ordering of operations to avoid signed integer overflow. Note that child
+		// node dimensions might max-out the signed integer type but should not exceed it.
+		const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i(1)) / 2) - (nodeBounds.lower() / 2);
+		Vector3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
+		Vector3i childUpperBound = childLowerBound + childNodeDimsInCells;
+		return Box3i(childLowerBound, childUpperBound);
 	}
 
 	Histogram computeHistogram(Volume& volume, const Box3i& bounds)
@@ -225,195 +189,6 @@ namespace Cubiquity
 		// Convert to RGB.
 		Vector3f hsv = Vector3f(hue, sat, val);
 		return hsv2rgb(hsv);
-	}
-
-	Colour rgbFromMaterialId(MaterialId matId)
-	{
-		uint8 red = (matId >> 8) & 0xF;
-		uint8 green = (matId >> 4) & 0xF;
-		uint8 blue = (matId) & 0xF;
-
-		return Colour(red * 16.0f, green * 16.0f, blue * 16.0f);
-	}
-
-	void saveVolumeAsImages(Volume& volume, const std::string& dirName, ProgressMonitor* progMon)
-	{
-		Box3i bounds = estimateBounds(volume).second;
-
-		uint32_t width = bounds.sideLength(0);
-		uint32_t height = bounds.sideLength(1);
-
-		if (progMon) { progMon->startTask("Saving volume as images"); }
-		for (int z = bounds.lower().z(); z <= bounds.upper().z(); z += 1)
-		{
-			if (progMon) { progMon->setProgress(bounds.lower().z(), z, bounds.upper().z()); }
-
-			// Note that the filenames start at zero (they are never negative). Using +/- symbols in the filenames is problematic,
-			// at least because when sorting by name the OS lists '+' before'-', and also larger-magnitiude negative number after
-			// smaller-magnitude negative numbers. This makes it more difficult to scroll through the slices.
-			char filepath[256];
-			std::snprintf(filepath, sizeof(filepath), "%s/%06d.ppm", dirName.c_str(), z - bounds.lower().z());
-
-			Image image(width, height);
-			for (int y = bounds.lower().y(); y <= bounds.upper().y(); y++)
-			{
-				for (int x = bounds.lower().x(); x <= bounds.upper().x(); x++)
-				{
-					MaterialId matId = volume.voxel(x, y, z);
-					Colour colour = rgbFromMaterialId(matId);
-					image.setPixel(x - bounds.lower().x(), y - bounds.lower().y(), colour);
-				}
-			}
-
-			image.save(filepath);
-		}
-
-		if (progMon) { progMon->finishTask(); }
-	}
-
-	std::map<std::string, MaterialId> loadMtlFile(string filename)
-	{
-		std::map<std::string, MaterialId> materials;
-
-		ifstream file(filename);
-
-		string currentMaterialName;
-
-		string line;
-		while (std::getline(file, line))
-		{
-			istringstream iss(line);
-			string element;
-			if (!(iss >> element)) { continue; } // Blank line
-
-			if (element == "newmtl")
-			{
-				iss >> currentMaterialName;
-			}
-
-			if (element == "Kd")
-			{
-				float r, g, b;
-				iss >> r >> g >> b;
-
-				uint16_t red = std::lround(r * 15.0f);
-				uint16_t green = std::lround(g * 15.0f);
-				uint16_t blue = std::lround(b * 15.0f);
-				MaterialId materialId = (red << 8) | (green << 4) | blue;
-
-				materials[currentMaterialName] = materialId;
-			}
-		}
-
-		return materials;
-	}
-
-	// See https://en.wikipedia.org/wiki/Wavefront_.obj_file
-	Geometry loadObjFile(const string& path, const string& filename)
-	{
-		Geometry geometry;
-
-		ifstream file(path + "/" + filename);
-
-		//string objName;
-		vector<Vector3f> vertices;
-		vertices.push_back(Vector3f(0.0f)); // Dummy value because obj file indices start at 1.
-											//TriangleList triangles;
-
-		std::map<std::string, MaterialId> materials;
-		//string currentMaterialName;
-
-		string line;
-		uint32_t lineNo = 0;
-		while (std::getline(file, line))
-		{
-			lineNo++;
-
-			istringstream iss(line);
-			string element;
-			if (!(iss >> element)) { continue; } // Blank line
-
-			if (element == "mtllib")
-			{
-				string materialFilename;
-				iss >> materialFilename;
-				materials = loadMtlFile(path + "/" + materialFilename);
-			}
-
-			if (element == "usemtl")
-			{
-				Object& object = geometry.back();
-				object.subObjects.push_back(SubObject());
-				SubObject& subObject = object.subObjects.back();
-
-				std::string materialName;
-				iss >> materialName;
-				try
-				{
-					subObject.first = materials.at(materialName);
-				}
-				catch (const out_of_range& e)
-				{
-					subObject.first = 0x0fff;
-				}
-			}
-
-			if (element == "o")
-			{
-				geometry.push_back(Object());
-				Object& object = geometry.back();
-				iss >> object.name;
-			}
-
-			if (element == "v")
-			{
-				float x, y, z;
-				iss >> x >> y >> z;
-				vertices.push_back(Vector3f(x, y, z));
-			}
-
-			if (element == "f")
-			{
-				// I have seen an OBJ file start without an 'o' or a 'usemtl' (or with them in the
-				// wrong order). So if we find face definitions without an object/subobject having
-				// been created then we create one on demand.
-				if (geometry.empty())
-				{
-					geometry.push_back(Object());
-				}
-				Object& object = geometry.back();
-
-				if (object.subObjects.empty())
-				{
-					object.subObjects.push_back(SubObject());
-					object.subObjects.back().first = 0x0fff;
-				}
-				SubObject& subObject = object.subObjects.back();
-
-				string i0Str, i1Str, i2Str;
-				iss >> i0Str >> i1Str >> i2Str;
-
-				i0Str = i0Str.substr(0, i0Str.find("/"));
-				i1Str = i1Str.substr(0, i1Str.find("/"));
-				i2Str = i2Str.substr(0, i2Str.find("/"));
-
-				uint32_t i0 = stoul(i0Str);
-				uint32_t i1 = stoul(i1Str);
-				uint32_t i2 = stoul(i2Str);
-
-				subObject.second.push_back(Triangle(vertices[i0], vertices[i1], vertices[i2]));
-
-				uint32 temp;
-				while (iss >> temp)
-				{
-					i1 = i2;
-					i2 = temp;
-					subObject.second.push_back(Triangle(vertices[i0], vertices[i1], vertices[i2]));
-				}
-			}
-		}
-
-		return geometry;
 	}
 
 	GaloisLFSR::GaloisLFSR(uint32_t mask, uint32_t startState)

@@ -91,28 +91,33 @@ void Demo::onInitialise()
 
 		mVolume.setTrackEdits(true);
 
-		Box3i bounds = computeBounds(mVolume, [](MaterialId matId) { return matId != 0; });
+		//Box3i bounds = computeBounds(mVolume, [](MaterialId matId) { return matId != 0; });
+		auto result = estimateBounds(mVolume);
+		MaterialId outsideMaterialId = result.first;
+		Box3i bounds = result.second;
 
-		// If our volume consists of empty space carved out of a solid volume then the bounds will just be the entire
-		// (huge) volume which is not useful for deciding where to put the camera. We hard-code the camera to the
-		// origin in this case.
-		if (static_cast<uint64_t>(bounds.upper().x()) - static_cast<uint64_t>(bounds.lower().x()) > 1000000000)
-		{
-			std::cout << "Invalid bounds (probably the quake map?" << std::endl;
-			mCamera.position = Vector3f(0.0f, 0.0f, 0.0f);
-		}
-		else
+		if (outsideMaterialId == 0) // Solid object, point camera at centre and move it back
 		{
 			Vector3f centre = bounds.centre();
 			float halfDiagonal = length((bounds.upper() - bounds.lower())) * 0.5f;
 
-			// Note that the last param uses '-' instead of '+' This is just a hack for our current test data.
-			mCamera.position = Vector3f(centre.x() + halfDiagonal, centre.y() + halfDiagonal, centre.z() - halfDiagonal);
-		}
+			// Centred along x, then back and up a bit
+			mCamera.position = Vector3f(centre.x(), centre.y() - halfDiagonal, centre.z() + halfDiagonal);
 
-		// Hacky values found to work with our current test dta
-		mCamera.yaw = Pi + ((3*Pi) / 4.0f);
-		mCamera.pitch = -(Pi / 4.7f);
+			// Look down 45 degrees
+			mCamera.pitch = -(Pi / 4.0f);
+			mCamera.yaw = 0.0f;
+		}
+		else // Hollow object, place camera at centre.
+		{
+			Vector3f centre = bounds.centre();
+			centre += Vector3f(0.1, 0.1, 0.1); // Hack to help not be on a certain boundary which triggers assert in debug mode.
+			mCamera.position = Vector3f(centre.x(), centre.y(), centre.z());
+
+			// Look straight ahead
+			mCamera.pitch = 0.0f;
+			mCamera.yaw = 0.0f;
+		}
 	}
 }
 
@@ -162,8 +167,9 @@ void Demo::onMouseMotion(const SDL_MouseMotionEvent& event)
 {
 	if (mouseButtonState(SDL_BUTTON_RIGHT) == MouseButtonState::Down)
 	{
-		// Compute new orientation
-		mCamera.yaw -= CameraTurnSpeed * event.xrel;
+		// Compute new orientation. Window origin is top-left (not bottom-
+		// left) So we subtract the relative y motion instead of adding it.
+		mCamera.yaw += CameraTurnSpeed * event.xrel;
 		mCamera.pitch -= CameraTurnSpeed * event.yrel;
 		onCameraModified();
 	}

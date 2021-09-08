@@ -23,6 +23,7 @@
 #include <iostream>
 #include <list>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <random>
 
@@ -627,6 +628,7 @@ namespace Cubiquity
 
 		float sideLength(uint32 index) const;
 		Vector3f computeNormal() const;
+		float area() const;
 
 		std::array<Cubiquity::Vector3f, 3> vertices;
 	};
@@ -639,33 +641,6 @@ namespace Cubiquity
 	Box3f computeBounds(const TriangleList& triangles);
 	void translate(TriangleList& triangles, const Cubiquity::Vector3f& dir);
 	void scale(TriangleList& triangles, float factor);
-
-	typedef std::pair<MaterialId, TriangleList> SubObject;
-	typedef std::list<SubObject> SubObjectList;
-
-	SubObject mergeSubObjects(const SubObjectList& subObjects, uint16 resultingMaterial);
-
-	class Object
-	{
-	public:
-		std::string name;
-		SubObjectList subObjects;
-	};
-
-	TriangleList mergedTriangles(const Object& object);
-
-	Box3f computeBounds(const Object& object);
-
-	/// A simple geometry representation which holds a set of material identifiers and a corresponding list of triangles.
-	typedef std::list<Object> Geometry;
-
-	Object mergeObjects(const Geometry& geometry, std::string resultingObjectName, uint16 resultingMaterial);
-
-	TriangleList mergedTriangles(const Geometry& geometry);
-
-	Box3f computeBounds(const Geometry& geometry);
-	void translate(Geometry& geometry, const Cubiquity::Vector3f& dir);
-	void scale(Geometry& geometry, float factor);
 
 	// Intersections
 	struct RayBoxIntersection

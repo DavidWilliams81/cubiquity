@@ -110,29 +110,29 @@ public:
 		mIntersection.distance = 10000000000.0f;
 	}
 
-	void operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
+	bool operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
 	{
+		Box3f dilatedBounds = static_cast<Box3f>(bounds);
+		dilatedBounds.dilate(0.5f);
+		RayBoxIntersection intersection = intersect(mRay, dilatedBounds);
+
+		if (!intersection) { return false; } // Stop traversal if the ray missed the node.
+
 		if ((isMaterialNode(nodeIndex)) && (nodeIndex > 0)) // Non-empty leaf node
 		{
-			Box3f dilatedBounds = static_cast<Box3f>(bounds);
-			dilatedBounds.dilate(0.5f);
-			RayBoxIntersection intersection = intersect(mRay, dilatedBounds);
-
-			if (intersection)
+			// Discard nodes behind the start point, but include the node we start in.
+			if (intersection.exit > 0.0)
 			{
-				// Discard nodes behind the start point, but include the node we start in.
-				if (intersection.exit > 0.0)
+				if (intersection.entry < mIntersection.distance) // Is it closer than any other interection we foud?
 				{
-					if (intersection.entry < mIntersection.distance) // Is it closer than any other interection we foud?
-					{
-						mIntersection.distance = intersection.entry;
-						mIntersection.material = static_cast<MaterialId>(nodeIndex);
-					}
+					mIntersection.distance = intersection.entry;
+					mIntersection.material = static_cast<MaterialId>(nodeIndex);
 				}
 			}
 		}
 
 		// Should early out here if we miss the node?
+		return true;
 	}
 
 public:
@@ -143,7 +143,7 @@ public:
 RayVolumeIntersection traceRayRef(Volume& volume, Ray3f ray)
 {
 	IntersectionFinder intersectionFinder(ray);
-	traverseNodes(volume, intersectionFinder);
+	traverseNodesRecursive(volume, intersectionFinder);
 
 	return intersectionFinder.mIntersection;
 }
@@ -163,7 +163,7 @@ bool testRaytracingBehaviour()
 	return true;*/
 
 	Volume volume;
-	volume.load("../data/shapes.vol");
+	volume.load("../data/axis.vol");
 
 	Box3f bounds = static_cast<Box3f>(estimateBounds(volume).second);
 	Box3fSampler sampler(bounds);
@@ -171,6 +171,8 @@ bool testRaytracingBehaviour()
 	uint hitCount = 0;
 	uint hitCountRef = 0;
 	float maxError = 0.0f;
+
+	Timer timer;
 
 	const uint rayCount = 1000;
 	for(uint i = 0; i < rayCount; i++)
@@ -196,6 +198,8 @@ bool testRaytracingBehaviour()
 		check(intersection.material, intersectionRef.material);
 	}
 
+	std::cout << timer.elapsedTimeInSeconds() << " seconds\n";
+
 	std::cout << "Hit count = " << hitCount << " out of " << rayCount << std::endl;
 	check(hitCount, hitCountRef);
 
@@ -208,7 +212,7 @@ bool testRaytracingBehaviour()
 bool testRaytracingPerformance()
 {
 	Volume volume;
-	volume.load("../data/shapes.vol");
+	volume.load("../data/axis.vol");
 
 	Box3f bounds = static_cast<Box3f>(estimateBounds(volume).second);
 	Box3fSampler sampler(bounds);
@@ -232,7 +236,7 @@ bool testRaytracingPerformance()
 
 	std::cout << "Traced " << rayCount << " rays in " << timer.elapsedTimeInSeconds() << " seconds\n";
 	std::cout << "Hit count = " << hitCount << " out of " << rayCount << std::endl;
-	check(hitCount, 877207);
+	check(hitCount, 123989);
 
 	return true;
 }

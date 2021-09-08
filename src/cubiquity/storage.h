@@ -174,6 +174,9 @@ namespace Cubiquity
 		void fillBrush(const Brush& brush, MaterialId matId);
 		uint32 fillBrush(const Brush& brush, MaterialId matId, uint32 nodeIndex, int nodeHeight, int32 nodeLowerX, int32 nodeLowerY, int32 nodeLowerZ);
 
+		void addVolume(const Volume& rhsVolume);
+		uint32 addVolume(const Volume& rhsVolume, uint32 rhsNodeIndex, uint32 nodeIndex, int nodeHeight, int32 nodeLowerX, int32 nodeLowerY, int32 nodeLowerZ);
+
 		template <typename ArrayType>
 		MaterialId voxel(const ArrayType& position);
 		MaterialId voxel(int32_t x, int32_t y, int32_t z);

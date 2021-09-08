@@ -559,6 +559,104 @@ namespace Cubiquity
 		return nodeIndex;
 	}
 
+	void Volume::addVolume(const Volume& rhsVolume)
+	{
+		const int rootHeight = logBase2(VolumeSideLength);
+		int nodeHeight = rootHeight;
+
+		constexpr int32 rootLowerBound = std::numeric_limits<int32>::min();
+
+		uint32 newRootNodeIndex = addVolume(rhsVolume, rhsVolume.rootNodeIndex(), rootNodeIndex(), nodeHeight, rootLowerBound, rootLowerBound, rootLowerBound);
+		setRootNodeIndex(newRootNodeIndex);
+	}
+
+	// Fixme - This function can prbably be more efficient. Firstly through better early out when whole nodes are full/empty, and also
+	// if seperate volumes shared a common memory space it would be easier to copy node directly across (maybe in compressd space?).
+	uint32 Volume::addVolume(const Volume& rhsVolume, uint32 rhsNodeIndex, uint32 nodeIndex, int nodeHeight, int32 nodeLowerX, int32 nodeLowerY, int32 nodeLowerZ)
+	{
+		uint32_t childHeight = nodeHeight - 1;
+		//int tx = (x ^ (1UL << 31)); // Could precalculte these.
+		//int ty = (y ^ (1UL << 31));
+		//int tz = (z ^ (1UL << 31));
+
+		for (uint32 childZ = 0; childZ <= 1; childZ++)
+		{
+			for (uint32 childY = 0; childY <= 1; childY++)
+			{
+				for (uint32 childX = 0; childX <= 1; childX++)
+				{
+					//uint32_t childX = (tx >> childHeight) & 0x01;
+					//uint32_t childY = (ty >> childHeight) & 0x01;
+					//uint32_t childZ = (tz >> childHeight) & 0x01;
+					uint32_t childId = childZ << 2 | childY << 1 | childX;
+
+					uint32_t childSideLength = 1 << (childHeight);
+					int32 childLowerX = nodeLowerX + (childSideLength * childX);
+					int32 childLowerY = nodeLowerY + (childSideLength * childY);
+					int32 childLowerZ = nodeLowerZ + (childSideLength * childZ);
+
+					int32 childUpperX = childLowerX + (childSideLength - 1);
+					int32 childUpperY = childLowerY + (childSideLength - 1);
+					int32 childUpperZ = childLowerZ + (childSideLength - 1);
+
+					Box3f childBounds(Vector3f(childLowerX, childLowerY, childLowerZ), Vector3f(childUpperX, childUpperY, childUpperZ));
+
+					/*if (!overlaps(brush.bounds(), childBounds))
+					{
+						continue;
+					}*/
+
+					/*bool allCornersInsideBrush = true;
+					if (!brush.contains(Vector3f(childLowerX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childLowerX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childLowerX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childLowerX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childUpperX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childUpperX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childUpperX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(Vector3f(childUpperX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }*/
+
+					const bool nodeIsMaterial = isMaterialNode(nodeIndex);
+					const bool rhsNodeIsMaterial = isMaterialNode(rhsNodeIndex);
+
+					// If current node is a material then just propergate it. Otherwise get the true child.
+					uint32_t childNodeIndex = nodeIsMaterial ? nodeIndex : mDAG[nodeIndex][childId];
+					uint32_t rhsChildNodeIndex = rhsNodeIsMaterial ? rhsNodeIndex : rhsVolume.mDAG[rhsNodeIndex][childId];
+
+					// If the child node is set to the desired material then the voxel is already set.
+					if (isMaterialNode(childNodeIndex) && isMaterialNode(rhsChildNodeIndex) && (childNodeIndex == rhsChildNodeIndex)) { continue; }
+
+					// Process children
+					uint32 newChildNodeIndex = childNodeIndex;
+
+					// We have to treat at least one material as empty space, otherwise we are just copying 
+					// every voxel from source to destination, which just result in a copy of the source. 
+					// Hard-code it to zero for now, but should think about how else it might be controlled.
+					MaterialId emptyMaterial = 0;
+					if (rhsChildNodeIndex != emptyMaterial)
+					{
+						if (isMaterialNode(rhsChildNodeIndex))
+						{
+							newChildNodeIndex = rhsChildNodeIndex;
+						}
+						else
+						{
+							newChildNodeIndex = addVolume(rhsVolume, rhsChildNodeIndex, childNodeIndex, nodeHeight - 1, childLowerX, childLowerY, childLowerZ);;
+						}
+					}
+
+					// If the child has changed then we need to update the current node.
+					if (childNodeIndex != newChildNodeIndex)
+					{
+						nodeIndex = mDAG.updateNodeChild(nodeIndex, childId, newChildNodeIndex, mTrackEdits);
+					}
+				}
+			}
+		}
+
+		return nodeIndex;
+	}
+
 	MaterialId Volume::voxel(int32_t x, int32_t y, int32_t z)
 	{
 		uint32_t nodeIndex = rootNodeIndex();

@@ -239,7 +239,8 @@ bool testBounds()
 		refResult.accumulate(pos);
 	}
 
-	Box3i bounds = computeBounds(*volume, [](MaterialId matId) { return matId != 0; });
+	const MaterialId externalMaterial = 0;
+	Box3i bounds = computeBounds(*volume, externalMaterial);
 
 	std::cout << "Lower     = (" << bounds.lower().x() << "," << bounds.lower().y() << "," << bounds.lower().z() << ")" << std::endl;
 	std::cout << "Ref Lower = (" << refResult.lower().x() << "," << refResult.lower().y() << "," << refResult.lower().z() << ")" << std::endl;
@@ -500,6 +501,26 @@ bool testSphere()
 	return true;
 }
 
+bool testCSG()
+{
+	Volume building;
+	building.load("../data/voxelized.vol");
+	Volume shapes;
+	shapes.load("../data/shapes.vol");
+
+	building.addVolume(shapes);
+
+	building.save("../data/csg.vol");
+
+	auto result = estimateBounds(building);
+	Box3i estimatedBounds = result.second;
+	std::cout << estimatedBounds.lower() << " " << estimatedBounds.upper() << std::endl;
+	Histogram histogram = computeHistogram(building, estimatedBounds);
+	printHistogram(histogram);
+
+	return true;
+}
+
 bool testVolume()
 {
 	srand(12345);
@@ -512,6 +533,7 @@ bool testVolume()
 
 	testBounds();
 	testBasics();
+	testCSG();
 	testCheckerboard();
 	testRandomAccess();
 	testFractalNoise();

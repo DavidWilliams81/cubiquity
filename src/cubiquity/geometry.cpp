@@ -148,6 +148,18 @@ namespace Cubiquity
 		return normalize(cross(vertices[2] - vertices[0], vertices[1] - vertices[0]));
 	}
 
+	float Triangle::area() const
+	{
+		// Heron's formula - May be inaccurate for long, thin
+		// triangles: https://math.stackexchange.com/a/1483219
+		float a = length(vertices[0] - vertices[1]);
+		float b = length(vertices[1] - vertices[2]);
+		float c = length(vertices[2] - vertices[0]);
+		float s = 0.5f * (a + b + c);
+		float area = sqrt(s*(s-a)*(s-b)*(s-c));
+		return area;
+	}
+
 	Box3f computeBounds(const TriangleList& triangles)
 	{
 		Cubiquity::Box3f bounds;
@@ -176,110 +188,6 @@ namespace Cubiquity
 		{
 			triangle.scale(factor);
 		}
-	}
-
-	Box3f computeBounds(const Object& object)
-	{
-		Cubiquity::Box3f bounds;
-		for (auto& subObject : object.subObjects)
-		{
-			Box3f triangleBounds = computeBounds(subObject.second);
-			bounds.accumulate(triangleBounds);
-		}
-		return bounds;
-	}
-
-	Box3f computeBounds(const Geometry& geometry)
-	{
-		Cubiquity::Box3f bounds;
-		for (auto& object : geometry)
-		{
-			for (auto& subObject : object.subObjects)
-			{
-				Box3f triangleBounds = computeBounds(subObject.second);
-				bounds.accumulate(triangleBounds);
-			}
-		}
-		return bounds;
-	}
-
-	void translate(Geometry& geometry, const Cubiquity::Vector3f& dir)
-	{
-		for (auto& object : geometry)
-		{
-			for (auto& subObject : object.subObjects)
-			{
-				TriangleList& triList = subObject.second;
-				translate(triList, dir);
-			}
-		}
-	}
-
-	void scale(Geometry& geometry, float factor)
-	{
-		for (auto& object : geometry)
-		{
-			for (auto& subObject : object.subObjects)
-			{
-				scale(subObject.second, factor);
-			}
-		}
-	}
-
-	SubObject mergeSubObjects(const SubObjectList& subObjects, uint16 resultingMaterial)
-	{
-		TriangleList triangles;
-		for (const SubObject& subObject : subObjects)
-		{
-			triangles.insert(triangles.end(), subObject.second.begin(), subObject.second.end());
-		}
-
-		SubObject subObject;
-		subObject.first = resultingMaterial;
-		subObject.second = triangles;
-		return subObject;
-	}
-
-	Object mergeObjects(const Geometry& geometry, std::string resultingObjectName, uint16 resultingMaterial)
-	{
-		TriangleList triangles;
-		for (const Object& object : geometry)
-		{
-			for (const SubObject& subObject : object.subObjects)
-			{
-				triangles.insert(triangles.end(), subObject.second.begin(), subObject.second.end());
-			}
-		}
-
-		SubObject subObject;
-		subObject.first = resultingMaterial;
-		subObject.second = triangles;
-
-		Object object;
-		object.name = resultingObjectName;
-		object.subObjects.push_back(subObject);
-		return object;
-	}
-
-	TriangleList mergedTriangles(const Object& object)
-	{
-		TriangleList result;
-		for (const auto& subObject : object.subObjects)
-		{
-			result.insert(result.end(), subObject.second.begin(), subObject.second.end());
-		}
-		return result;
-	}
-
-	TriangleList mergedTriangles(const Geometry& geometry)
-	{
-		TriangleList result;
-		for (const auto& object : geometry)
-		{
-			TriangleList mergedObjectTris = mergedTriangles(object);
-			result.insert(result.end(), mergedObjectTris.begin(), mergedObjectTris.end());
-		}
-		return result;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////

@@ -2,19 +2,26 @@
 
 #include "utility.h"
 
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 using namespace Cubiquity;
 using namespace Cubiquity::Internals;
 
 void saveVisibilityMaskAsImage(VisibilityMask& visMask, const std::string& filename)
 {
-	Image image(visMask.width(), visMask.height());
+	std::vector<uint8> imageData;
 	for (uint32_t y = 0; y < visMask.height(); y++)
 	{
 		for (uint32_t x = 0; x < visMask.width(); x++)
 		{
-			image.setPixel(x, y, visMask.testPixel(x, y) ? 255 : 0);
+			imageData.push_back(visMask.testPixel(x, y) ? 255 : 0);
 		}
 	}
 
-	image.save(filename);
+	int result = stbi_write_png(filename.c_str(), visMask.width(), visMask.height(), 1, imageData.data(), visMask.width());
+	if (result == 0)
+	{
+		std::cerr << "Error: Failed to write PNG image." << std::endl;
+	}
 }

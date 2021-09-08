@@ -91,7 +91,8 @@ bool testVisibilityUnidirectional()
 
 	Timer timer;
 
-	const Vector3f volumeCentre = computeBounds(*mVolume, [](MaterialId matId) { return matId != 0; }).centre();
+	const MaterialId externalMaterial = 0;
+	const Vector3f volumeCentre = computeBounds(*mVolume, externalMaterial).centre();
 
 	const int iterations = 100;
 
@@ -108,7 +109,7 @@ bool testVisibilityUnidirectional()
 
 	std::cout << "\tFound " << glyphCount << " glyphs." << std::endl;
 
-	saveVisibilityMaskAsImage(*(visCalc.cubeFace(0)), "PerspectiveMask.ppm");
+	saveVisibilityMaskAsImage(*(visCalc.cubeFace(0)), "PerspectiveMask.png");
 
 	delete mVolume;
 

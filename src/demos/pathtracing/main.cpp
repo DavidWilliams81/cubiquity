@@ -78,7 +78,7 @@ Vector3d gatherLighting(Vector3d position, Vector3d normal, const Volume& volume
 	if (includeSun)
 	{
 		double sunIntensity = 2.0;
-		Vector3d sunDir(normalize(Vector3d(-1.0, 10.0, -2.0)));
+		Vector3d sunDir(normalize(Vector3d(1.0, -2.0, 10.0)));
 
 		Ray3d sunShadowRay(position + offset, sunDir);
 		RayVolumeIntersection sunShadowIntersection = ray_parameter(volume, sunShadowRay);

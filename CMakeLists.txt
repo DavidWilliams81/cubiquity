@@ -128,9 +128,10 @@ endif()
 
 ################################################################################
 #
-# Voxelise tool
+# Voxelize tool
 #
 ################################################################################
 
-add_executable(voxelize src/tools/voxelize/voxelize.cpp)
-target_link_libraries(voxelize cubiquity)
+file(GLOB VOXELIZE_SRCS src/tools/voxelize/*.cpp src/tools/voxelize/*.h src/tools/voxelize/*.inl)
+add_executable(voxelize ${VOXELIZE_SRCS})
+target_link_libraries(voxelize cubiquity external utility)
