@@ -27,15 +27,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Lots of warnings and all warnings as errors
 if (MSVC)
-    add_compile_options(/W4)
+    add_compile_options(/W2) # Can increase this to W4 after I fix the most severe warnings.
 else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
-
-# Additional include directories
-include_directories(src/cubiquity)
-include_directories(src/external)
-include_directories(src/utility)
 
 # SDL 2 is needed for the demos. See https://stackoverflow.com/a/44347594
 # and https://trenki2.github.io/blog/2017/06/02/using-sdl2-with-cmake/
@@ -51,6 +46,7 @@ if (NOT MSVC)
     link_libraries(stdc++fs)
 endif()
 
+# Needed to group CMake predefined targets.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 ################################################################################
@@ -59,79 +55,36 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 #
 ################################################################################
 
-file(GLOB CUBIQUITY_SRCS src/cubiquity/*)
-add_library(cubiquity ${CUBIQUITY_SRCS})
-target_link_libraries(cubiquity Threads::Threads)
+file(GLOB LIBRARY_SRCS src/library/*)
+add_library(Library ${LIBRARY_SRCS})
+target_link_libraries(Library Threads::Threads)
+set_target_properties(Library PROPERTIES OUTPUT_NAME cubiquity)
+
+# For tidier folder layout in Visual Studio (mimics application target below)
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/library PREFIX "Source Code" FILES ${LIBRARY_SRCS})
 
 ################################################################################
 #
-# External dependencies for tests, tools, and demos.
-#
-################################################################################
-
-file(GLOB EXTERNAL_SRCS src/external/*)
-add_library(external ${EXTERNAL_SRCS})
-target_link_libraries(external)
-
-################################################################################
-#
-# Utility code for tests, tools, and demos.
-#
-################################################################################
-
-if (SDL2_FOUND) # Should probably not need SDL for utility?
-    file(GLOB UTILITY_SRCS src/utility/*)
-    add_library(utility ${UTILITY_SRCS})
-    include_directories(utility ${SDL2_INCLUDE_DIRS})
-    target_link_libraries(utility cubiquity external ${SDL2_LIBRARIES} ${CMAKE_DL_LIBS})
-endif()
-
-################################################################################
-#
-# Instancing demo
+# Frontend Application
 #
 ################################################################################
 
 if (SDL2_FOUND)
-    file(GLOB INSTANCING_SRCS
-        src/demos/instancing/*
-        src/demos/instancing/framework/*)
-    add_executable(instancing ${INSTANCING_SRCS})
-    target_link_libraries(instancing cubiquity external utility)
+    file(GLOB APPLICATION_SRCS
+        src/application/*
+        src/application/base/*
+        src/application/commands/export/*
+        src/application/commands/test/*
+        src/application/commands/view/*
+        src/application/commands/view/framework/*
+        src/application/commands/voxelise/*
+        src/application/external/*)
+    add_executable(Application ${APPLICATION_SRCS})
+    include_directories(src/library src/application ${SDL2_INCLUDE_DIRS})
+    include_directories(src/application/external) # Needed so external deps can find own headers
+    target_link_libraries(Application Library ${SDL2_LIBRARIES} ${CMAKE_DL_LIBS})
+    set_target_properties(Application PROPERTIES OUTPUT_NAME cubiquity)
+
+    # For tidier folder layout in Visual Studio
+    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/application PREFIX "Source Code" FILES ${APPLICATION_SRCS})
 endif()
-
-################################################################################
-#
-# Pathtracing demo
-#
-################################################################################
-
-if (SDL2_FOUND)
-    add_executable(pathtracing src/demos/pathtracing/main.cpp)
-    target_link_libraries(pathtracing cubiquity external utility ${SDL2_LIBRARIES})
-
-    # Set startup project in Visual Studio: https://stackoverflow.com/a/37994396
-    set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT pathtracing)
-endif()
-
-################################################################################
-#
-# Tests
-#
-################################################################################
-
-if (SDL2_FOUND) # Tests use utility, which currently uses SDL2.
-    file(GLOB TEST_SRCS src/tests/*.cpp src/tests/*.h src/tests/*.inl)
-    add_executable(test ${TEST_SRCS})
-    target_link_libraries(test cubiquity external utility)
-endif()
-
-################################################################################
-#
-# Voxelize tool
-#
-################################################################################
-
-file(GLOB VOXELIZE_SRCS src/tools/voxelize/*.cpp src/tools/voxelize/*.h src/tools/voxelize/*.inl)
-add_executable(voxelize ${VOXELIZE_SRCS})
-target_link_libraries(voxelize cubiquity external utility)

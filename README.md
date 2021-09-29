@@ -52,7 +52,7 @@ Cubiquity uses CMake as its build system and SDL for window/input management in 
 This Git repository does not include the sample data you will need to run the demos. You can download it by running the following commands from the root of the repository:
 
     cd data/
-    ./get_data.py 
+    ./get_data.py
     cd ..
 
 ### Building
@@ -90,16 +90,16 @@ Both demos search the 'data' folder described under ['Prerequisites'](#prerequis
 ##### Instancing demo
 The instancing demo uses software occlusion culling to determine the set of voxels which are visible from the current camera position, and then renders them as instanced cubes. Currently it redoes the visibility calculation every frame (with obvious performance impact) but there are plans to cache the intermediate visibility results. It has low memory usage compared to the popular 'greedy meshing' approach because it only uploads what is currently on the screen. You can run it as follows:
 
-    ./instancing ../data/shapes.vol
+    ./cubiquity view ../data/shapes.vol --mode=instancing
 
-Which should give the image below:
+Which should give the image below (you may need to back the camera off slightly):
 
 <p align="center"><a href="https://s3.eu-west-2.amazonaws.com/dpw81.public/instancing.png"><img src="https://s3.eu-west-2.amazonaws.com/dpw81.public/instancing_small.jpg" alt="Instancing demo"></a></p>
 
 ##### Pathtracing demo
 This demo serves as a benchmark for ray vs. volume intersections and also provides a way to generate nice screenshots (as the instanced renderer is not very attractive). It is slow because it runs on a single CPU thread, but the resolution is automatically reduced when moving the camera so it remains interactive. A GPU implementation would be *significantly* faster and I hope to work on that in the future. You can run it with the following command:
 
-    ./pathtracing ../data/building.vol
+    ./cubiquity view ../data/building.vol --mode=pathtracing
 
 Which should give the image below:
 
