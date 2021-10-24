@@ -2,22 +2,19 @@
 
 #include "base/paths.h"
 #include "base/logging.h"
+#include "base/materials.h"
 #include "base/progress.h"
+
+#include "storage.h"
 
 #include "stb_image_write.h"
 
+#include <algorithm>
+#include <fstream>
+
 using namespace Cubiquity;
 
-Colour rgbFromMaterialId(MaterialId matId)
-{
-	uint8 red = (matId >> 8) & 0xF;
-	uint8 green = (matId >> 4) & 0xF;
-	uint8 blue = (matId) & 0xF;
-
-	return Colour(red * 16.0f, green * 16.0f, blue * 16.0f);
-}
-
-void saveVolumeAsImages(Volume& volume, const std::string& dirName)
+void saveVolumeAsImages(Volume& volume, const MaterialSet& materials, const std::string& dirName)
 {
 	Box3i bounds = estimateBounds(volume).second;
 
@@ -39,13 +36,15 @@ void saveVolumeAsImages(Volume& volume, const std::string& dirName)
 			for (int x = bounds.lower().x(); x <= bounds.upper().x(); x++)
 			{
 				MaterialId matId = volume.voxel(x, y, z);
-				Colour colour = rgbFromMaterialId(matId);
-				colour.alpha = matId > 0 ? 255 : 0;
 
-				imageData.push_back(colour.red);
-				imageData.push_back(colour.green);
-				imageData.push_back(colour.blue);
-				imageData.push_back(colour.alpha);
+				uint8 r = std::clamp(std::lround(materials[matId][0] * 255.0f), 0L, 255L);
+				uint8 g = std::clamp(std::lround(materials[matId][1] * 255.0f), 0L, 255L);
+				uint8 b = std::clamp(std::lround(materials[matId][2] * 255.0f), 0L, 255L);
+
+				imageData.push_back(r);
+				imageData.push_back(g);
+				imageData.push_back(b);
+				imageData.push_back(matId > 0 ? 255 : 0);
 			}
 		}
 
@@ -70,6 +69,9 @@ bool exportVolume(const flags::args& args)
 	if (!checkOutputDirIsValid(outputPath)) return false;
 
 	Volume volume(inputPath.string());
-	saveVolumeAsImages(volume, ".");
+	MaterialSet materials;
+	materials.load(getMaterialsPath(inputPath));
+
+	saveVolumeAsImages(volume, materials, ".");
 	return true;
 }

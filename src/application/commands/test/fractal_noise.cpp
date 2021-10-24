@@ -117,11 +117,7 @@ MaterialId FractalNoise::chooseMaterial(Vector3i cell)
 	cellHash += 1;     // Constrain to range 1 - limit
 	cellHash = std::min(cellHash, uint32_t(7)); // Cells between 7 and limit get set to 7.
 
-	// 7 maps to white, smaller number map to other colours.
-	MaterialId material = 0;
-	if (cellHash & 0x1) { material |= 0x000F; }
-	if (cellHash & 0x2) { material |= 0x00F0; }
-	if (cellHash & 0x4) { material |= 0x0F00; }
-
+	// Most cells get mat id of 7, with some getting a smaller id.
+	MaterialId material = cellHash;
 	return material;
 }

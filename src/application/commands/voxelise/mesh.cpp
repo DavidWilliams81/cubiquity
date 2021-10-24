@@ -9,32 +9,20 @@ using namespace Cubiquity;
 
 using namespace std;
 
-MaterialId colourToMaterialId(std::array<float, 3> colour)
-{
-	// Clamp to a valid range. Note that we can't use zero as black because
-	// that represents empty space. I just boost the level here by setting
-	// the minimum to 1, but could look for a better approch in the future.
-	uint16_t r = std::clamp(std::lround(colour[0] * 15.0f), 1L, 15L);
-	uint16_t g = std::clamp(std::lround(colour[1] * 15.0f), 1L, 15L);
-	uint16_t b = std::clamp(std::lround(colour[2] * 15.0f), 1L, 15L);
-	MaterialId result = (r << 8) | (g << 4) | b;
-	return result;
-}
-
 // https://en.wikipedia.org/wiki/Wavefront_.obj_file#Material_template_library
 // and (official spec?) http://paulbourke.net/dataformats/mtl/
-std::map<std::string, MaterialId> loadMtlFile(const std::filesystem::path& pathToMat)
+std::map<std::string, Col> loadMtlFile(const std::filesystem::path& pathToMat)
 {
 	ifstream file(pathToMat);
-	std::map<std::string, MaterialId> materials;
-	std::map<std::string, MaterialId>::iterator currentMaterial;
+	std::map<std::string, Col> materials;
+	std::map<std::string, Col>::iterator currentMaterial;
 	bool foundDiffuse = true;
 
 	auto finishMaterial = [&]()
 	{ 
 		if (!foundDiffuse)
 		{
-			log(Warning, "No diffuse colour found for material \'%s\'.", currentMaterial->first.c_str());
+			log(Warning, "No diffuse colour found for material \'", currentMaterial->first, "\'.");
 		}
 	};
 
@@ -58,13 +46,12 @@ std::map<std::string, MaterialId> loadMtlFile(const std::filesystem::path& pathT
 
 			// Build the material with default values and add it to the map.
 			// It will be updated later as we encounter relevent tags.
-			MaterialId materialId = colourToMaterialId({1.0f, 1.0f, 1.0f});
+			Col colour({1.0f, 1.0f, 1.0f});
 			foundDiffuse = false;
-			auto result = materials.insert(std::make_pair(materialName, materialId));
+			auto result = materials.insert(std::make_pair(materialName, colour));
 			if (!result.second)
 			{
-				log(Warning, "Material \'%s\' is already defined in \'%s\'.",
-					materialName.c_str(), pathToMat.c_str());
+				log(Warning, "Material \'", materialName, "\' is already defined in \'", pathToMat, "\'.");
 			}
 			// Update even if the material couldn't be inserted. Pointing at the duplicate
 			// is probably better than whatever we were pointing at before (if anything).
@@ -75,13 +62,13 @@ std::map<std::string, MaterialId> loadMtlFile(const std::filesystem::path& pathT
 		{
 			std::array<float, 3> diffuse;
 			iss >> diffuse[0] >> diffuse[1]>> diffuse[2];
-			currentMaterial->second = colourToMaterialId(diffuse);
+			currentMaterial->second = diffuse;
 			foundDiffuse = true;
 		}
 
 		if (iss.fail())
 		{
-			log(Error, "Failed to parse line %d. (\"%s\")", lineNo, line.c_str());
+			log(Error, "Failed to parse line ", lineNo, ". (\"", line, "\")");
 		}
 	}
 
@@ -89,7 +76,7 @@ std::map<std::string, MaterialId> loadMtlFile(const std::filesystem::path& pathT
 
 	if (materials.empty())
 	{
-		log(Warning, "No materials found in \'%s\'", pathToMat.c_str());
+		log(Warning, "No materials found in \'", pathToMat, "\'");
 	}
 
 	return materials;
@@ -104,14 +91,14 @@ std::list<Object> loadObjFile(const std::filesystem::path& pathToObj)
 
 	std::list<Object> objects;
 	std::vector<Vertex> vertices;
-	std::map<std::string, MaterialId> materials;
+	std::map<std::string, Col> materials;
 
 	// Insert an (unused) dummy vertex because obj file indices start at 1.
 	vertices.push_back({ 0,0,0 }); 
 
 	// I have seen an OBJ file start without an 'o' or a 'usemtl' (or 
 	// with them in the wrong order). Create a dummy object to hold these.
-	MaterialId activeMaterialId = colourToMaterialId({1.0f, 1.0f, 1.0f});
+	Col activeMaterial({1.0f, 1.0f, 1.0f});
 	objects.push_back(Object());
 
 	string line;
@@ -134,15 +121,15 @@ std::list<Object> loadObjFile(const std::filesystem::path& pathToObj)
 			std::filesystem::path pathToMat = pathToObj.parent_path().append(materialFilename);
 			if (!std::filesystem::exists(pathToMat))
 			{
-				log(Warning, "Material file \'%s\' does not exist!", pathToMat.c_str());
+				log(Warning, "Material file \'", pathToMat, "\' does not exist!");
 			}
-			std::map < std::string, MaterialId > localMaterials = loadMtlFile(pathToMat);
+			std::map < std::string, Col > localMaterials = loadMtlFile(pathToMat);
 
 			for (const auto& entry : localMaterials)
 			{
 				if (!materials.insert(entry).second)
 				{
-					log(Warning, "Material \'%s\' was already defined in another material file.", entry.first.c_str());
+					log(Warning, "Material \'", entry.first, "\' was already defined in another material file.");
 				}
 			}
 		}
@@ -153,8 +140,8 @@ std::list<Object> loadObjFile(const std::filesystem::path& pathToObj)
 			iss >> materialName;
 
 			auto materialIter = materials.find(materialName);
-			activeMaterialId = materialIter != materials.end() ?
-				materialIter->second:  colourToMaterialId({ 1.0f, 1.0f, 1.0f });
+			activeMaterial = materialIter != materials.end() ?
+				materialIter->second : Col({ 1.0f, 1.0f, 1.0f });
 		}
 
 		if (element == "o")
@@ -201,14 +188,14 @@ std::list<Object> loadObjFile(const std::filesystem::path& pathToObj)
 				else // Not valid
 				{
 					log(Warning, "Vertex indices must be positive integers. Relative "
-						"(or zero) indices are not supported (line %d).", lineNo);
+						"(or zero) indices are not supported (line ", lineNo, ").");
 				}
 			}
 
 			if (vertexIndices.size() == 3)
 			{
 				Tri triangle;
-				triangle.materialId = activeMaterialId;
+				triangle.colour = activeMaterial;
 				triangle.vertices[0] = vertices[vertexIndices[0]];
 				triangle.vertices[1] = vertices[vertexIndices[1]];
 				triangle.vertices[2] = vertices[vertexIndices[2]];
@@ -219,16 +206,16 @@ std::list<Object> loadObjFile(const std::filesystem::path& pathToObj)
 			else
 			{
 				log(Warning, "Face must contain exactly three valid vertex "
-					"indices for voxelisation (line %d).", lineNo);
+					"indices for voxelisation (line ", lineNo, ").");
 			}
 		}
 	}
 
 	if (tooManyComponentsLineNo)
 	{
-		log(Warning, "The 'v' element on line %d contains more than three components. These "
-			"components (possibly 'w' or a vertex colour?) will be ignored. Later lines may"
-			"have the same problem (this has not been checked).", tooManyComponentsLineNo);
+		log(Warning, "The 'v' element on line ", tooManyComponentsLineNo, " contains more than "
+			"three components. These components (possibly 'w' or a vertex colour?) will be ignored. "
+			"Later lines may have the same problem (this has not been checked).");
 	}
 
 	return objects;

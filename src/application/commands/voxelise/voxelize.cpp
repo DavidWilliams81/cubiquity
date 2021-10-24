@@ -10,13 +10,16 @@
 * You should have received a copy of the CC0 Public Domain Dedication along with this software.    *
 * If not, see http://creativecommons.org/publicdomain/zero/1.0/.                                   *
 ***************************************************************************************************/
+
+#include "mesh.h"
+#include "voxelize.h"
+
+#include "base/logging.h"
+
 #include "geometry.h"
 #include "storage.h"
 #include "voxelization.h"
 #include "utility.h"
-
-#include "mesh.h"
-#include "voxelize.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -75,7 +78,7 @@ int voxelizeTerrain(const std::string& heightMap, const std::string& colourMap)
 bool voxelizeMesh(const flags::args& args)
 {
 	const auto inputPath{ args.positional().at(1) };
-	const auto outputPath = args.get<std::string>("output", "output.vol");
+	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
 	const auto scaleFactor = args.get<float>("scale", 32.0);
 
 	if (!std::filesystem::exists(inputPath))
@@ -89,6 +92,7 @@ bool voxelizeMesh(const flags::args& args)
 	// Perform the voxelization
     Timer timer;
 	Volume volume;
+	MaterialSet materials;
 	uint objectIndex = 0;
 	for(auto& object : objects)
 	{
@@ -108,7 +112,15 @@ bool voxelizeMesh(const flags::args& args)
 			vertices[1] = Vector3f(tri.vertices[1][0], tri.vertices[1][1], tri.vertices[1][2]);
 			vertices[2] = Vector3f(tri.vertices[2][0], tri.vertices[2][1], tri.vertices[2][2]);
 			Triangle triangle(vertices[0], vertices[1], vertices[2]);
-			surface.addTriangle(triangle, tri.materialId);
+
+			MaterialId matId = materials.findOrInsert(tri.colour);
+			if (!matId)
+			{
+				log(Error, "Failed to find or insert material");
+				matId = Cubiquity::Internals::MaxMaterial;
+			}
+
+			surface.addTriangle(triangle, matId);
 		}	
 		scale(surface.triangles, scaleFactor);
 		surface.build();
@@ -128,8 +140,9 @@ bool voxelizeMesh(const flags::args& args)
 
 	// Save the result
 	std::cout << "Saving volume as \'" << outputPath << "\'...";
-	volume.save(outputPath);
-	std::cout << "done." << std::endl;
+	volume.save(outputPath.string());
+	materials.save(getMaterialsPath(outputPath));
+	std::cout << "done." << std::endl;	
 
 	auto result = estimateBounds(volume);
 	Box3i estimatedBounds = result.second;

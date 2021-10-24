@@ -6,6 +6,8 @@ in vec4 voxelNormal;   // Per-voxel normal, as computed in C++ code
 
 out vec4 color;
 
+uniform sampler1D materials;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Functions for calculating normals based on model/world positions.
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,15 +72,6 @@ vec3 roundedNormalForVoxel(vec3 modelPosition, vec3 worldPosition)
 	return normal;
 }
 
-vec3 decodeMaterial(float material)
-{
-	int mat = int(material + 0.5); // Round
-	int red   = (mat >> 8) & 0xf;
-	int green = (mat >> 4) & 0xf;
-	int blue  = (mat >> 0) & 0xf;
-	return vec3(float(red) / 15.0, float(green) / 15.0, float(blue) / 15.0);
-}
-
 float positionBasedNoise(vec4 positionAndStrength)
 {
 	//'floor' is more widely supported than 'round'. Offset consists of:
@@ -102,12 +95,16 @@ float positionBasedNoise(vec4 positionAndStrength)
 	
 	return noise;
 }
- 
+
 void main()
 {	
 	// For visualization we derive the color of the voxel from its normal.
 	//vec4 voxelColor = vec4(voxelNormal.xyz * 0.5 + vec3(0.5, 0.5, 0.5), 1.0);
-	vec4 voxelColor = vec4(decodeMaterial(voxelNormal.w), 1.0);
+	//vec4 voxelColor = vec4(decodeMaterial(voxelNormal.w), 1.0);
+
+	int materialCount = textureSize(materials, 0);
+	float u = (voxelNormal.w+0.5) / materialCount; // Map material id to range 0.0 - 1.0
+	vec4 voxelColor = texture(materials, u);
 	
 	float noise = positionBasedNoise(vec4(worldPosition.xyz, 0.08));
 	

@@ -3,6 +3,7 @@
 #include "base.h"
 #include "utility.h"
 
+#include <cassert>
 #include <stdarg.h>
 #include <stdio.h>
 

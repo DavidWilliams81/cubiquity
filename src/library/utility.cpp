@@ -93,7 +93,7 @@ namespace Cubiquity
 		}
 		uint16_t outsideMaterialId = mostPositiveVoxel;
 
-		log(DBG, "Outside material = %u", outsideMaterialId);
+		log(DBG, "Outside material = ", outsideMaterialId);
 
 		Box3i bounds = computeBounds(volume, outsideMaterialId);
 
@@ -152,41 +152,9 @@ namespace Cubiquity
 	{
 		for (const auto& entry : histogram)
 		{
-			log(INF, "Material %u: %u voxels", entry.first, entry.second);
+			// Static cast to avoid 8-bit matId being treated as ASCII char.
+			log(INF, "Material ", static_cast<uint16_t>(entry.first), ": ", entry.second, " voxels");
 		}
-	}
-
-	// Should match shader code
-	float mix(float x, float y, float a)
-	{
-		return x * (1.0f - a) + y * a;
-	}
-
-	// See http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
-	Vector3f hsv2rgb(Vector3f c)
-	{
-		Vector4f K = Vector4f(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-		Vector3f p = abs(fract(c.xxx() + K.xyz()) * 6.0f - K.www());
-		return mix(K.xxx(), clamp(p - K.xxx(), 0.0f, 1.0f), c.y()) * c.z();
-	}
-
-	Vector3f colourFromMaterialId(MaterialId matId)
-	{
-		// Use the golden ratio to pick well-spaced colour in HSV space.
-		// http://gofiguremath.org/natures-favorite-math/the-golden-ratio/the-golden-angle/
-		float golden_ratio = 1.618;
-		float angle = golden_ratio / 1 + golden_ratio;
-
-		double intpart;
-		float hue = std::modf(matId * angle, &intpart);
-
-		// Saturation and value are fixed.
-		float sat = 1.0;
-		float val = 1.0;
-
-		// Convert to RGB.
-		Vector3f hsv = Vector3f(hue, sat, val);
-		return hsv2rgb(hsv);
 	}
 
 	GaloisLFSR::GaloisLFSR(uint32_t mask, uint32_t startState)

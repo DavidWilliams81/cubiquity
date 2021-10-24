@@ -27,7 +27,6 @@
 
 
 #include <mutex>
-#include <sstream>
 #include <thread>
 
 #ifdef CUBIQUITY_USE_AVX
@@ -314,8 +313,8 @@ namespace Cubiquity
 				// Numerator of zero means we are on the surface (treat as no solid angle).
 				if (numerator != 0)
 				{
-					assert(std::isnormal(numerator));
-					assert(std::isnormal(denominator));
+					//assert(std::isnormal(numerator));
+					//assert(std::isnormal(denominator));
 					windingNumber += 2.0f * ::atan2(numerator, denominator);
 				}
 			}
@@ -559,7 +558,7 @@ namespace Cubiquity
 			// logging mechanism really.
 			if (removedCount > 0)
 			{
-				log(WARN, "Removed %td degenerate triangles", removedCount);
+				log(WARN, "Removed ", removedCount, " degenerate triangles");
 			}
 		}
 
@@ -660,16 +659,16 @@ namespace Cubiquity
 		const float windingNumberTolerance = 0.001;
 		if(std::abs(meanWindingNumber) < (1.0f - windingNumberTolerance))
 		{
-			log(WARN, "Surface %s has a mean winding number of "
-				"%f, which is closer to zero than expected. Perhaps it "
-				"contains inconsistently-wound faces or is not properly closed?", name.c_str(), meanWindingNumber);
+			log(WARN, "Surface ", name, " has a mean winding number of ", meanWindingNumber,
+				", which is closer to zero than expected. Perhaps it "
+				"contains inconsistently-wound faces or is not properly closed?");
 		}
 
 		if (std::abs(meanWindingNumber) > (1.0f + windingNumberTolerance))
 		{
-			log(WARN, "Surface %s has a mean winding number of "
-				"%f, which is further from zero than expected. Perhaps "
-				"it contains doubled-up geometry or separate surface details?", name.c_str(), meanWindingNumber);
+			log(WARN, "Surface ", name, " has a mean winding number of ", meanWindingNumber,
+				", which is further from zero than expected. Perhaps "
+				"it contains doubled-up geometry or separate surface details?");
 		}
 
 		// Find the main material of the surface as the material which covers the greatest area. 
@@ -1169,7 +1168,7 @@ namespace Cubiquity
 		}
 		else
 		{
-			log(WARN, "Skipping fill for badly-formed surface \'%s\'", surface.name.c_str());
+			log(WARN, "Skipping fill for badly-formed surface \'", surface.name, "\'");
 		}
 
 		if (useSurfaceMaterials)

@@ -1,6 +1,7 @@
 #include "base/logging.h"
 #include "base/progress.h"
 #include "commands/export/export.h"
+#include "commands/generate/generate.h"
 #include "commands/test/test.h"
 #include "commands/view/view.h"
 #include "commands/voxelise/voxelize.h"
@@ -24,10 +25,11 @@ int main(int argc, char** argv)
 	typedef std::map<std::string, CommandPtr> CommandMap;
 
 	CommandMap commands = {
-		{ "export",   &exportVolume },
-		{ "test",     &test },
-		{ "view",     &viewVolume },
-		{ "voxelise", &voxelizeMesh },
+		{ "export",     &exportVolume },
+		{ "generate",   &generateVolume },
+		{ "test",       &test },
+		{ "view",       &viewVolume },
+		{ "voxelise",   &voxelizeMesh },
 	};
 
 	const flags::args args(argc, argv);
@@ -64,12 +66,12 @@ int main(int argc, char** argv)
 	{
 		CommandPtr commandPtr = commandIter->second;
 		if (!(*commandPtr)(args)) {
-			log(Error, "Failed to execute command \'%s\'.", commandName.c_str());
+			log(Error, "Failed to execute command \'", commandName, "\'.");
 		}
 	}
 	else
 	{
-		log(Error, "Unrecognised command \'%s\'.", commandName.c_str());
+		log(Error, "Unrecognised command \'", commandName, "\'.");
 	}
 
 	return EXIT_SUCCESS;

@@ -15,7 +15,7 @@ void InstancingDemo::onInitialise()
 {
 	Demo::onInitialise();
 
-	mVolumeRenderer = new VolumeRenderer;
+	mVolumeRenderer = new VolumeRenderer(materials());
 
 	mVolumeRenderer->mVolume = &(volume());
 

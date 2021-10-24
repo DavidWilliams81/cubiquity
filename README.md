@@ -166,6 +166,7 @@ The demos, tools, and tests also use some external projects, most of which can b
 
 * **Flags library:** https://github.com/sailormoon/flags
 * **Glad OpenGL loader:** https://glad.dav1d.de/
+* **OpenGL Tutorial:** http://www.opengl-tutorial.org/
 * **LearnOpenGL tutorials:** https://learnopengl.com/
 	Note: This project switched its license from Public Domain to CC BY-NC 4.0 in 2018 (see https://github.com/JoeyDeVries/LearnOpenGL/commits/master/LICENSE.md). The Cubiquity examples are derived from the original Public Domain version.
 * **Simplex Noise functions:** https://github.com/stegu/perlin-noise

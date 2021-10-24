@@ -63,16 +63,6 @@ namespace Cubiquity
 		std::chrono::time_point<clock> m_start;
 	};
 
-	struct Colour
-	{
-	public:
-		Colour() {}
-		Colour(uint8 l, uint8 a = 0xff) : red(l), green(l), blue(l), alpha(a) {}
-		Colour(uint8 r, uint8 g, uint8 b, uint8 a = 0xff) : red(r), green(g), blue(b), alpha(a) {}
-
-		uint8 red, green, blue, alpha;
-	};
-
 	Box3i childBounds(Box3i nodeBounds, uint childId);
 
 	template<typename Functor>

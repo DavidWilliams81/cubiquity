@@ -5,6 +5,8 @@
 
 #include "voxelization.h"
 
+#include "base/materials.h"
+
 #include <array>
 #include <filesystem>
 #include <list>
@@ -14,7 +16,7 @@ typedef std::array<float, 3> Vertex;
 struct Tri // Will rename this to 'Triangle' once we can avoid name conflicts with main library.
 {
 	std::array<Vertex, 3> vertices;
-	Cubiquity::MaterialId materialId;
+	Col colour;
 };
 
 struct Object

@@ -44,7 +44,7 @@ public:
 	Pathtracer();
 	void setResolution(uint width, uint height);
 	void clear();
-	void raytrace(const Volume& volume, const Camera& camera, uint timeoutMs = 0); // Zero for no timeout
+	void raytrace(const Volume& volume, const MaterialSet& materials, const Camera& camera, uint timeoutMs = 0); // Zero for no timeout
 
 	uint mWidth;
 	uint mHeight;

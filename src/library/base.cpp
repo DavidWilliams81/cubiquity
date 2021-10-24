@@ -15,9 +15,6 @@
 #include <algorithm>
 #include <cassert>
 
-#include <stdarg.h>
-#include <stdio.h>
-
 namespace Cubiquity
 {
 	namespace Internals
@@ -284,22 +281,12 @@ namespace Cubiquity
 		gLogHandler = logHandler;
 	}
 
-	void Internals::log(Severity severity, const char* format, ...)
+	void Internals::log(Severity severity, std::ostringstream& oss)
 	{
 		if (gLogHandler)
 		{
-			// Buffer size could be found dynamically but that is not needed for
-			// our simple purposes (see https://stackoverflow.com/q/42131753)
-			char buffer[1024];
-
-			// Perform argument parsing.
-			va_list args;
-			va_start(args, format);
-			vsnprintf(buffer, sizeof(buffer), format, args);
-			va_end(args);
-
 			// Forward the print to our log handler.
-			(*gLogHandler)(severity, buffer);
+			(*gLogHandler)(severity, oss.str().c_str());
 		}
 	}
 

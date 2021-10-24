@@ -10,11 +10,8 @@ LogLevel g_verbosity;
 
 void setVerbosity(LogLevel verbosity) { g_verbosity = verbosity; }
 
-void log(LogLevel severity, const char* format, ...)
+void log(LogLevel severity, std::ostringstream& oss)
 {
-    va_list args;
-    va_start(args, format);
-
     if (severity >= g_verbosity) {
         FILE* stream = severity >= LogLevel::Warning ? stderr : stdout;
 
@@ -38,7 +35,7 @@ void log(LogLevel severity, const char* format, ...)
         }
 
         // Print the text
-        fprintf(stream, format, args);
+        fprintf(stream, oss.str().c_str());
 
         // Reset the colour manipulators if we changed them
         if (severity != LogLevel::Info) {
@@ -49,8 +46,6 @@ void log(LogLevel severity, const char* format, ...)
         fprintf(stream, "\n");
         fflush(stream);
     }
-
-    va_end(args);
 }
 
 void cubiquityLogHandler(int severity, const char* message)

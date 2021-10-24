@@ -52,14 +52,6 @@ Vector3d randomPointInUnitSphere()
 	return result;
 }
 
-Vector3d decodeMaterial(MaterialId matId)
-{
-	int red = (matId >> 8) & 0xf;
-	int green = (matId >> 4) & 0xf;
-	int blue = (matId >> 0) & 0xf;
-	return Vector3d(float(red) / 15.0, float(green) / 15.0, float(blue) / 15.0);
-}
-
 // Return a small positive noise value
 double positionBasedNoise(const Vector3d& position)
 {
@@ -104,7 +96,7 @@ Vector3d gatherLighting(Vector3d position, Vector3d normal, const Volume& volume
 	return Vector3d(intensity);
 }
 
-Vector3d traceSingleRay(const Ray3d& ray, const Volume& volume, uint bounces, bool includeSun, bool includeSky, bool addNoise, uint depth)
+Vector3d traceSingleRay(const Ray3d& ray, const Volume& volume, const MaterialSet& materials, uint bounces, bool includeSun, bool includeSky, bool addNoise, uint depth)
 {
 	if (depth > bounces) { return Vector3d(0); }
 
@@ -113,7 +105,7 @@ Vector3d traceSingleRay(const Ray3d& ray, const Volume& volume, uint bounces, bo
 	RayVolumeIntersection intersection = ray_parameter(volume, ray);
 	if (intersection)
 	{
-		pixelColour = decodeMaterial(intersection.material);
+		pixelColour = Vector3d(materials[intersection.material][0], materials[intersection.material][1], materials[intersection.material][2]);
 
 		if (addNoise)
 		{
@@ -131,7 +123,7 @@ Vector3d traceSingleRay(const Ray3d& ray, const Volume& volume, uint bounces, bo
 			const Vector3d reflectedDir = normalize(intersection.normal + randomPointInUnitSphere());
 			const Ray3d reflectedRay(intersection.position + (intersection.normal * 0.01), reflectedDir);
 
-			Vector3d indirectLighting = traceSingleRay(reflectedRay, volume, bounces,
+			Vector3d indirectLighting = traceSingleRay(reflectedRay, volume, materials, bounces,
 				includeSun, includeSky, addNoise, depth + 1);
 
 			pixelColour *= (directLighting + indirectLighting);
@@ -165,7 +157,7 @@ void Pathtracer::clear()
 	pixelCount = 0;
 }
 
-void Pathtracer::raytrace(const Volume& volume, const Camera& camera, uint timeoutMs)
+void Pathtracer::raytrace(const Volume& volume, const MaterialSet& materials, const Camera& camera, uint timeoutMs)
 {
 	Timer timer;
 	while(pixelCount < mWidth * mHeight)
@@ -186,7 +178,7 @@ void Pathtracer::raytrace(const Volume& volume, const Camera& camera, uint timeo
 		Vector3f pixel(0);
 		for (uint sample = 0; sample < samples; sample++)
 		{
-			pixel += static_cast<Vector3f>(traceSingleRay(ray, volume, bounces, includeSun, includeSky, addNoise, 0));
+			pixel += static_cast<Vector3f>(traceSingleRay(ray, volume, materials, bounces, includeSun, includeSky, addNoise, 0));
 		}
 		pixel /= samples;
 
@@ -219,7 +211,7 @@ void PathtracingDemo::onUpdate(float deltaTime)
 
 	// No timeout needed in preview mode because it is fast anyway, and having
 	// it appear immeditely looks nicer than seeing the progressive loading.
-	mPathtracer.raytrace(volume(), camera(), mPreviewMode ? 0 : 50);
+	mPathtracer.raytrace(volume(), materials(), camera(), mPreviewMode ? 0 : 50);
 
 	SDL_Surface* renderedSurface = SDL_CreateRGBSurfaceFrom(mPathtracer.renderSurface,
 		mPathtracer.mWidth, mPathtracer.mHeight, 24,

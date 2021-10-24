@@ -8,7 +8,7 @@ using namespace Cubiquity;
 
 const uint32_t maxGlyphCount = 1000000;
 
-VolumeRenderer::VolumeRenderer()
+VolumeRenderer::VolumeRenderer(const MaterialSet& materials)
 {
 	mGlyphType = GlyphType::Cube;
 
@@ -32,6 +32,22 @@ VolumeRenderer::VolumeRenderer()
 	viewMatrixID = glGetUniformLocation(program.programID, "viewMatrix");
 	projMatrixID = glGetUniformLocation(program.programID, "projectionMatrix");
 	cameraPosID = glGetUniformLocation(program.programID, "cameraPos");
+
+	// Create one OpenGL texture
+	glGenTextures(1, &Texture);
+
+	// "Bind" the newly created texture : all future texture functions will modify this texture
+	glBindTexture(GL_TEXTURE_1D, Texture);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, materials.data().size(), 0, GL_RGB, GL_FLOAT, materials.data().data());
+
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	// Get a handle for our "materials" uniform
+	TextureID = glGetUniformLocation(program.programID, "materials");
 
 	mVisibilityCalculator = new VisibilityCalculator;
 	mVisibilityCalculator->mMaxNodeDistance = 3000.0f;
@@ -77,6 +93,12 @@ void VolumeRenderer::render(const Camera& camera)
 	glUniformMatrix4fv(viewMatrixID, 1, GL_FALSE, &ViewMatrix[0][0]);
 	glUniformMatrix4fv(projMatrixID, 1, GL_FALSE, &ProjectionMatrix[0][0]);
 	glUniform3f(cameraPosID, camera.position.x(), camera.position.y(), camera.position.z());
+
+	// Bind our texture in Texture Unit 0
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_1D, Texture);
+	// Set our "myTextureSampler" sampler to use Texture Unit 0
+	glUniform1i(TextureID, 0);
 
 	if (instanceList.ParticlesCount > 0)
 	{

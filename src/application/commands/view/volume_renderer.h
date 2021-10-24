@@ -5,6 +5,8 @@
 #include "instance_list.h"
 #include "framework/program.h"
 
+#include "base/materials.h"
+
 #include "storage.h"
 #include "rendering.h"
 
@@ -17,7 +19,7 @@ enum class GlyphType
 class VolumeRenderer
 {
 public:
-	VolumeRenderer();
+	VolumeRenderer(const MaterialSet& materials);
 	virtual ~VolumeRenderer();
 
 	virtual void render(const Camera& camera);
@@ -33,6 +35,9 @@ public:
 	GLuint viewMatrixID;
 	GLuint projMatrixID;
 	GLuint cameraPosID;
+
+	GLuint Texture;
+	GLuint TextureID;
 
 	InstanceList instanceList;
 

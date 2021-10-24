@@ -74,6 +74,7 @@ if (SDL2_FOUND)
         src/application/*
         src/application/base/*
         src/application/commands/export/*
+        src/application/commands/generate/*
         src/application/commands/test/*
         src/application/commands/view/*
         src/application/commands/view/framework/*

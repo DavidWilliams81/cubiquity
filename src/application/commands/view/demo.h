@@ -5,6 +5,8 @@
 #include "camera.h"
 #include "storage.h"
 
+#include "base/materials.h"
+
 class Demo : public Window
 {
 public:
@@ -13,6 +15,7 @@ public:
 
 	const Camera& camera() { return mCamera; }
 	const Cubiquity::Volume& volume() { return mVolume; }
+	const MaterialSet& materials() { return mMaterials; }
 
 protected:
 
@@ -40,6 +43,7 @@ private:
 
 	Camera mCamera;
 	Cubiquity::Volume mVolume;
+	MaterialSet mMaterials;
 };
 
 #endif // CUBIQUITY_DEMO_H_E38EB3A1

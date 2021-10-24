@@ -4,6 +4,7 @@
 #include "utility.h"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -19,6 +20,9 @@ Demo::Demo(const std::string& filename, WindowType windowType)
 		exit(EXIT_FAILURE);
 	}
 	std::cout << " done" << std::endl;
+
+	
+	mMaterials.load(getMaterialsPath(filename));
 }
 
 void Demo::onInitialise()

@@ -26,10 +26,10 @@ namespace Cubiquity
 {
 	namespace Internals
 	{
-		extern const MaterialId MinMaterial;
-		extern const MaterialId MaxMaterial;
-		extern const uint32     MaterialCount;
-		extern const uint64     VolumeSideLength;
+		constexpr MaterialId MinMaterial = std::numeric_limits< MaterialId>::min();
+		constexpr MaterialId MaxMaterial = std::numeric_limits< MaterialId>::max();
+		constexpr uint32     MaterialCount = static_cast<uint32>(MaxMaterial) + 1;
+		constexpr uint64     VolumeSideLength = UINT64_C(1) << 32;
 
 		bool isMaterialNode(uint32 nodeIndex);
 

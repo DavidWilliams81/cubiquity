@@ -21,11 +21,6 @@ namespace Cubiquity
 {
 	using namespace Internals;
 
-	const MaterialId Internals::MinMaterial  = std::numeric_limits< MaterialId>::min();
-	const MaterialId Internals::MaxMaterial  = std::numeric_limits< MaterialId>::max();
-	const uint32 Internals::MaterialCount    = static_cast<uint32>(MaxMaterial) + 1;
-	const uint64 Internals::VolumeSideLength = UINT64_C(1) << 32;
-
 	bool Internals::isMaterialNode(uint32 nodeIndex) { return nodeIndex < MaterialCount; }
 
 	// See https://stackoverflow.com/a/57796299
@@ -138,6 +133,8 @@ namespace Cubiquity
 
 			mBakedNodesEnd = bakedNodesBegin() + actualNodeCount;
 
+			// FIXME - This offset value seems to get large. Is the logic backwards
+			// but we ar wrapping around the array so it happens to work?
 			uint32 offset = bakedNodesBegin() - mergedRoot;
 			for (uint32 nodeIndex = bakedNodesBegin(); nodeIndex < bakedNodesEnd(); nodeIndex++)
 			{

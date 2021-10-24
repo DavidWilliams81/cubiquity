@@ -18,6 +18,7 @@
 //#define CUBIQUITY_USE_AVX
 
 #include <cstdint>
+#include <sstream>
 
 namespace Cubiquity
 {
@@ -58,7 +59,7 @@ namespace Cubiquity
 
 		Note typedef should not be changed to differnt integer type.
 	*/
-	typedef uint16 MaterialId;
+	typedef uint8 MaterialId;
 
 	typedef void (*LogHandlerPtr)(int severity, const char* message);
 	void setLogHandler(LogHandlerPtr logHandler);
@@ -103,8 +104,28 @@ namespace Cubiquity
 			NonCopyable(NonCopyable&&) = default;
 			NonCopyable& operator=(NonCopyable&&) = default;
 		};
+ 
+		// Main function used for logging internally.
+		void log(Severity severity, std::ostringstream& oss);
 
-		void log(Severity severity, const char* format, ...);
+		// Variadic templates for simplified stringstream handling.  
+		// See https://stackoverflow.com/a/12562314 but note it appears  
+		// to mistakenly use istringstream rather than ostringstream?
+		template <typename T, typename ...Rest>
+		void log(Severity severity, std::ostringstream& oss, T&& t, Rest&&... rest)
+		{
+			oss << std::forward<T>(t);
+			log(severity, oss, std::forward<Rest>(rest)...);
+		}
+
+		template <typename ...Args>
+		void log(Severity severity, Args&&... args)
+		{
+			std::ostringstream oss;
+			log(severity, oss, std::forward<Args>(args)...);
+		}
+
+		// Function used internally for reporting progress on long-running tasks.
 		void reportProgress(const char* taskDesc, int firstStep, int currentStep, int lastStep);
 	}
 }
