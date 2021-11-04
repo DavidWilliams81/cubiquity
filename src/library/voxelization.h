@@ -114,6 +114,10 @@ namespace Cubiquity
 	//!        binary voxelisation.
 	void voxelize(Volume& volume, Surface& surface, bool useSurfaceMaterials = true,
 		MaterialId* internalMaterialOverride = nullptr, MaterialId* externalMaterialOverride = nullptr);
+
+	typedef int32 (*HeightFunc)(int32, int32);
+	void voxelizeHeightmap(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3],
+		MaterialId undergroundMaterial, MaterialId surfaceMaterial);
 }
 
 #endif //CUBIQUITY_VOXELIZATION_H

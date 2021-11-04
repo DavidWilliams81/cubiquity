@@ -3,6 +3,6 @@
 
 #include "flags.h"
 
-bool voxelizeMesh(const flags::args& args);
+bool voxelise(const flags::args& args);
 
 #endif // CUBIQUITY_VOXELIZE_H

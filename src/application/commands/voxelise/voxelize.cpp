@@ -16,6 +16,8 @@
 
 #include "base/logging.h"
 
+#include "stb_image.h"
+
 #include "geometry.h"
 #include "storage.h"
 #include "voxelization.h"
@@ -39,61 +41,56 @@ using namespace Internals;
 
 using namespace std;
 
-int voxelizeTerrain(const std::string& heightMap, const std::string& colourMap)
+int imageWidth, imageHeight;
+float* imageData;
+float heightmapScale = 0.0f;
+
+int32 myHeightFunc(int32 x, int32 y)
 {
-	Timer timer;
-	Volume volume;
-
-	uint32 width = 256;
-	uint32 height = 256;
-
-	bool doneTidy = false;
-
-	for (int x = 0; x < width; x++)
+	if (x >= 0 && x < imageWidth && y >= 0 && y < imageHeight)
 	{
-		std::cout << "x = " << x << std::endl;
-		for (int y = 0; y < height; y++)
-		{
-			//std::cout << "y = " << y << std::endl;
-			for (int z = 0; z < 256; z++)
-			{
-				//std::cout << "z = " << z << std::endl;
-				volume.setVoxel(x, y, z, 0x0FFF);
-				if (z == 100 && !doneTidy)
-				{
-					//volume.tidyHashMap();
-					doneTidy = true;
-				}
-			}
-		}
-		//volume.tidyEdits();
+		return static_cast<int32>(lroundf(imageData[x + y * imageWidth] * heightmapScale));
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+int voxelizeTerrain(const std::filesystem::path& inputPath, Volume& volume, MaterialSet& materials, float scaleFactor)
+{
+	heightmapScale = scaleFactor;
+
+	// Prevent stb_image from applying a gamma mapping when loading an LDR image 
+	// (which doesn't really make sense when the data represents a heightmap).
+	stbi_ldr_to_hdr_gamma(1.0f);
+
+	// Use the float interface for consistancy between 8-bit, 16bit and float images.
+	// stb_image always gives data in the range 0.0-1.0 when using this interface.
+	int channels;
+	const int desiredChannels = 1;
+	imageData = stbi_loadf(inputPath.string().c_str(), &imageWidth, &imageHeight, &channels, desiredChannels);
+	if (channels > desiredChannels)
+	{
+		log(Warning, "Input heightmap contains multiple channels (convert it to a greyscale image without alpha)");
 	}
 
-	volume.save("../data/terrain.vol");
-	std::cout << "Finished in " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
+	MaterialId surface = materials.findOrInsert({ 0.0, 0.5, 0.0 });
+	MaterialId underground = materials.findOrInsert({ 0.75, 0.75, 0.75 });
+
+	int32 minBounds[] = { 0, 0, 0 };
+	int32 maxBounds[] = { imageWidth - 1, imageHeight - 1, static_cast<int32>(lroundf(heightmapScale)) };
+	voxelizeHeightmap(volume, &myHeightFunc, minBounds, maxBounds, underground, surface);
 
 	return 0;
 }
 
-bool voxelizeMesh(const flags::args& args)
+bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, MaterialSet& materials, float scaleFactor)
 {
-	const auto inputPath{ args.positional().at(1) };
-	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
-	const auto scaleFactor = args.get<float>("scale", 32.0);
-
-	if (!std::filesystem::exists(inputPath))
-	{
-		cerr << "Path \'" << inputPath << "\' does not exist!" << endl;
-		return false;
-	}
 	// Load a mesh to voxelise
 	auto objects = loadObjFile(inputPath);
-
-	// Perform the voxelization
-    Timer timer;
-	Volume volume;
-	MaterialSet materials;
 	uint objectIndex = 0;
+
 	for(auto& object : objects)
 	{
 		objectIndex++;
@@ -135,6 +132,42 @@ bool voxelizeMesh(const flags::args& args)
 
 		std::cout << std::endl;
 	}
+
+	return true;
+}
+
+bool voxelise(const flags::args& args)
+{
+	const std::filesystem::path inputPath(args.positional().at(1));
+	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
+	const auto scaleFactor = args.get<float>("scale", 32.0);
+
+	if (!std::filesystem::exists(inputPath))
+	{
+		cerr << "Path \'" << inputPath << "\' does not exist!" << endl;
+		return false;
+	}
+
+	// Perform the voxelization
+	Timer timer;
+	Volume volume;
+	MaterialSet materials;
+
+	std::string extension = inputPath.extension().string();
+
+	if(extension == ".obj")
+	{ 
+		voxelizeMesh(inputPath, volume, materials, scaleFactor);
+	}
+	else if ((extension == ".png") || (extension == ".jpg"))
+	{
+		voxelizeTerrain(inputPath, volume, materials, scaleFactor);
+	}
+	else
+	{
+		log(Error, "Unrecognised extension \'", extension, "\'");
+	}
+
 	std::cout << "Voxelised in " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
 	std::cout << "Node count before merging = " << volume.countNodes() << std::endl;
 
@@ -142,14 +175,19 @@ bool voxelizeMesh(const flags::args& args)
 	std::cout << "Saving volume as \'" << outputPath << "\'...";
 	volume.save(outputPath.string());
 	materials.save(getMaterialsPath(outputPath));
-	std::cout << "done." << std::endl;	
+	std::cout << "done." << std::endl;
 
 	auto result = estimateBounds(volume);
 	Box3i estimatedBounds = result.second;
 	std::cout << estimatedBounds.lower() << " " << estimatedBounds.upper() << std::endl;
-	Histogram histogram = computeHistogram(volume, estimatedBounds);
-	printHistogram(histogram);
+
+	// This chunk of code can be useful for debuging and validation, but is slow.
+	// Therefore only run it for mesh voxelisation as these are usually smaller.
+	if (extension == ".obj")
+	{
+		Histogram histogram = computeHistogram(volume, estimatedBounds);
+		printHistogram(histogram);
+	}
 
 	return true;
 }
-

@@ -29,7 +29,7 @@ int main(int argc, char** argv)
 		{ "generate",   &generateVolume },
 		{ "test",       &test },
 		{ "view",       &viewVolume },
-		{ "voxelise",   &voxelizeMesh },
+		{ "voxelise",   &voxelise },
 	};
 
 	const flags::args args(argc, argv);

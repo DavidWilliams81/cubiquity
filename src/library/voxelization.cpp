@@ -1177,4 +1177,126 @@ namespace Cubiquity
 			voxelizeShell(volume, surface.triangles, surface.materials, externalMaterial, 1);
 		}
 	}
+
+	void fillBox(Volume& volume, std::array<int32, 3> minBounds, std::array<int32, 3> maxBounds, MaterialId material)
+	{
+		for (int32 z = minBounds[2]; z <= maxBounds[2]; z++)
+		{
+			for (int32 y = minBounds[1]; y <= maxBounds[1]; y++)
+			{
+				for (int32 x = minBounds[0]; x <= maxBounds[0]; x++)
+				{
+					drawFragment(x, y, z, 0, 0, volume, 0);
+				}
+			}
+		}
+	}
+
+	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, HeightFunc heightFunc)
+	{
+		int i = 0;
+		std::stringstream ss;
+		ss << "Classifying " << nodesToTest.size() << " nodes";
+		std::mutex m;
+
+#if defined (_MSC_VER) && _MSC_VER >= 1900
+		std::for_each(std::execution::par, nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
+#else
+		std::for_each(nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
+#endif
+		{
+			//nodeToTest.result = isInside(nodeToTest.centre, surface, useHierarchicalMeshEval);
+
+			nodeToTest.result = nodeToTest.centre.z() <= heightFunc(nodeToTest.centre.x(), nodeToTest.centre.y());
+
+			std::lock_guard<std::mutex> guard(m);
+
+			reportProgress(ss.str().c_str(), 0, i++, nodesToTest.size() - 1);
+		});
+	}
+
+	void doHierarchicalVoxelisationHeightmap(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3], MaterialId internalMaterial,
+		MaterialId externalMaterial)
+	{
+		Box3i voxelisationBounds = computeBounds(volume, externalMaterial);
+
+		// Find all the nodes - both the single-voxel nodes which are part of the
+		// voxelised surface and (hopefully larger) nodes which are either side of it.
+		auto nodesToTest = findNodes(volume, voxelisationBounds);
+
+		// Classify all nodes according to which side of the surface they are on.
+		NodeDAG& nodeData = Internals::getNodes(volume);
+		classifyNodes(nodesToTest, nodeData, heightFunc);
+
+		// Apply the results to the volume
+		for (auto& toTest : nodesToTest)
+		{
+			MaterialId resultingMaterial = toTest.result ? internalMaterial : externalMaterial;
+			nodeData.nodes().setNodeChild(toTest.index, toTest.childId, resultingMaterial);
+		}
+
+		// The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state.
+		// This might be because the shell voxelisaion is too thick, though I think we have avoided that. But even so,
+		// the mesh might represent a small box touching eight voxels, all of which are inside. These would be
+		// individually classified and would all get the same value, so they should be pruned and replaced by the parent.
+		prune(volume);
+	}
+
+	void voxeliseSurface(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3], MaterialId surfaceMaterial, MaterialId externalMaterial, uint pass)
+	{
+		for (int32 y = minBounds[1]; y <= maxBounds[1]; y++)
+		{
+			for (int32 x = minBounds[0]; x <= maxBounds[0]; x++)
+			{
+				// Drawing just a single voxel for each (x,y) position results in gaps in the surface when the
+				// slope is more than 45 degrees. We fix this by drawing a column of voxels from the height
+				// specified for the current position down to the height specified by the smallest of its neighbours.
+				int32 columnTop = heightFunc(x, y);
+				int32 columnBotton = columnTop;
+
+				if (x > minBounds[0])
+				{
+					columnBotton = std::min(columnBotton, heightFunc(x - 1, y));
+				}
+
+				if (x < maxBounds[0])
+				{
+					columnBotton = std::min(columnBotton, heightFunc(x + 1, y));
+				}
+
+				if (y > minBounds[1])
+				{
+					columnBotton = std::min(columnBotton, heightFunc(x, y - 1));
+				}
+
+				if (y < maxBounds[1])
+				{
+					columnBotton = std::min(columnBotton, heightFunc(x, y + 1));
+				}
+
+				for (int32 z = columnTop; z >= columnBotton; z--)
+				{
+					drawFragment(x, y, z, surfaceMaterial, externalMaterial, volume, pass);
+				}
+			}
+		}
+	}
+
+	void voxelizeHeightmap(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3],
+		MaterialId undergroundMaterial, MaterialId surfaceMaterial)
+	{
+		// Draw five sides of the bounds (no need to draw the top as the heightmap represents the top.
+		fillBox(volume, { minBounds[0], minBounds[1], minBounds[2] }, { minBounds[0], maxBounds[1], maxBounds[2] }, surfaceMaterial); // Min X
+		fillBox(volume, { maxBounds[0], minBounds[1], minBounds[2] }, { maxBounds[0], maxBounds[1], maxBounds[2] }, surfaceMaterial); // Max X
+		fillBox(volume, { minBounds[0], minBounds[1], minBounds[2] }, { maxBounds[0], minBounds[1], maxBounds[2] }, surfaceMaterial); // Min Y
+		fillBox(volume, { minBounds[0], maxBounds[1], minBounds[2] }, { maxBounds[0], maxBounds[1], maxBounds[2] }, surfaceMaterial); // Max Y
+		fillBox(volume, { minBounds[0], minBounds[1], minBounds[2] }, { maxBounds[0], maxBounds[1], minBounds[2] }, surfaceMaterial); // Min Z (base)
+
+		const MaterialId externalMaterial = 0;
+		voxeliseSurface(volume, heightFunc, minBounds, maxBounds, surfaceMaterial, externalMaterial, 0);
+		
+		doHierarchicalVoxelisationHeightmap(volume, heightFunc, minBounds, maxBounds, undergroundMaterial, externalMaterial);
+
+		voxeliseSurface(volume, heightFunc, minBounds, maxBounds, surfaceMaterial, externalMaterial, 1);
+	}
 }
