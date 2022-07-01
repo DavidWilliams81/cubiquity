@@ -44,6 +44,7 @@ public:
 	Cubiquity::VisibilityCalculator* mVisibilityCalculator = nullptr;
 
 	Cubiquity::Glyph* mGlyphs;
+	bool mDoGlyphUpdates = true;
 };
 
 #endif // VOLUME_RENDERER_H_1F2E659B

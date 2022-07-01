@@ -105,9 +105,9 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Materi
 		for (auto& tri : object.triangles)
 		{
 			Vector3f vertices[3];
-			vertices[0] = Vector3f(tri.vertices[0][0], tri.vertices[0][1], tri.vertices[0][2]);
-			vertices[1] = Vector3f(tri.vertices[1][0], tri.vertices[1][1], tri.vertices[1][2]);
-			vertices[2] = Vector3f(tri.vertices[2][0], tri.vertices[2][1], tri.vertices[2][2]);
+			vertices[0] = Vector3f({ tri.vertices[0][0], tri.vertices[0][1], tri.vertices[0][2] });
+			vertices[1] = Vector3f({ tri.vertices[1][0], tri.vertices[1][1], tri.vertices[1][2] });
+			vertices[2] = Vector3f({ tri.vertices[2][0], tri.vertices[2][1], tri.vertices[2][2] });
 			Triangle triangle(vertices[0], vertices[1], vertices[2]);
 
 			MaterialId matId = materials.findOrInsert(tri.colour);

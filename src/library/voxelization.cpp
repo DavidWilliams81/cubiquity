@@ -441,7 +441,7 @@ namespace Cubiquity
 	{
 		Cubiquity::Box3f input;
 
-		Vector3f mean(0.0f);
+		Vector3f mean = { 0.0f, 0.0f, 0.0f };
 
 		for (uint ct = 0; ct < triangles.size(); ct++)
 		{
@@ -747,7 +747,7 @@ namespace Cubiquity
 		const Vector3f c = triangle.vertices[2];
 
 		// Compute threshold based on Section 4.2 of "An Accurate Method To Voxelize Polygonal Meshes" by Huang et al.
-		Vector3f planeNormal = cross(b - a, a - c);
+		const Vector3f planeNormal = cross(b - a, a - c);
 
 		// For thick surfaces
 		if (seperation == 6)
@@ -770,8 +770,12 @@ namespace Cubiquity
 		{
 			// Compute the normal to the face which is best
 			// aligned (most co-planar) with the input triangle;
-			Vector3f faceNormal(0.0f);
-			auto maxIndex = abs(planeNormal).maxComponentIndex();
+			Vector3f faceNormal = { 0.0f, 0.0f, 0.0f };
+			Vector3f absPlaneNormal = planeNormal;
+			float (*fabs)(float) = &std::abs; // https://stackoverflow.com/a/35638933
+			transform_in_place(absPlaneNormal, fabs);
+			auto maxIter = std::max_element(absPlaneNormal.begin(), absPlaneNormal.end());
+			auto maxIndex = std::distance(absPlaneNormal.begin(), maxIter);
 			faceNormal[maxIndex] = planeNormal[maxIndex] >= 0.0f ? 1.0f : -1.0f;
 
 			const float cosBeta = dot(faceNormal, planeNormal) / (length(faceNormal) * length(planeNormal));
@@ -838,11 +842,12 @@ namespace Cubiquity
 
 		// FIXME - Handle rounding
 		Vector3i boundsMin = static_cast<Vector3i>(min(a, min(b, c))); // Round down
-		Vector3i boundsMax = static_cast<Vector3i>(max(a, max(b, c)) + Vector3f(1.0f)); // Round up
+		Vector3i boundsMax = static_cast<Vector3i>(max(a, max(b, c)) + Vector3f({ 1.0f, 1.0f, 1.0f })); // Round up
 
 		// Expand
-		boundsMin -= Vector3i(distThreshold + 0.5f);
-		boundsMax += Vector3i(distThreshold + 0.5f);
+		Vector3i roundedDistThreshold = Vector3i::filled(static_cast<int>(distThreshold + 0.5f));
+		boundsMin -= roundedDistThreshold;
+		boundsMax += roundedDistThreshold;
 
 		for (int32_t z = boundsMin.z(); z <= boundsMax.z(); z++)
 		{
@@ -857,7 +862,7 @@ namespace Cubiquity
 					// are slightly outside the triangle. This doesn't matter for our case as later
 					// we run all fragments through our winding number test, and it may even help
 					// fix and cracks between triangles.
-					float dist = distance(Vector3f(x, y, z), Triangle(a, b, c));
+					float dist = distance(Vector3f({ static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) }), Triangle(a, b, c));
 
 					const float epsilon = 0.001f;
 					if (dist <= (distThreshold + epsilon))
@@ -878,7 +883,9 @@ namespace Cubiquity
 		if (triangle.sideLength(2) > triangle.sideLength(1)) { longestSideIndex = 2; }
 
 		float alignmentThreshold = 0.9f;
-		Vector3f absNormal = abs(triangle.computeNormal());
+		Vector3f absNormal = triangle.computeNormal();
+		float (*fabs)(float) = &std::abs; // https://stackoverflow.com/a/35638933
+		transform_in_place(absNormal, fabs);
 		bool isAxisAligned = absNormal.x() > alignmentThreshold || absNormal.y() > alignmentThreshold || absNormal.z() > alignmentThreshold;
 
 		// If a triangle is large and not aligned to an axis then its bounding box will overlap a
@@ -990,7 +997,7 @@ namespace Cubiquity
 			{
 				for (int32 volX = minBound.x(); volX <= maxBound.x(); volX++)
 				{
-					if (isInside(Vector3f(volX, volY, volZ), surface, useHierarchicalMeshEval))
+					if (isInside(Vector3f({ static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) }), surface, useHierarchicalMeshEval))
 					{
 						volume.setVoxel(volX, volY, volZ, internalMaterial);
 					}
@@ -1035,7 +1042,7 @@ namespace Cubiquity
 							NodeToTest toTest;
 							toTest.index = nodeIndex;
 							toTest.childId = childId;
-							toTest.centre = static_cast<Vector3f>(childNodeBounds.lower() + childNodeBounds.upper()) * 0.5f;
+							toTest.centre = static_cast<Vector3f>((childNodeBounds.lower() + childNodeBounds.upper())) * 0.5f;
 							mNodes.push_back(toTest);
 						}
 					}

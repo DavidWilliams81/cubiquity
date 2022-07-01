@@ -23,65 +23,55 @@ bool testRasterization()
 	VisibilityMask* mask = new VisibilityMask(maskSize, maskSize);
 	mask->clear();
 
-        std:: minstd_rand simple_rand;
-        simple_rand.seed(42);
+	std::minstd_rand simple_rand;
 
 	Timer timer;
 
-        //auto randCorner = std::bind(std::uniform_float_distribution<float>(-1.0,1.0), mt19937(12345));
-
-        Vector2f corners2DFloat[8] =
-        {
-            Vector2f(0.2f, 0.2f),
-            Vector2f(0.1f, 1.0f),
-            Vector2f(1.0f, 0.4f),
-            Vector2f(0.9f, -0.4f),
-            Vector2f(-0.1f, -1.0f),
-            Vector2f(-1.0f, -0.4f),
-            Vector2f(-0.9f, 0.4f),
-            Vector2f(-0.1f, -0.1f)
-        };
-
-        // Segments here are in-order
-        // std::vector<int> segments = {13,6,5,5,4,4,3,3,2,2,1,1,6};
-
-        // Segments here are out of order. The idea that in order segments are not so useful because
-        // if a test passes one segment then there is a good chance it will pass it's neighbour too.
-        // So better to try a completely different segment to maximise chances of early out.
-        // Could maybe improve this further?
-        const PolygonEdgeArray segments = PolygonEdgeArray({Edge(6,5),Edge(4,3),Edge(2,1),Edge(5,4),Edge(3,2),Edge(1,6) });
-
-		BoundingIndices boundingIndices(5, 4, 2, 1);
-
-        // In order of increasing Y
-        const int li[6] = { 4,4,5,6,1,1 }; // Longer than required to allow reading past 'end'.
-        const int ri[6] = { 4,4,3,2,1,1 }; // Longer than required to allow reading past 'end'.
-
-	for (int ct = 0; ct < 1000; ct++)
+	// Note, this is a slightly distorted cube because it was originally just an arbitrary hexagon (plus a couple of points 
+	// inside) in 2d, which I then tried to map to the corners of a cube as I moved from using drawConvexPolygon to drawQuads().
+	Vector2f corners2DFloat[8] =
 	{
-                Vector2i centre(simple_rand() % maskSize, simple_rand() % maskSize);
+		{ -1.0f, -0.4f },
+		{ -0.1f, -1.0f },
+		{ -0.9f,  0.4f },
+		{ -0.1f, -0.1f },
+		{  0.2f,  0.2f },
+		{  0.9f, -0.4f },
+		{  0.1f,  1.0f },
+		{  1.0f,  0.4f }
+	};
 
-				const float polygonSize = simple_rand() % 14 + 2; // From 2 to 15
+	int iterations = 1000;
+	for (int iter = 0; iter < iterations; iter++)
+	{
+		mask->clear();
+		simple_rand.seed(42);
 
-				PolygonVertexArray corners2D;
-                for (int i = 0; i < 8; i++)
-                {
-                        Vector2f vertexAsFloat = corners2DFloat[i] * polygonSize;
-                        Vector2i vertexAsInt(vertexAsFloat.x() + 0.5f, vertexAsFloat.y() + 0.5f); // Add half and cast
+		for (int ct = 0; ct < 5000; ct++)
+		{
+			Vector2i centre({ simple_rand() % maskSize, simple_rand() % maskSize });
 
-                        corners2D[i] = centre + vertexAsInt;
-                }
+			// Note that the base polygon has size of approx two (-1.0 to + 1.0)
+			// FIXME - It would be nice to test with zero-size (or very timy) polygons, but
+			// these currently don't match between the reference renderer and the fancy bitwise one.
+			// I'm not sure what they should do, but they should probably at least be consistent. 
+			const float scaleFactor = static_cast<float>(simple_rand() % 81) / 10.0f + 1.0f; // From 1.0 to 9.0
 
-                // Bounds are trivial to compute for our hard-coded polygon
-                const Vector2i min_bounds(corners2D[5].x(), corners2D[4].y());
-                const Vector2i max_bounds(corners2D[2].x(), corners2D[1].y());
+			PolygonVertexArray corners2D;
+			for (int i = 0; i < 8; i++)
+			{
+				Vector2f vertexAsFloat = corners2DFloat[i] * scaleFactor;
+				Vector2i vertexAsInt({ static_cast<int>(vertexAsFloat.x() + 0.5f), static_cast<int>(vertexAsFloat.y() + 0.5f) }); // Add half and cast
 
-				Bounds bounds;
-				bounds.lower = min_bounds;
-				bounds.upper = max_bounds;
+				corners2D[i] = centre + vertexAsInt;
+			}
 
-                // Rasterize
-                mask->drawConvexPolygon(corners2D, segments, bounds);
+			// Normally we would determine the set of front faces from the camera position.
+			// We don't have camera information for this test, so just draw all faces.
+			FrontFaces frontFaces = { true, true, true, true, true, true };
+
+			mask->drawNode(corners2D, frontFaces, true);
+		}
 	}
 
 	float elapsedTime = timer.elapsedTimeInMilliSeconds();
@@ -90,7 +80,16 @@ bool testRasterization()
 
 	saveVisibilityMaskAsImage(*mask, "TestRasterizationMask.ppm");
 
-	uint32_t expectedHash = 3347657948;
+	// Tile size affects memory layout and hence hash.
+	uint32_t expectedHash = 0;
+	if (VisibilityMask::TileSize == 4)
+	{
+		expectedHash = 1819352790;
+	}
+	else if (VisibilityMask::TileSize == 8)
+	{
+		expectedHash = 3463318368;
+	}
 
 	check(mask->hash(), expectedHash);
 
@@ -175,7 +174,7 @@ bool testRaytracingBehaviour()
 	Timer timer;
 
 	const uint rayCount = 1000;
-	for(uint i = 0; i < rayCount; i++)
+	for (uint i = 0; i < rayCount; i++)
 	{
 		Vector3d origin = static_cast<Vector3d>(sampler.next());
 		Vector3d target = static_cast<Vector3d>(sampler.next());
@@ -236,7 +235,7 @@ bool testRaytracingPerformance()
 
 	std::cout << "Traced " << rayCount << " rays in " << timer.elapsedTimeInSeconds() << " seconds\n";
 	std::cout << "Hit count = " << hitCount << " out of " << rayCount << std::endl;
-	check(hitCount, 123989);
+	check(hitCount, 124000);
 
 	return true;
 }

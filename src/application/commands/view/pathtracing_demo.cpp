@@ -57,7 +57,7 @@ double positionBasedNoise(const Vector3d& position)
 {
 	// Because the intersectionl lies exactly between two voxels a proper round to
 	// nearest suffers from floating point problems. Therefore we apply a tiny offset.
-	Vector3i roundedIntesectionPosition = static_cast<Vector3i>(position + Vector3d(0.499));
+	Vector3i roundedIntesectionPosition = static_cast<Vector3i>(position + Vector3d::filled(0.499));
 	uint32 hash = murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
 	return (hash & 0xff) / 255.0f; // 0.0 to 1.0
 }
@@ -71,7 +71,7 @@ Vector3d gatherLighting(Vector3d position, Vector3d normal, const Volume& volume
 	if (includeSun)
 	{
 		double sunIntensity = 2.0;
-		Vector3d sunDir(normalize(Vector3d(1.0, -2.0, 10.0)));
+		Vector3d sunDir(normalize(Vector3d({ 1.0, -2.0, 10.0 })));
 
 		Ray3d sunShadowRay(position + offset, sunDir);
 		RayVolumeIntersection sunShadowIntersection = ray_parameter(volume, sunShadowRay);
@@ -93,26 +93,27 @@ Vector3d gatherLighting(Vector3d position, Vector3d normal, const Volume& volume
 		}
 	}
 
-	return Vector3d(intensity);
+	return Vector3d::filled(intensity);
 }
 
 Vector3d traceSingleRay(const Ray3d& ray, const Volume& volume, const MaterialSet& materials, uint bounces, bool includeSun, bool includeSky, bool addNoise, uint depth)
 {
-	if (depth > bounces) { return Vector3d(0); }
+	if (depth > bounces) { return Vector3d::filled(0); }
 
-	Vector3d pixelColour(0.0f);
+	Vector3d pixelColour = { 0.0f, 0.0f, 0.0f };
 
 	RayVolumeIntersection intersection = ray_parameter(volume, ray);
 	if (intersection)
 	{
-		pixelColour = Vector3d(materials[intersection.material][0], materials[intersection.material][1], materials[intersection.material][2]);
+		pixelColour = Vector3d({ materials[intersection.material][0], materials[intersection.material][1], materials[intersection.material][2] });
 
 		if (addNoise)
 		{
 			// Noise is applied multiplicatively as this avoids creating overshoots
 			// and undershoots for saturated or dark surface colours respectively.
 			float noise = positionBasedNoise(intersection.position);
-			pixelColour *= Vector3d((noise * 0.1) + 0.9); // Map 0.0 - 1.0 to range 0.9 - 1.0.
+			noise = (noise * 0.1) + 0.9; // Map 0.0 - 1.0 to range 0.9 - 1.0.
+			pixelColour *= Vector3d::filled(noise);
 		}
 
 		if (includeSun || includeSky)
@@ -175,7 +176,7 @@ void Pathtracer::raytrace(const Volume& volume, const MaterialSet& materials, co
 
 		Ray3d ray = camera.rayFromViewportPos(x, y, mWidth, mHeight);
 
-		Vector3f pixel(0);
+		Vector3f pixel = { 0, 0, 0 };
 		for (uint sample = 0; sample < samples; sample++)
 		{
 			pixel += static_cast<Vector3f>(traceSingleRay(ray, volume, materials, bounces, includeSun, includeSky, addNoise, 0));
@@ -187,14 +188,14 @@ void Pathtracer::raytrace(const Volume& volume, const MaterialSet& materials, co
 		Vector3u8* pixelColour = ((Vector3u8*)start) + x;
 
 		// Clamp to valid range for conversion.
-		pixel = max(pixel, Vector3f(0.0f));
-		pixel = min(pixel, Vector3f(1.0f));
+		pixel = max(pixel, Vector3f::filled(0.0f));
+		pixel = min(pixel, Vector3f::filled(1.0f));
 
 		uint8 red = static_cast<uint8>(pixel.x() * 255.0f);
 		uint8 green = static_cast<uint8>(pixel.y() * 255.0f);
 		uint8 blue = static_cast<uint8>(pixel.z() * 255.0f);
 
-		*pixelColour = Vector3u8(red, green, blue);
+		*pixelColour = Vector3u8({ red, green, blue });
 
 		pixelCount++;
 

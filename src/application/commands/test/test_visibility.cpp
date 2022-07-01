@@ -55,7 +55,7 @@ bool testVisibilityUnidirectional()
 		mVolume = new Volume;
 
 		FractalNoise fractalNoise(9);
-		Box3i filledBounds(Vector3i(0), Vector3i(511));
+		Box3i filledBounds(Vector3i::filled(0), Vector3i::filled(511));
 		fillVolume(mVolume, filledBounds, fractalNoise);
 
 		std::cout << "Saving volume...";
@@ -83,25 +83,41 @@ bool testVisibilityUnidirectional()
 
 	CameraData cameraData(viewMat, projMat);*/
 
-	CameraData cameraData(Vector3f(-110, -100, -90), Vector3f(0, 0, 0), Vector3f(0.1, 0.2, 0.8), fovyInRadians, 1.0);
+	CameraData cameraData(Vector3d({ -110, -100, -90 }), Vector3d({ 0, 0, 0 }), Vector3d({ 0.1, 0.2, 0.8 }), fovyInRadians, 1.0);
 
     VisibilityCalculator visCalc;
-	visCalc.mMaxNodeDistance = 2000.0f;
 	visCalc.mMaxFootprintSize = 0.0055f;
 
+	/*PolygonVertexArray vertices{
+		Vector2i(888, 216),
+		Vector2i(889, 215),
+		Vector2i(885, 216),
+		Vector2i(886, 215),
+		Vector2i(888, 219),
+		Vector2i(888, 218),
+		Vector2i(885, 219),
+		Vector2i(886, 218) };
+
+	VisibilityMask m(1024, 1024);
+	//m.drawQuads(vertices);
+
+	for (int i = 0; i < 8; i++)
+	{
+		m.drawPixel(vertices[i][0], vertices[i][1]);
+	}
+
+	std::cout << "Hash = " << m.hash();
+	saveVisibilityMaskAsImage(m, "mask.png");
+	exit(1);*/
+
 	Timer timer;
-
-	const MaterialId externalMaterial = 0;
-	const Vector3f volumeCentre = computeBounds(*mVolume, externalMaterial).centre();
-
 	const int iterations = 100;
-
 	const uint32_t maxGlyphCount = 1000000;
 	Glyph* glyphs = new Glyph[maxGlyphCount];
 	uint32_t glyphCount = 0;
 	for (int ct = 0; ct < iterations; ct++)
 	{
-		glyphCount = visCalc.findVisibleOctreeNodesPerspective(&cameraData, mVolume, glyphs, maxGlyphCount);
+		glyphCount = visCalc.findVisibleOctreeNodes(&cameraData, mVolume, glyphs, maxGlyphCount);
 	}
 	
 	float elapsedTime = timer.elapsedTimeInMilliSeconds();
@@ -109,15 +125,24 @@ bool testVisibilityUnidirectional()
 
 	std::cout << "\tFound " << glyphCount << " glyphs." << std::endl;
 
-	saveVisibilityMaskAsImage(*(visCalc.cubeFace(0)), "PerspectiveMask.png");
+	saveVisibilityMaskAsImage(*(visCalc.mVisMask), "PerspectiveMask.png");
 
 	delete mVolume;
 
-	uint32_t hash = visCalc.cubeFace(0)->hash();
+	uint32_t hash = visCalc.mVisMask->hash();
 	std::cout << "\tHash = " << hash << std::endl;
 
-	const size_t expectedGlyphCount = 61772;
-	const uint32_t expectedHash = 4276840304;
+	const size_t expectedGlyphCount = 62117;
+	// Tile size affects memory layout and hence hash.
+	uint32_t expectedHash = 0;
+	if (VisibilityMask::TileSize == 4)
+	{
+		expectedHash = 4184501084;
+	}
+	else if (VisibilityMask::TileSize == 8)
+	{
+		expectedHash = 1810787742;
+	}
 
 	check(glyphCount, expectedGlyphCount);
 	check(hash, expectedHash);

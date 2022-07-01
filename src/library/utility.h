@@ -71,8 +71,8 @@ namespace Cubiquity
 		Internals::NodeDAG& mDAG = Internals::getNodes(volume);
 		uint32_t rootNodeIndex = Internals::getRootNodeIndex(volume);
 
-		Vector3i rootLowerBound(std::numeric_limits<int32>::min());
-		Vector3i rootUpperBound(std::numeric_limits<int32>::max());
+		Vector3i rootLowerBound = Vector3i::filled(std::numeric_limits<int32>::min());
+		Vector3i rootUpperBound = Vector3i::filled(std::numeric_limits<int32>::max());
 
 		traverseNodesRecursive(mDAG, rootNodeIndex, Box3i(rootLowerBound, rootUpperBound), callback);
 	}

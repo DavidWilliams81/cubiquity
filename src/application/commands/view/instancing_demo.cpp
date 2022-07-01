@@ -44,3 +44,13 @@ void InstancingDemo::onShutdown()
 
 	delete mVolumeRenderer;
 }
+
+void InstancingDemo::onKeyDown(const SDL_KeyboardEvent & event)
+{
+	Demo::onKeyUp(event);
+
+	if (event.keysym.sym == SDLK_SPACE)
+	{
+		mVolumeRenderer->mDoGlyphUpdates = !(mVolumeRenderer->mDoGlyphUpdates);
+	}
+}

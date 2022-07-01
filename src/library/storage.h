@@ -107,7 +107,8 @@ namespace Cubiquity
 			:mRadiusSquared(radius * radius)
 		{
 			mCentre = centre;
-			mBounds = Box3f(centre - Vector3f(radius), centre + Vector3f(radius));
+			Vector3f radiusAsVec = Vector3f::filled(radius);
+			mBounds = Box3f(centre - radiusAsVec, centre + radiusAsVec);
 		}
 
 		bool contains(const Vector3f& point) const

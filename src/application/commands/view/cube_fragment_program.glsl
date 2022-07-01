@@ -75,8 +75,9 @@ vec3 roundedNormalForVoxel(vec3 modelPosition, vec3 worldPosition)
 float positionBasedNoise(vec4 positionAndStrength)
 {
 	//'floor' is more widely supported than 'round'. Offset consists of:
-	//  - 0.5 to perform the rounding
-	vec3 roundedPos = floor(positionAndStrength.xyz + vec3(0.5, 0.5, 0.5));
+	// - 0.5 to perform the rounding
+	// - Tiny offset to eliminate acne as surfaces lie *exactly* between two voxels.
+	vec3 roundedPos = floor(positionAndStrength.xyz + vec3(0.501, 0.501, 0.501));
 	
 	// The noise function below seems to do remarkably well even for large inputs. None-the-less, it is
 	// better for small inputs so we limit the input range to within a few hundred voxels of the origin.

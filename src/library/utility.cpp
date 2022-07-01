@@ -119,11 +119,11 @@ namespace Cubiquity
 		uint childX = (childId >> 0) & 0x01;
 		uint childY = (childId >> 1) & 0x01;
 		uint childZ = (childId >> 2) & 0x01;
-		Vector3i childOffset(childX, childY, childZ); // childOffset holds zeros or ones.
+		Vector3i childOffset({ static_cast<int>(childX), static_cast<int>(childY), static_cast<int>(childZ) }); // childOffset holds zeros or ones.
 
 		// Careful ordering of operations to avoid signed integer overflow. Note that child
 		// node dimensions might max-out the signed integer type but should not exceed it.
-		const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i(1)) / 2) - (nodeBounds.lower() / 2);
+		const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i({ 1, 1, 1 })) / 2) - (nodeBounds.lower() / 2);
 		Vector3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
 		Vector3i childUpperBound = childLowerBound + childNodeDimsInCells;
 		return Box3i(childLowerBound, childUpperBound);

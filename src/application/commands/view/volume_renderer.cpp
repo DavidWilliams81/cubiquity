@@ -1,6 +1,7 @@
 #include "volume_renderer.h"
 
 #include "rendering.h"
+#include "utility.h"
 
 #include <iostream>
 
@@ -50,7 +51,6 @@ VolumeRenderer::VolumeRenderer(const MaterialSet& materials)
 	TextureID = glGetUniformLocation(program.programID, "materials");
 
 	mVisibilityCalculator = new VisibilityCalculator;
-	mVisibilityCalculator->mMaxNodeDistance = 3000.0f;
 	instanceList.initialise();
 
 	mGlyphs = new Glyph[maxGlyphCount];
@@ -65,12 +65,21 @@ VolumeRenderer::~VolumeRenderer()
 
 void VolumeRenderer::render(const Camera& camera)
 {
+	// Settings for debugging a difficult angle on the 'building' map.
+	// 'camera' needs to be changed to a non-const non-ref to use these.
+	//std::cout << camera.position << " : " << camera.pitch << " : " << camera.yaw << std::endl;
+	//camera.position = Vector3f(262.409, 320.604, 187.974);
+	//camera.pitch = -0.00539806;
+	//camera.yaw = -0.92;
+	
 	cameraData = CameraData(camera.position, camera.position + camera.forward(), camera.up(), camera.fovInDegrees / 57.2958f, camera.aspect);
 
-	const Vector3f volumeCentre = Vector3f(0.0f, 0.0f, 0.0f);
+	const Vector3f volumeCentre = Vector3f({ 0.0f, 0.0f, 0.0f });
 
 	mVisibilityCalculator->mMaxFootprintSize = 0.01f;
-	uint32_t glyphCount = mVisibilityCalculator->findVisibleOctreeNodesPerspective(&(cameraData), mVolume, mGlyphs, maxGlyphCount);
+	Timer timer;
+	uint32_t glyphCount = mVisibilityCalculator->findVisibleOctreeNodes(&(cameraData), mVolume, mGlyphs, maxGlyphCount);
+	std::cout << "Found " << glyphCount << " glyphs in " << timer.elapsedTimeInMilliSeconds() << "ms" << std::endl;
 
 	// We render back-to-front in order to support alpha blending for points, but for cubes we render
 	// front to back and use the depth buffer to discard fragments (probably not needed, to be tested).
@@ -79,13 +88,16 @@ void VolumeRenderer::render(const Camera& camera)
 		std::reverse(mGlyphs, mGlyphs + glyphCount);
 	}
 
-	instanceList.setPerInstanceData(mGlyphs, glyphCount);
+	if (mDoGlyphUpdates)
+	{
+		instanceList.setPerInstanceData(mGlyphs, glyphCount);
+	}
 
 	// Clear the screen
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	Matrix4x4f ProjectionMatrix = camera.projectionMatrix();
-	Matrix4x4f ViewMatrix = camera.viewMatrix();
+	Matrix4x4f ProjectionMatrix = static_cast<Matrix4x4f>(camera.projectionMatrix());
+	Matrix4x4f ViewMatrix = static_cast<Matrix4x4f>(camera.viewMatrix());
 
 	// Use our shader
 	glUseProgram(program.programID);

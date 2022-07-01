@@ -12,58 +12,11 @@
 ***************************************************************************************************/
 #include "geometry.h"
 
+#include <algorithm>
 #include <limits>
 
 namespace Cubiquity
 {
-	Matrix4x4f frustum_matrix(float x0, float x1, float y0, float y1, float n, float f)
-	{
-		const float s = -1.0f, o = n;
-
-		Matrix4x4f result;
-		result[0] = Vector4f(2*n/(x1-x0),0,0,0);
-		result[1] = Vector4f(0,2*n/(y1-y0),0,0);
-		result[2] = Vector4f(-s*(x0+x1)/(x1-x0),-s*(y0+y1)/(y1-y0),s*(f+o)/(f-n),s);
-		result[3] = Vector4f(0,0,-(n+o)*f/(f-n),0);
-		return result;
-	}
-
-	Matrix4x4f perspective_matrix(float fovy, float aspect, float n, float f)
-	{
-		float y = n*std::tan(fovy / 2), x = y*aspect;
-
-		return frustum_matrix(-x, x, -y, y, n, f);
-	}
-
-	Matrix4x4f lookAtRH(const Vector3f& eye, const Vector3f& center, const Vector3f& up)
-	{
-		const Vector3f f(normalize(center - eye));
-		const Vector3f s(normalize(cross(f, up)));
-		const Vector3f u(cross(s, f));
-
-		Matrix4x4f result;
-		result[0][0] = s.x();
-		result[1][0] = s.y();
-		result[2][0] = s.z();
-		result[0][1] = u.x();
-		result[1][1] = u.y();
-		result[2][1] = u.z();
-		result[0][2] = -f.x();
-		result[1][2] = -f.y();
-		result[2][2] = -f.z();
-		result[3][0] = -dot(s, eye);
-		result[3][1] = -dot(u, eye);
-		result[3][2] = dot(f, eye);
-		return result;
-	}
-
-	Matrix4x4f translation_matrix(const Vector3f& pos)
-	{
-		Matrix4x4f result;
-		result[3] = Vector4f(pos.x(), pos.y(), pos.z(), 1.0f);
-		return result;
-	}
-
 	template <typename T> int sign(T val) {
 		return static_cast<int>(T(0) < val) - static_cast<int>(val < T(0));
 	}
@@ -205,14 +158,17 @@ namespace Cubiquity
 	{
 		// Inverse direction could be precomputed and stored in the ray
 		// if we find we often intersect the same ray with multiple boxes.
-		const Vector3f invDir = Vector3f(1.0f) / ray.mDir;
+		const Vector3f invDir = Vector3f({ 1.0f, 1.0f, 1.0f }) / ray.mDir;
 
 		const Vector3f lower = (box.lower() - ray.mOrigin) * invDir;
 		const Vector3f upper = (box.upper() - ray.mOrigin) * invDir;
 
+		const Vector3f minCorner = min(lower, upper);
+		const Vector3f maxCorner = max(lower, upper);
+
 		RayBoxIntersection intersection;
-		intersection.entry = min(lower, upper).maxComponentValue();
-		intersection.exit  = max(lower, upper).minComponentValue();
+		intersection.entry = *(std::max_element(minCorner.begin(), minCorner.end()));
+		intersection.exit  = *(std::min_element(maxCorner.begin(), maxCorner.end()));
 		return intersection;
 	}
 }

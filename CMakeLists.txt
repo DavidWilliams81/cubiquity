@@ -58,7 +58,17 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 file(GLOB LIBRARY_SRCS src/library/*)
 add_library(Library ${LIBRARY_SRCS})
 target_link_libraries(Library Threads::Threads)
-set_target_properties(Library PROPERTIES OUTPUT_NAME cubiquity)
+
+# Required to profile release bulds.
+if(MSVC)
+    target_link_options(Library PUBLIC /PROFILE)
+    target_compile_options(Library PUBLIC /Zi)
+endif()
+
+# Note: I would like to uncomment the line below, but doing so seems to break the  
+# expected dependancy between the library being updated and a relink being required. 
+# At least withing Visual Studio. More investigation required. 
+#set_target_properties(Library PROPERTIES OUTPUT_NAME cubiquity)
 
 # For tidier folder layout in Visual Studio (mimics application target below)
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/library PREFIX "Source Code" FILES ${LIBRARY_SRCS})

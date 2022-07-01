@@ -3,12 +3,12 @@
 using namespace Cubiquity;
 
 Camera::Camera()
-	:position(0.0f, 0.0f, 0.0f)
-	,pitch(0.0f)
-	,yaw(0.0f)
+	:position({ 0.0, 0.0, 0.0 })
+	,pitch(0.0)
+	,yaw(0.0)
 {
-	fovInDegrees = 60.0f; // FIXME - Shouldn't be hard-coded.
-	aspect = 4.0f / 3.0f; // FIXME - Shouldn't be hard-coded.
+	fovInDegrees = 60.0; // FIXME - Shouldn't be hard-coded.
+	aspect = 4.0 / 3.0; // FIXME - Shouldn't be hard-coded.
 }
 
 Ray3d Camera::rayFromViewportPos(int x, int y, int width, int height) const
@@ -39,35 +39,35 @@ Ray3d Camera::rayFromViewportPos(int x, int y, int width, int height) const
 	return ray;
 }
 
-Vector3f Camera::forward() const
+Vector3d Camera::forward() const
 {
 	// Direction : Spherical coordinates to Cartesian coordinates conversion
-	return Vector3f
-	(
+	return Vector3d
+	({
 		// Looking along (0,1,0) when pitch and yaw are both zero.
 		cos(pitch) * sin(yaw),
 		cos(pitch) * cos(yaw),
 		sin(pitch)
-	);
+	});
 }
 
-Vector3f Camera::right() const
+Vector3d Camera::right() const
 {
 	// Looking along (1,0,0) when pitch and yaw are both zero.
-	return Vector3f(
-		sin(yaw + (Pi/2)),
-		cos(yaw + (Pi/2)),
+	return Vector3d({
+		sin(yaw + (Pi / 2)),
+		cos(yaw + (Pi / 2)),
 		0
-	);
+	});
 }
 
-Vector3f Camera::up() const
+Vector3d Camera::up() const
 {
 	// Up vector
 	return cross(right(), forward());
 }
 
-Matrix4x4f Camera::viewMatrix() const
+Matrix4x4d Camera::viewMatrix() const
 {
 	// Camera matrix
 	return lookAtRH(
@@ -77,7 +77,7 @@ Matrix4x4f Camera::viewMatrix() const
 	);
 }
 
-Matrix4x4f Camera::projectionMatrix() const
+Matrix4x4d Camera::projectionMatrix() const
 {
-	return perspective_matrix(fovInDegrees * 0.0174533f, aspect, 0.1f, 10000.0f);
+	return perspective_matrix(fovInDegrees * 0.0174533, aspect, 0.1, 10000.0);
 }

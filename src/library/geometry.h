@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <vector>
 #include <random>
+#include <type_traits>
 
 namespace Cubiquity
 {
@@ -34,241 +35,143 @@ namespace Cubiquity
 	////////////////////////////////////////////////////////////////////////////////
 	//									Vector
 	////////////////////////////////////////////////////////////////////////////////
-	template <int Size, typename Type>
-	class Vector
+
+	// Vector is a simple C++ aggregate. Could publicly inherit from std::array to
+	// eliminate some boilerplate code (see https://stackoverflow.com/a/24281360),
+	// but this only seems to works on  GCC 11 onwards (not Clang or MSVC).
+	template <class Type, int Size>
+	struct Vector
 	{
-	public:
+		// Initialise array to single value (aggregates don't have constructors).
+		static constexpr Vector<Type, Size> filled(const Type& value) {
+			Vector<Type, Size> ret = { 0, 0, 0 };
+			ret.fill(value);
+			return ret;
+		}
 
-        // Constructors
-		Vector() {}
-		Vector(Type t) { for(int i = 0; i < Size; ++i) { data[i] = t; } }
-		Vector(Type x, Type y) : data{x,y} { static_assert(Size == 2, "Wrong no. of params"); }
-		Vector(Type x, Type y, Type z) : data{x,y,z} { static_assert(Size == 3, "Wrong no. of params"); }
-		Vector(Type x, Type y, Type z, Type w) : data{x,y,z,w} { static_assert(Size == 4, "Wrong no. of params"); }
+		// For static_cast support
+		template <typename CastType>
+		explicit operator Vector<CastType, Size>() const {
+			Vector<CastType, Size> result;
+			for (uint32_t ct = 0; ct < Size; ++ct) { result[ct] = static_cast<CastType>(mData[ct]); }
+			return result;
+		}
 
-		// For casting betwween Vector types of matching size.
-		template <typename CastType> explicit Vector(const Vector<Size, CastType>& vector)
-		{
-			for (uint32_t ct = 0; ct < Size; ++ct) { data[ct] = static_cast<Type>(vector.data[ct]); }
+		// Nullary  arithmetic operators
+		Vector<Type, Size> operator-() const {
+			Vector<Type, Size> result; for (int i = 0; i < Size; ++i) { result[i] = -(*this)[i]; } return result; }
+
+		// Unary arithmetic operators
+		void operator+=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] += rhs; } }
+		void operator+=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] += rhs[i]; } }
+		void operator-=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] -= rhs; } }
+		void operator-=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] -= rhs[i]; } }
+		void operator*=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] *= rhs; } }
+		void operator*=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] *= rhs[i]; } }
+		void operator/=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] /= rhs; } }
+		void operator/=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] /= rhs[i]; } }
+
+		// Binary arithmetic operators as friends (non-members)
+		friend Vector<Type, Size> operator+(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result += rhs; return result; }
+		friend Vector<Type, Size> operator+(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result += rhs; return result; }
+		friend Vector<Type, Size> operator-(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result -= rhs; return result; }
+		friend Vector<Type, Size> operator-(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result -= rhs; return result; }
+		friend Vector<Type, Size> operator*(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result *= rhs; return result; }
+		friend Vector<Type, Size> operator*(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result *= rhs; return result; }
+		friend Vector<Type, Size> operator/(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result /= rhs; return result; }
+		friend Vector<Type, Size> operator/(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result /= rhs; return result; }
+
+		// Comparison operators as friends (https://stackoverflow.com/a/1145635)
+		friend bool operator==(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData == rhs.mData; }
+		friend bool operator<(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData < rhs.mData; }
+
+		// Stream insertion operator.
+		friend std::ostream& operator<<(std::ostream& os, const Vector<Type, Size>& vector) {
+			os << "[";
+			for (auto v : vector) { os << v << ","; }
+			os << "\b]"; // Backspace to remove last comma.
+			return os;
 		}
 
 		// Indexed element access
-		Type& operator[](int index) { assert(index < Size && "Index out of range"); return this->data[index]; }
-		const Type& operator[](int index) const { assert(index < Size && "Index out of range"); return this->data[index]; }
+		Type& operator[](int index) { assert(index < Size && "Index out of range"); return mData[index]; }
+		const Type& operator[](int index) const { assert(index < Size && "Index out of range"); return mData[index]; }
 
-		// Named element access. Could replace asserts with 'enable_if'?
-		const Type& x() const { static_assert(Size > 0, "Vector too small to call x()"); return data[0]; }
-		const Type& y() const { static_assert(Size > 1, "Vector too small to call y()"); return data[1]; }
-		const Type& z() const { static_assert(Size > 2, "Vector too small to call z()"); return data[2]; }
-		const Type& w() const { static_assert(Size > 3, "Vector too small to call w()"); return data[3]; }
+		// Named element access
+		const Type& x() const { static_assert(Size > 0, "Vector too small to call x()"); return (*this)[0]; }
+		const Type& y() const { static_assert(Size > 1, "Vector too small to call y()"); return (*this)[1]; }
+		const Type& z() const { static_assert(Size > 2, "Vector too small to call z()"); return (*this)[2]; }
+		const Type& w() const { static_assert(Size > 3, "Vector too small to call w()"); return (*this)[3]; }
 
-		const Vector<3, Type> xxx() const { return Vector<3, Type>(x(), x(), x()); }
-		const Vector<3, Type> xyz() const { return Vector<3, Type>(x(), y(), z()); }
-		const Vector<3, Type> www() const { return Vector<3, Type>(w(), w(), w()); }
+		// Forwards for std::array interface.
+		auto begin() noexcept { return mData.begin(); }
+		auto begin() const noexcept { return mData.begin(); }
+		auto cbegin() const noexcept { return mData.cbegin(); }
 
-		// Find the biggest and smallest components in the vector
-		int minComponentIndex() const
-		{
-			int minIndex = 0;
-			for (int i = 1; i < Size; ++i)
-			{
-				if (data[i] < data[minIndex])
-				{
-					minIndex = i;
-				}
-			}
-			return minIndex;
-		}
+		auto end() noexcept { return mData.end(); }
+		auto end() const noexcept { return mData.end(); }
+		auto cend() const noexcept { return mData.cend(); }
 
-		int maxComponentIndex() const
-		{
-			int maxIndex = 0;
-			for (int i = 1; i < Size; ++i)
-			{
-				if (data[i] > data[maxIndex])
-				{
-					maxIndex = i;
-				}
-			}
-			return maxIndex;
-		}
+		void fill(const Type& value) { mData.fill(value); }
 
-		Type minComponentValue() const { Type t = data[0]; for(int i = 1; i < Size; ++i) { t = std::min(t, data[i]); } return t; }
-		Type maxComponentValue() const { Type t = data[0]; for(int i = 1; i < Size; ++i) { t = std::max(t, data[i]); } return t; }
-
-		// Unary arithmetic operators
-		void operator+=(Type const& rhs) { for(int i = 0; i < Size; ++i) { data[i] += rhs; } }
-		void operator+=(Vector<Size, Type> const& rhs) { for(int i = 0; i < Size; ++i) { data[i] += rhs.data[i]; } }
-		void operator-=(Type const& rhs) { for(int i = 0; i < Size; ++i) { data[i] -= rhs; } }
-		void operator-=(Vector<Size, Type> const& rhs) { for(int i = 0; i < Size; ++i) { data[i] -= rhs.data[i]; } }
-		void operator*=(Type const& rhs) { for(int i = 0; i < Size; ++i) { data[i] *= rhs; } }
-		void operator*=(Vector<Size, Type> const& rhs) { for(int i = 0; i < Size; ++i) { data[i] *= rhs.data[i]; } }
-		void operator/=(Type const& rhs) { for(int i = 0; i < Size; ++i) { data[i] /= rhs; } }
-		void operator/=(Vector<Size, Type> const& rhs) { for(int i = 0; i < Size; ++i) { data[i] /= rhs.data[i]; } }
-
-		Type data[Size];
+		// Public (requirement for aggregate), but shouldn't be accessed directly.
+		std::array<Type, Size> mData;
 	};
 
 	// Typedefs for commonly-used types
-	typedef Vector<2, int> Vector2i;
-	typedef Vector<2, float> Vector2f;
-	typedef Vector<2, double> Vector2d;
+	typedef Vector<int, 2> Vector2i;
+	typedef Vector<uint, 2> Vector2u;
+	typedef Vector<float, 2> Vector2f;
+	typedef Vector<double, 2> Vector2d;
 
-    typedef Vector<3, int> Vector3i;
-	typedef Vector<3, uint8_t> Vector3u8;
-	typedef Vector<3, int64_t> Vector3i64;
-	typedef Vector<3, float> Vector3f;
-	typedef Vector<3, double> Vector3d;
+	template <typename Type> using Vector3 = Vector<Type, 3>;
+    typedef Vector<int, 3> Vector3i;
+	typedef Vector<uint8_t, 3> Vector3u8;
+	typedef Vector<int64_t, 3> Vector3i64;
+	typedef Vector<float, 3> Vector3f;
+	typedef Vector<double, 3> Vector3d;
 
-	typedef Vector<4, int> Vector4i;
-	typedef Vector<4, float> Vector4f;
+	template <typename Type> using Vector4 = Vector<Type, 4>;
+	typedef Vector<int, 4> Vector4i;
+	typedef Vector<float, 4> Vector4f;
+	typedef Vector<double, 4> Vector4d;
 
-    // Comparison operator
-	template <int Size, typename Type>
-	bool operator==(const Vector<Size, Type>& lhs, const Vector<Size, Type>& rhs)
+	// Applied in place so only works for operators which don't change type (e.g. not lround()).
+	template<class Type, int Size, class UnaryOperation>
+	void transform_in_place(Vector<Type, Size>& vec, UnaryOperation unary_op)
 	{
-		// Note: The code below does seem sligtly slower than doing:
-		//		'return memcmp(lhs.data, rhs.data, sizeof(lhs.data)) == 0;'
-		// Is that expected? We probably shouldn't memcmp on floating point values,
-		// but should we specialise for integers? More testing is needed here.
-		for (int i = 0; i < Size; ++i) { if (lhs[i] != rhs[i]) return false; } return true;
-	}
-
-	template <int Size, typename Type>
-	bool operator<(const Vector<Size, Type>& lhs, const Vector<Size, Type>& rhs)
-	{
-		for (int i = 0; i < Size; ++i)
-		{
-			if (lhs[i] < rhs[i]) return true;
-			if (lhs[i] > rhs[i]) return false;
-		}
-		return false; // Equality
-	}
-
-	// Binary arithmetic operators
-	template <int Size, typename Type>
-	Vector<Size, Type> operator+(Vector<Size, Type> const& lhs, Type const& rhs)
-	{ Vector<Size, Type> result( lhs ); result += rhs; return result; }
-
-	template <int Size, typename Type>
-	Vector<Size, Type> operator+(Vector<Size, Type> const& lhs, Vector<Size, Type> const& rhs)
-	{ Vector<Size, Type> result( lhs ); result += rhs; return result; }
-
-    template <int Size, typename Type>
-	Vector<Size, Type> operator-(Vector<Size, Type> const& lhs, Type const& rhs)
-	{ Vector<Size, Type> result( lhs ); result -= rhs; return result; }
-
-	template <int Size, typename Type>
-	Vector<Size, Type> operator-(Vector<Size, Type> const& lhs, Vector<Size, Type> const& rhs)
-	{ Vector<Size, Type> result( lhs ); result -= rhs; return result; }
-
-	template <int Size, typename Type>
-	Vector<Size, Type> operator*(Vector<Size, Type> const& lhs, Type const& rhs)
-	{ Vector<Size, Type> result( lhs ); result *= rhs; return result; }
-
-	template <int Size, typename Type>
-	Vector<Size, Type> operator*(Vector<Size, Type> const& lhs, Vector<Size, Type> const& rhs)
-	{ Vector<Size, Type> result( lhs ); result *= rhs; return result; }
-
-	template <int Size, typename Type>
-	Vector<Size, Type> operator/(Vector<Size, Type> const& lhs, Type const& rhs)
-	{ Vector<Size, Type> result( lhs ); result /= rhs; return result; }
-
-	template <int Size, typename Type>
-	Vector<Size, Type> operator/(Vector<Size, Type> const& lhs, Vector<Size, Type> const& rhs)
-	{ Vector<Size, Type> result( lhs ); result /= rhs; return result; }
-
-	/// Stream insertion operator.
-	template <int Size, typename Type>
-	std::ostream& operator<<(std::ostream& os, const Vector<Size, Type>& vector)
-	{
-		os << "(";
-		for (uint32 i = 0; i < Size; ++i)
-		{
-			os << vector[i];
-			if (i < (Size - 1))
-			{
-				os << ",";
-			}
-		}
-		os << ")";
-		return os;
-	}
-
-	// Component-wise absolute values (output is a Vector rather than a scaler).
-	template <int Size, typename Type>
-	Vector<Size, Type> abs(Vector<Size, Type> const& vec)
-	{
-		Vector<Size, Type> result;
-		for(int i = 0; i < Size; ++i) { result[i] = std::abs(vec[i]); }
-		return result;
+		std::transform(vec.begin(), vec.end(), vec.begin(), unary_op);
 	}
 
 	// Component-wise minimum and maximum (output is a Vector rather than a scaler).
-	template <int Size, typename Type>
-	Vector<Size, Type> min(Vector<Size, Type> const& lhs, Vector<Size, Type> const& rhs)
+	template <class Type, int Size>
+	Vector<Type, Size> min(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs)
 	{
-		Vector<Size, Type> result;
+		Vector<Type, Size> result;
 		for(int i = 0; i < Size; ++i) { result[i] = std::min(lhs[i], rhs[i]); }
 		return result;
 	}
 
-	template <int Size, typename Type>
-	Vector<Size, Type> max(Vector<Size, Type> const& lhs, Vector<Size, Type> const& rhs)
+	template <class Type, int Size>
+	Vector<Type, Size> max(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs)
 	{
-		Vector<Size, Type> result;
+		Vector<Type, Size> result;
 		for(int i = 0; i < Size; ++i) { result[i] = std::max(lhs[i], rhs[i]); }
 		return result;
 	}
 
-	template <int Size, typename Type>
-	Vector<Size, Type> floor(Vector<Size, Type> const& vec)
+	template <class Type, int Size>
+	Vector<Type, Size> clamp(Vector<Type, Size> const& vec, Type minVal, Type maxVal)
 	{
-		Vector<Size, Type> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::floor(vec[i]); }
-		return result;
-	}
-
-	template <int Size, typename Type>
-	Vector<Size, Type> ceil(Vector<Size, Type> const& vec)
-	{
-		Vector<Size, Type> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::ceil(vec[i]); }
-		return result;
-	}
-
-	template <int Size, typename Type>
-	Vector<Size, Type> round(Vector<Size, Type> const& vec)
-	{
-		Vector<Size, Type> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::round(vec[i]); }
-		return result;
-	}
-
-	template <int Size, typename Type>
-	Vector<Size, long> lround(Vector<Size, Type> const& vec)
-	{
-		Vector<Size, long> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::lround(vec[i]); }
-		return result;
-	}
-
-	template <int Size, typename Type>
-	Vector<Size, Type> fract(Vector<Size, Type> const& vec)
-	{
-		Vector<Size, Type> result;
-		double intpart;
-		for (int i = 0; i < Size; ++i)
-		{
-			result[i] = std::modf(vec[i], &intpart);
-		}
-		return result;
-	}
-
-	template <int Size, typename Type>
-	Vector<Size, Type> clamp(Vector<Size, Type> const& vec, Type minVal, Type maxVal)
-	{
-		Vector<Size, Type> result;
+		Vector<Type, Size> result;
 		for (int i = 0; i < Size; ++i)
 		{
 			result[i] = std::max(minVal, std::min(vec[i], maxVal));
@@ -276,15 +179,22 @@ namespace Cubiquity
 		return result;
 	}
 
-	template <int Size, typename Type>
-	Vector<Size, Type> mix(Vector<Size, Type> const& x, Vector<Size, Type> const& y, float a)
+	// Rounding in C++ is suprisingly complex (e.g. lround() vs lrint()) and built-in functions can
+	// be very slow (see https://stackoverflow.com/q/53962727). Hence we use a simpler method here.
+	template <class Type, int Size>
+	Vector<long int, Size> round_to_int(Vector<Type, Size> const& vec)
 	{
-		return x * (1.0f - a) + y * a;
+		Vector<long int, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = std::floor(vec[i] + Type(0.5));
+		}
+		return result;
 	}
 
 	// Common vector operations
-	template <int Size, typename Type>
-	Type dot(const Vector<Size, Type>& a, const Vector<Size, Type>& b)
+	template <class Type, int Size>
+	Type dot(const Vector<Type, Size>& a, const Vector<Type, Size>& b)
 	{
 		Type result(0);
 		for(int i = 0; i < Size; ++i) { result += a[i] * b[i]; }
@@ -292,23 +202,23 @@ namespace Cubiquity
 	}
 
 	// Should only be valid for 3D vectors. Also, what should the return type be?
-	template <int Size, typename Type>
-	Vector3f cross(const Vector<Size, Type>& a, const Vector<Size, Type>& b)
+	template <class Type, int Size>
+	Vector<Type, Size> cross(const Vector<Type, Size>& a, const Vector<Type, Size>& b)
 	{
 		return { a.y()*b.z() - a.z()*b.y(), a.z()*b.x() - a.x()*b.z(), a.x()*b.y() - a.y()*b.x() };
 	}
 
-	// FIXME - Should this always return float?
-	template <int Size, typename Type>
-	float length(const Vector<Size, Type>& vec)
+	template <class Type, int Size>
+	Type length(const Vector<Type, Size>& vec)
 	{
+		static_assert(std::is_floating_point<Type>::value);
 		return sqrt(dot(vec, vec));
 	}
 
-	template <int Size, typename Type>
-	Vector<Size, Type> normalize(const Vector<Size, Type>& vec)
+	template <class Type, int Size>
+	Vector<Type, Size> normalize(const Vector<Type, Size>& vec)
 	{
-		Vector<Size, Type> result;
+		Vector<Type, Size> result;
 		float len = length(vec);
 
 		// Could do better error handling here but it's hard to define a correct
@@ -322,11 +232,12 @@ namespace Cubiquity
 	////////////////////////////////////////////////////////////////////////////////
 	//									Matrix
 	////////////////////////////////////////////////////////////////////////////////
-	class Matrix4x4f
+	template <typename Type>
+	class Matrix4x4
 	{
 	public:
 		// Set to identity matrix.
-		Matrix4x4f()
+		Matrix4x4()
 		{
 			for(int y = 0; y < 4; y++)
 			{
@@ -337,22 +248,132 @@ namespace Cubiquity
 			}
 		}
 
-		Vector4f& operator[](int index) { return data[index]; }
+		Matrix4x4(const Vector4<Type>& v0, const Vector4<Type>& v1, const Vector4<Type>& v2, const Vector4<Type>& v3)
+		{
+			data[0] = v0;
+			data[1] = v1;
+			data[2] = v2;
+			data[3] = v3;
+		}
 
-		const Vector4f& operator[](int index) const { return data[index]; }
+		// For casting betwween Vector types of matching size.
+		template <typename CastType> explicit Matrix4x4(const Matrix4x4<CastType>& matrix)
+		{
+			for (uint32_t ct = 0; ct < 4; ++ct) { data[ct] = static_cast< Vector4<Type> >(matrix.data[ct]); }
+		}
 
-	private:
-		Vector4f data[4];
+		Vector4<Type>& operator[](int index) { return data[index]; }
+
+		const Vector4<Type>& operator[](int index) const { return data[index]; }
+
+		void operator/=(Type const& rhs) { for (int i = 0; i < 4; ++i) { data[i] /= rhs; } }
+
+	public:
+		Vector4<Type> data[4];
 	};
 
-	Matrix4x4f frustum_matrix(float x0, float x1, float y0, float y1, float n, float f);
+	typedef Matrix4x4<float> Matrix4x4f;
+	typedef Matrix4x4<double> Matrix4x4d;
 
-	Matrix4x4f perspective_matrix(float fovy, float aspect, float n, float f);
+	template <typename Type>
+	Matrix4x4<Type> frustum_matrix(Type x0, Type x1, Type y0, Type y1, Type n, Type f)
+	{
+		const Type s = -1.0f, o = n;
 
-	Matrix4x4f lookAtRH(const Vector3f& eye, const Vector3f& center, const Vector3f& up);
+		Matrix4x4<Type> result;
+		result[0] = { 2 * n / (x1 - x0), 0, 0, 0 };
+		result[1] = { 0, 2 * n / (y1 - y0), 0, 0 };
+		result[2] = { -s * (x0 + x1) / (x1 - x0), -s * (y0 + y1) / (y1 - y0), s * (f + o) / (f - n), s };
+		result[3] = { 0, 0, -(n + o) * f / (f - n), 0 };
+		return result;
+	}
 
-	Matrix4x4f translation_matrix(const Vector3f& pos);
+	template <typename Type>
+	Matrix4x4<Type> perspective_matrix(Type fovy, Type aspect, Type n, Type f)
+	{
+		Type y = n * std::tan(fovy / 2), x = y * aspect;
 
+		return frustum_matrix(-x, x, -y, y, n, f);
+	}
+
+	template <typename Type>
+	Matrix4x4<Type> lookAtRH(const Vector3<Type>& eye, const Vector3<Type>& center, const Vector3<Type>& up)
+	{
+		const Vector3<Type> f(normalize(center - eye));
+		const Vector3<Type> s(normalize(cross(f, up)));
+		const Vector3<Type> u(cross(s, f));
+
+		Matrix4x4<Type> result;
+		result[0][0] = s.x();
+		result[1][0] = s.y();
+		result[2][0] = s.z();
+		result[0][1] = u.x();
+		result[1][1] = u.y();
+		result[2][1] = u.z();
+		result[0][2] = -f.x();
+		result[1][2] = -f.y();
+		result[2][2] = -f.z();
+		result[3][0] = -dot(s, eye);
+		result[3][1] = -dot(u, eye);
+		result[3][2] = dot(f, eye);
+		return result;
+	}
+
+	template <typename Type>
+	Matrix4x4<Type> operator/(Matrix4x4<Type> const& lhs, Type const& rhs)
+	{
+		Matrix4x4<Type> result(lhs); result /= rhs; return result;
+	}
+
+	template <typename Type>
+	Vector4<Type> mul(const Matrix4x4<Type>& a, const Vector4<Type>& b) { return a[0] * b.x() + a[1] * b.y() + a[2] * b.z() + a[3] * b.w(); }
+
+	template <typename Type>
+	Matrix4x4<Type> mul(const Matrix4x4<Type>& a, const Matrix4x4<Type>& b)
+	{
+		return { mul(a,b[0]), mul(a,b[1]), mul(a,b[2]), mul(a,b[3]) };
+	}
+
+	template <typename Type>
+	Matrix4x4<Type> adjugate(const Matrix4x4<Type>& a) {
+		return {
+			{a[1][1] * a[2][2] * a[3][3] + a[3][1] * a[1][2] * a[2][3] + a[2][1] * a[3][2] * a[1][3] - a[1][1] * a[3][2] * a[2][3] - a[2][1] * a[1][2] * a[3][3] - a[3][1] * a[2][2] * a[1][3],
+				a[0][1] * a[3][2] * a[2][3] + a[2][1] * a[0][2] * a[3][3] + a[3][1] * a[2][2] * a[0][3] - a[3][1] * a[0][2] * a[2][3] - a[2][1] * a[3][2] * a[0][3] - a[0][1] * a[2][2] * a[3][3],
+				a[0][1] * a[1][2] * a[3][3] + a[3][1] * a[0][2] * a[1][3] + a[1][1] * a[3][2] * a[0][3] - a[0][1] * a[3][2] * a[1][3] - a[1][1] * a[0][2] * a[3][3] - a[3][1] * a[1][2] * a[0][3],
+				a[0][1] * a[2][2] * a[1][3] + a[1][1] * a[0][2] * a[2][3] + a[2][1] * a[1][2] * a[0][3] - a[0][1] * a[1][2] * a[2][3] - a[2][1] * a[0][2] * a[1][3] - a[1][1] * a[2][2] * a[0][3]},
+			{a[1][2] * a[3][3] * a[2][0] + a[2][2] * a[1][3] * a[3][0] + a[3][2] * a[2][3] * a[1][0] - a[1][2] * a[2][3] * a[3][0] - a[3][2] * a[1][3] * a[2][0] - a[2][2] * a[3][3] * a[1][0],
+				a[0][2] * a[2][3] * a[3][0] + a[3][2] * a[0][3] * a[2][0] + a[2][2] * a[3][3] * a[0][0] - a[0][2] * a[3][3] * a[2][0] - a[2][2] * a[0][3] * a[3][0] - a[3][2] * a[2][3] * a[0][0],
+				a[0][2] * a[3][3] * a[1][0] + a[1][2] * a[0][3] * a[3][0] + a[3][2] * a[1][3] * a[0][0] - a[0][2] * a[1][3] * a[3][0] - a[3][2] * a[0][3] * a[1][0] - a[1][2] * a[3][3] * a[0][0],
+				a[0][2] * a[1][3] * a[2][0] + a[2][2] * a[0][3] * a[1][0] + a[1][2] * a[2][3] * a[0][0] - a[0][2] * a[2][3] * a[1][0] - a[1][2] * a[0][3] * a[2][0] - a[2][2] * a[1][3] * a[0][0]},
+			{a[1][3] * a[2][0] * a[3][1] + a[3][3] * a[1][0] * a[2][1] + a[2][3] * a[3][0] * a[1][1] - a[1][3] * a[3][0] * a[2][1] - a[2][3] * a[1][0] * a[3][1] - a[3][3] * a[2][0] * a[1][1],
+				a[0][3] * a[3][0] * a[2][1] + a[2][3] * a[0][0] * a[3][1] + a[3][3] * a[2][0] * a[0][1] - a[0][3] * a[2][0] * a[3][1] - a[3][3] * a[0][0] * a[2][1] - a[2][3] * a[3][0] * a[0][1],
+				a[0][3] * a[1][0] * a[3][1] + a[3][3] * a[0][0] * a[1][1] + a[1][3] * a[3][0] * a[0][1] - a[0][3] * a[3][0] * a[1][1] - a[1][3] * a[0][0] * a[3][1] - a[3][3] * a[1][0] * a[0][1],
+				a[0][3] * a[2][0] * a[1][1] + a[1][3] * a[0][0] * a[2][1] + a[2][3] * a[1][0] * a[0][1] - a[0][3] * a[1][0] * a[2][1] - a[2][3] * a[0][0] * a[1][1] - a[1][3] * a[2][0] * a[0][1]},
+			{a[1][0] * a[3][1] * a[2][2] + a[2][0] * a[1][1] * a[3][2] + a[3][0] * a[2][1] * a[1][2] - a[1][0] * a[2][1] * a[3][2] - a[3][0] * a[1][1] * a[2][2] - a[2][0] * a[3][1] * a[1][2],
+				a[0][0] * a[2][1] * a[3][2] + a[3][0] * a[0][1] * a[2][2] + a[2][0] * a[3][1] * a[0][2] - a[0][0] * a[3][1] * a[2][2] - a[2][0] * a[0][1] * a[3][2] - a[3][0] * a[2][1] * a[0][2],
+				a[0][0] * a[3][1] * a[1][2] + a[1][0] * a[0][1] * a[3][2] + a[3][0] * a[1][1] * a[0][2] - a[0][0] * a[1][1] * a[3][2] - a[3][0] * a[0][1] * a[1][2] - a[1][0] * a[3][1] * a[0][2],
+				a[0][0] * a[1][1] * a[2][2] + a[2][0] * a[0][1] * a[1][2] + a[1][0] * a[2][1] * a[0][2] - a[0][0] * a[2][1] * a[1][2] - a[1][0] * a[0][1] * a[2][2] - a[2][0] * a[1][1] * a[0][2]}
+		};
+	}
+
+	template <typename Type>
+	double determinant(const Matrix4x4<Type>& a) {
+		return a[0][0] * (a[1][1] * a[2][2] * a[3][3] + a[3][1] * a[1][2] * a[2][3] + a[2][1] * a[3][2] * a[1][3] - a[1][1] * a[3][2] * a[2][3] - a[2][1] * a[1][2] * a[3][3] - a[3][1] * a[2][2] * a[1][3])
+			+ a[0][1] * (a[1][2] * a[3][3] * a[2][0] + a[2][2] * a[1][3] * a[3][0] + a[3][2] * a[2][3] * a[1][0] - a[1][2] * a[2][3] * a[3][0] - a[3][2] * a[1][3] * a[2][0] - a[2][2] * a[3][3] * a[1][0])
+			+ a[0][2] * (a[1][3] * a[2][0] * a[3][1] + a[3][3] * a[1][0] * a[2][1] + a[2][3] * a[3][0] * a[1][1] - a[1][3] * a[3][0] * a[2][1] - a[2][3] * a[1][0] * a[3][1] - a[3][3] * a[2][0] * a[1][1])
+			+ a[0][3] * (a[1][0] * a[3][1] * a[2][2] + a[2][0] * a[1][1] * a[3][2] + a[3][0] * a[2][1] * a[1][2] - a[1][0] * a[2][1] * a[3][2] - a[3][0] * a[1][1] * a[2][2] - a[2][0] * a[3][1] * a[1][2]);
+	}
+
+	template <typename Type>
+	Matrix4x4<Type> inverse(const Matrix4x4<Type>& a) { return adjugate(a) / determinant(a); }
+
+	template <typename Type>
+	Matrix4x4<Type> translation_matrix(const Vector3<Type>& pos)
+	{
+		Matrix4x4<Type> result;
+		result[3] = Vector4<Type>({ pos.x(), pos.y(), pos.z(), 1.0f });
+		return result;
+	}
 
 	// Serialization
 	/*template<class Type, int Size>
@@ -400,32 +421,32 @@ namespace Cubiquity
 		return os;
 	}*/
 
-	template <int Size, typename Type>
+	template <class Type, int Size>
 	class Ray
 	{
 	public:
-		Ray(const Vector<Size, Type>& origin, const Vector<Size, Type>& dir)
+		Ray(const Vector<Type, Size>& origin, const Vector<Type, Size>& dir)
 			: mOrigin(origin)
 			, mDir(dir)	{}
 
-		template <typename CastType> explicit Ray(const Ray<Size, CastType>& ray)
+		template <typename CastType> explicit Ray(const Ray<CastType, Size>& ray)
 		{
 			//for (uint32_t ct = 0; ct < Size; ++ct) { data[ct] = static_cast<Type>(vector.data[ct]); }
-			mOrigin = static_cast<Vector<Size, Type>>(ray.mOrigin);
-			mDir = static_cast<Vector<Size, Type>>(ray.mDir);
+			mOrigin = static_cast<Vector<Type, Size>>(ray.mOrigin);
+			mDir = static_cast<Vector<Type, Size>>(ray.mDir);
 		}
 
 	public:
-		Vector<Size, Type> mOrigin;
-		Vector<Size, Type> mDir; // FIXME - Would float always be sufficient for the direction?
+		Vector<Type, Size> mOrigin;
+		Vector<Type, Size> mDir; // FIXME - Would float always be sufficient for the direction?
 	};
 
-	typedef Ray<2, float> Ray2f;
-	typedef Ray<2, double> Ray2d;
-	typedef Ray<3, float> Ray3f;
-	typedef Ray<3, double> Ray3d;
+	typedef Ray<float, 2> Ray2f;
+	typedef Ray<double, 2> Ray2d;
+	typedef Ray<float, 3> Ray3f;
+	typedef Ray<double, 3> Ray3d;
 
-	template <int Size, typename Type>
+	template <class Type, int Size>
 	class Box
 	{
 	public:
@@ -433,51 +454,51 @@ namespace Cubiquity
 		// Default constructed box starts off as invalid (min bigger than max))
 		Box() { invalidate(); }
 
-		Box(const Vector<Size, Type>& value)
+		Box(const Vector<Type, Size>& value)
 		{
 			mLower = value;
 			mUpper = value;
 		}
 
-		Box(const Vector<Size, Type>& lower, const Vector<Size, Type>& upper)
+		Box(const Vector<Type, Size>& lower, const Vector<Type, Size>& upper)
 		{
 			mLower = lower;
 			mUpper = upper;
 		}
 
 		// For casting betwween Box types of matching size.
-		template <typename CastType> explicit Box(const Box<Size, CastType>& box)
+		template <typename CastType> explicit Box(const Box<CastType, Size>& box)
 		{
-			mLower = static_cast<Vector<Size, Type>>(box.lower());
-			mUpper = static_cast<Vector<Size, Type>>(box.upper());
+			mLower = static_cast<Vector<Type, Size>>(box.lower());
+			mUpper = static_cast<Vector<Type, Size>>(box.upper());
 		}
 
-		const Vector<Size, Type>& lower() const { return mLower; }
-		const Vector<Size, Type>& upper() const { return mUpper; }
+		const Vector<Type, Size>& lower() const { return mLower; }
+		const Vector<Type, Size>& upper() const { return mUpper; }
 
 		// Should try to remove these non-const versions...
-		Vector<Size, Type>& lower() { return mLower; }
-		Vector<Size, Type>& upper() { return mUpper; }
+		Vector<Type, Size>& lower() { return mLower; }
+		Vector<Type, Size>& upper() { return mUpper; }
 
-		Vector<Size, float> centre() const
+		Vector<float, Size> centre() const
 		{
-			return static_cast< Vector<Size, float> >(mLower + mUpper) * 0.5f;
+			return static_cast< Vector<float, Size> >(mLower + mUpper) * 0.5f;
 		}
 
 
-		void accumulate(const Vector<Size, Type>& value)
+		void accumulate(const Vector<Type, Size>& value)
 		{
 			mLower = Cubiquity::min(mLower, value);
 			mUpper = Cubiquity::max(mUpper, value);
 		}
 
-		void accumulate(const Box<Size, Type>& other)
+		void accumulate(const Box<Type, Size>& other)
 		{
 			mLower = Cubiquity::min(mLower, other.mLower);
 			mUpper = Cubiquity::max(mUpper, other.mUpper);
 		}
 
-		bool contains(const Vector<Size, Type>& value) const
+		bool contains(const Vector<Type, Size>& value) const
 		{
 			return (value.x() >= mLower.x()) && (value.y() >= mLower.y()) && (value.z() >= mLower.z()) &&
 				(value.x() <= mUpper.x()) && (value.y() <= mUpper.y()) && (value.z() <= mUpper.z());
@@ -485,14 +506,15 @@ namespace Cubiquity
 
 		void dilate(Type amount)
 		{
-			mLower -= Vector<Size, Type>(amount);
-			mUpper += Vector<Size, Type>(amount);
+			Vector<Type, Size> amountAsVec = { amount, amount, amount };
+			mLower -= amountAsVec;
+			mUpper += amountAsVec;
 		}
 
 		void invalidate()
 		{
-			mLower = Vector<Size, Type>(std::numeric_limits<Type>::max());
-			mUpper = Vector<Size, Type>(std::numeric_limits<Type>::lowest());
+			mLower.fill(std::numeric_limits<Type>::max());
+			mUpper.fill(std::numeric_limits<Type>::lowest());
 		}
 
 		Type sideLength(uint32_t sideIndex) const
@@ -507,29 +529,31 @@ namespace Cubiquity
 			return sqrtf(sideLength(0) * sideLength(0) + sideLength(1) *
 				sideLength(1) + sideLength(2) * sideLength(2));
 		}
-		static Box<Size, Type> invalid()
+		static Box<Type, Size> invalid()
 		{
-			return Box<Size, Type>(); // Default-constructed box is already invalid.
+			return Box<Type, Size>(); // Default-constructed box is already invalid.
 		}
 
-		static Box<Size, Type> max()
+		static Box<Type, Size> max()
 		{
-			return Box<Size, Type>(std::numeric_limits<Type>::lowest(), std::numeric_limits<Type>::max());
+			Vector<Type, Size> lower = Vector<Type, Size>::filled(std::numeric_limits<Type>::lowest());
+			Vector<Type, Size> upper = Vector<Type, Size>::filled(std::numeric_limits<Type>::max());
+			return Box<Type, Size>(lower, upper);
 		}
 
 	private:
-		Vector<Size, Type> mLower;
-		Vector<Size, Type> mUpper;
+		Vector<Type, Size> mLower;
+		Vector<Type, Size> mUpper;
 	};
 
-	template <int Size, typename Type>
-	bool operator==(const Box<Size, Type>& lhs, const Box<Size, Type>& rhs)
+	template <class Type, int Size>
+	bool operator==(const Box<Type, Size>& lhs, const Box<Type, Size>& rhs)
 	{
 		return lhs.lower() == rhs.lower() && lhs.upper() == rhs.upper();
 	}
 
-	template <int Size, typename Type>
-	bool overlaps(const Box<Size, Type>& a, const Box<Size, Type>& b)
+	template <class Type, int Size>
+	bool overlaps(const Box<Type, Size>& a, const Box<Type, Size>& b)
 	{
 		for (int i = 0; i < Size; i++)
 		{
@@ -541,11 +565,15 @@ namespace Cubiquity
 		return true;
 	}
 
-	typedef Box<2, int> Box2i;
-	typedef Box<2, float> Box2f;
+	typedef Box<int, 2> Box2i;
+	typedef Box<float, 2> Box2f;
 
-	typedef Box<3, int> Box3i;
-	typedef Box<3, float> Box3f;
+	typedef Box<int, 3> Box3i;
+	typedef Box<float, 3> Box3f;
+
+	// Probably shouldn't need 4d versions - remove if I can
+	typedef Box<int, 4> Box4i;
+	typedef Box<float, 4> Box4f;
 
 	class Box3fSampler
 	{
@@ -556,7 +584,10 @@ namespace Cubiquity
 			, randY(bounds.lower().y(), bounds.upper().y())
 			, randZ(bounds.lower().z(), bounds.upper().z()) {}
 
-		Vector3f next() { return Vector3f(randX(eng), randY(eng), randZ(eng)); }
+		Vector3f next() {
+			Vector3f result = { randX(eng), randY(eng), randZ(eng) };
+			return result;
+		}
 
 	private:
 
@@ -575,7 +606,7 @@ namespace Cubiquity
 			, randY(bounds.lower().y(), bounds.upper().y())
 			, randZ(bounds.lower().z(), bounds.upper().z()) {}
 
-		Vector3i next() { return Vector3i(randX(eng), randY(eng), randZ(eng)); }
+		Vector3i next() { return Vector3i({ randX(eng), randY(eng), randZ(eng) }); }
 
 	private:
 
@@ -591,8 +622,8 @@ namespace Cubiquity
 		class iterator
 		{
 		public:
-			iterator(uint32_t index, const Box3i& box) : eng(0), randX(box.lower().x(), box.upper().x()), randY(box.lower().y(), box.upper().y()), randZ(box.lower().z(), box.upper().z()), mIndex(index) { mValue = Vector3i(randX(eng), randY(eng), randZ(eng)); }
-			iterator operator++() { ++mIndex; mValue = Vector3i(randX(eng), randY(eng), randZ(eng)); return *this; }
+			iterator(uint32_t index, const Box3i& box) : eng(0), randX(box.lower().x(), box.upper().x()), randY(box.lower().y(), box.upper().y()), randZ(box.lower().z(), box.upper().z()), mIndex(index) { mValue = Vector3i({ randX(eng), randY(eng), randZ(eng) }); }
+			iterator operator++() { ++mIndex; mValue = Vector3i({ randX(eng), randY(eng), randZ(eng) }); return *this; }
 			bool operator!=(const iterator & other) const { return mIndex != other.mIndex; }
 			const Vector3i& operator*() const { return mValue; }
 

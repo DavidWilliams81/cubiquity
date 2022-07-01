@@ -23,6 +23,8 @@ public:
 	void onInitialise() override;
 	void onUpdate(float deltaTime) override;
 	void onShutdown() override;
+
+	void onKeyDown(const SDL_KeyboardEvent& event);
 };
 
 #endif // CUBIQUITY_INSTANCING_DEMO_H

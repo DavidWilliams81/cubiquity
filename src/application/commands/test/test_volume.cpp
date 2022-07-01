@@ -218,11 +218,11 @@ uint8_t checkerboard(uint32_t x, uint32_t y, uint32_t /*z*/)
 
 bool testBounds()
 {
-	uint32_t sideLength = 256;
+	int sideLength = 256;
 	std::unique_ptr<Volume> volume(new Volume);
 
 	Box3i refResult;
-	Box3i fullVolumeBox3i(Vector3i(0), Vector3i(sideLength-1));
+	Box3i fullVolumeBox3i(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 
 	/*Box3iSampler sampler(fullVolumeBox3i);
 
@@ -260,8 +260,8 @@ bool testBasics()
 	std::cout << "------------" << std::endl;
 
 	// Create a volume for some simple tests
-	uint32_t sideLength = 64;
-	const Box3i bounds(Vector3i(0), Vector3i(sideLength-1));
+	int sideLength = 64;
+	const Box3i bounds(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Volume should start empty
@@ -310,8 +310,8 @@ bool testCheckerboard()
 	std::cout << "------------------" << std::endl;
 
 	// Create a volume for some simple tests
-	uint32_t sideLength = 64;
-	const Box3i bounds(Vector3i(0), Vector3i(sideLength-1));
+	int sideLength = 64;
+	const Box3i bounds(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Fill it
@@ -337,8 +337,8 @@ bool testRandomAccess()
 	std::cout << "--------------------" << std::endl;
 
 	// Create a volume for some simple tests
-	uint32_t sideLength = 64;
-	const Box3i bounds(Vector3i(0), Vector3i(sideLength-1));
+	int sideLength = 64;
+	const Box3i bounds(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	Timer timer;
@@ -366,8 +366,8 @@ bool testSerialization()
 	std::cout << "-------------------" << std::endl;
 
 	// Create a volume for some simple tests
-	uint32_t sideLength = 128;
-	const Box3i bounds(Vector3i(0), Vector3i(sideLength-1));
+	int sideLength = 128;
+	const Box3i bounds(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 	Volume* volume = new Volume;
 
 	// Write in simplex noise
@@ -401,8 +401,8 @@ bool testFractalNoise()
 	std::cout << "--------------------" << std::endl;
 
 	// Create a volume for some simple tests
-	uint32_t sideLength = 128;
-	const Box3i bounds(Vector3i(0), Vector3i(sideLength-1));
+	int sideLength = 128;
+	const Box3i bounds(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	Timer timer;
@@ -450,8 +450,8 @@ bool testMerging()
 	std::cout << "-----------" << std::endl;
 
 	// Create a volume for some simple tests
-	uint32_t sideLength = 256;
-	const Box3i bounds(Vector3i(0), Vector3i(sideLength-1));
+	int sideLength = 256;
+	const Box3i bounds(Vector3i::filled(0), Vector3i::filled(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	Timer timer;

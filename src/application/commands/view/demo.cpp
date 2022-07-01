@@ -36,11 +36,13 @@ void Demo::onInitialise()
 
 	if (outsideMaterialId == 0) // Solid object, point camera at centre and move it back
 	{
-		Vector3f centre = bounds.centre();
-		float halfDiagonal = length((bounds.upper() - bounds.lower())) * 0.5f;
+		Vector3d lower = static_cast<Vector3d>(bounds.lower());
+		Vector3d centre = static_cast<Vector3d>(bounds.centre());
+		Vector3d upper = static_cast<Vector3d>(bounds.upper());
+		double halfDiagonal = length(upper - lower) * 0.5;
 
 		// Centred along x, then back and up a bit
-		mCamera.position = Vector3f(centre.x(), centre.y() - halfDiagonal, centre.z() + halfDiagonal);
+		mCamera.position = Vector3d({ centre.x(), centre.y() - halfDiagonal, centre.z() + halfDiagonal });
 
 		// Look down 45 degrees
 		mCamera.pitch = -(Pi / 4.0f);
@@ -48,9 +50,9 @@ void Demo::onInitialise()
 	}
 	else // Hollow object, place camera at centre.
 	{
-		Vector3f centre = bounds.centre();
-		centre += Vector3f(0.1, 0.1, 0.1); // Hack to help not be on a certain boundary which triggers assert in debug mode.
-		mCamera.position = Vector3f(centre.x(), centre.y(), centre.z());
+		Vector3d centre = static_cast<Vector3d>(bounds.centre());
+		centre += Vector3d({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
+		mCamera.position = Vector3d({ centre.x(), centre.y(), centre.z() });
 
 		// Look straight ahead
 		mCamera.pitch = 0.0f;
@@ -63,25 +65,25 @@ void Demo::onUpdate(float deltaTime)
 	// Move forward
 	if (keyState(SDL_SCANCODE_W) == KeyState::Down)
 	{
-		mCamera.position += mCamera.forward() * deltaTime * CameraMoveSpeed;
+		mCamera.position += mCamera.forward() * static_cast<double>(deltaTime * CameraMoveSpeed);
 		onCameraModified();
 	}
 	// Move backward
 	if (keyState(SDL_SCANCODE_S) == KeyState::Down)
 	{
-		mCamera.position -= mCamera.forward() * deltaTime * CameraMoveSpeed;
+		mCamera.position -= mCamera.forward() * static_cast<double>(deltaTime * CameraMoveSpeed);
 		onCameraModified();
 	}
 	// Strafe right
 	if (keyState(SDL_SCANCODE_D) == KeyState::Down)
 	{
-		mCamera.position += mCamera.right() * deltaTime * CameraMoveSpeed;
+		mCamera.position += mCamera.right() * static_cast<double>(deltaTime * CameraMoveSpeed);
 		onCameraModified();
 	}
 	// Strafe left
 	if (keyState(SDL_SCANCODE_A) == KeyState::Down)
 	{
-		mCamera.position -= mCamera.right() * deltaTime * CameraMoveSpeed;
+		mCamera.position -= mCamera.right() * static_cast<double>(deltaTime * CameraMoveSpeed);
 		onCameraModified();
 	}
 }
@@ -124,7 +126,7 @@ void Demo::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 		RayVolumeIntersection intersection = ray_parameter(mVolume, ray);
 		if (intersection)
 		{
-			SphereBrush brush(Vector3f(intersection.position.x(), intersection.position.y(), intersection.position.z()), 30);
+			SphereBrush brush(static_cast<Vector3f>(intersection.position), 30);
 			mVolume.fillBrush(brush, 0);
 
 			onVolumeModified();

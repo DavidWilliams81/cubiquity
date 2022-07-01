@@ -7,14 +7,16 @@ using namespace std;
 
 bool testLinearAlgebra()
 {
-	Vector2i a(1,2);
-	Vector2i b(3,4);
+	Vector2i a({ 1,2 });
+	Vector2i b({ 3,4 });
 
 	a += 1;
 	a = a + 1;
 
 	a += b;
 	Vector2i c = a + b;
+
+	Vector2f f = static_cast<Vector2f>(c);
 
 	/*Vector3f vf(1.5f, 2.5f, 3.5f);
 	Vector3i vi = static_cast<Vector3i>(vf);
