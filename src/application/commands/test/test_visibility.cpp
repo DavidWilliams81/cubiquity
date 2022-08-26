@@ -117,7 +117,7 @@ bool testVisibilityUnidirectional()
 	uint32_t glyphCount = 0;
 	for (int ct = 0; ct < iterations; ct++)
 	{
-		glyphCount = visCalc.findVisibleOctreeNodes(&cameraData, mVolume, glyphs, maxGlyphCount);
+		glyphCount = visCalc.findVisibleOctreeNodes(mVolume, &cameraData, NormalEstimation::None, false, glyphs, maxGlyphCount);
 	}
 	
 	float elapsedTime = timer.elapsedTimeInMilliSeconds();

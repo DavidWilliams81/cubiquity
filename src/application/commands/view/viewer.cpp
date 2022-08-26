@@ -1,4 +1,4 @@
-#include "demo.h"
+#include "viewer.h"
 
 #include "rendering.h"
 #include "utility.h"
@@ -10,7 +10,7 @@
 
 using namespace Cubiquity;
 
-Demo::Demo(const std::string& filename, WindowType windowType)
+Viewer::Viewer(const std::string& filename, WindowType windowType)
 	: Window(windowType)
 {
 	std::cout << "Opening volume \'" << filename << "\'... ";
@@ -25,7 +25,7 @@ Demo::Demo(const std::string& filename, WindowType windowType)
 	mMaterials.load(getMaterialsPath(filename));
 }
 
-void Demo::onInitialise()
+void Viewer::onInitialise()
 {
 	mVolume.setTrackEdits(true);
 
@@ -60,35 +60,40 @@ void Demo::onInitialise()
 	}
 }
 
-void Demo::onUpdate(float deltaTime)
+void Viewer::onUpdate(float deltaTime)
 {	
+	// Hold shift to move fast
+	float speedMultiplier = 1.0f;
+	if (keyState(SDL_SCANCODE_LCTRL) == KeyState::Down) speedMultiplier = 0.1f;
+	if (keyState(SDL_SCANCODE_LSHIFT) == KeyState::Down) speedMultiplier = 10.0f;
+
 	// Move forward
 	if (keyState(SDL_SCANCODE_W) == KeyState::Down)
 	{
-		mCamera.position += mCamera.forward() * static_cast<double>(deltaTime * CameraMoveSpeed);
+		mCamera.position += mCamera.forward() * static_cast<double>(deltaTime * speedMultiplier * CameraMoveSpeed);
 		onCameraModified();
 	}
 	// Move backward
 	if (keyState(SDL_SCANCODE_S) == KeyState::Down)
 	{
-		mCamera.position -= mCamera.forward() * static_cast<double>(deltaTime * CameraMoveSpeed);
+		mCamera.position -= mCamera.forward() * static_cast<double>(deltaTime * speedMultiplier * CameraMoveSpeed);
 		onCameraModified();
 	}
 	// Strafe right
 	if (keyState(SDL_SCANCODE_D) == KeyState::Down)
 	{
-		mCamera.position += mCamera.right() * static_cast<double>(deltaTime * CameraMoveSpeed);
+		mCamera.position += mCamera.right() * static_cast<double>(deltaTime * speedMultiplier * CameraMoveSpeed);
 		onCameraModified();
 	}
 	// Strafe left
 	if (keyState(SDL_SCANCODE_A) == KeyState::Down)
 	{
-		mCamera.position -= mCamera.right() * static_cast<double>(deltaTime * CameraMoveSpeed);
+		mCamera.position -= mCamera.right() * static_cast<double>(deltaTime * speedMultiplier * CameraMoveSpeed);
 		onCameraModified();
 	}
 }
 
-void Demo::onKeyUp(const SDL_KeyboardEvent& event)
+void Viewer::onKeyUp(const SDL_KeyboardEvent& event)
 {
 	if (event.keysym.sym == SDLK_ESCAPE)
 	{
@@ -102,7 +107,7 @@ void Demo::onKeyUp(const SDL_KeyboardEvent& event)
 	}
 }
 
-void Demo::onMouseMotion(const SDL_MouseMotionEvent& event)
+void Viewer::onMouseMotion(const SDL_MouseMotionEvent& event)
 {
 	if (mouseButtonState(SDL_BUTTON_RIGHT) == MouseButtonState::Down)
 	{
@@ -114,7 +119,7 @@ void Demo::onMouseMotion(const SDL_MouseMotionEvent& event)
 	}
 }
 
-void Demo::onMouseButtonDown(const SDL_MouseButtonEvent& event)
+void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 {
 	if (event.button == SDL_BUTTON(SDL_BUTTON_LEFT))
 	//if (mouseButtonState(SDL_BUTTON_LEFT) == MouseButtonState::Down)
@@ -140,7 +145,7 @@ void Demo::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 	}
 }
 
-void Demo::onMouseButtonUp(const SDL_MouseButtonEvent& event)
+void Viewer::onMouseButtonUp(const SDL_MouseButtonEvent& event)
 {
 	if (event.button == SDL_BUTTON(SDL_BUTTON_RIGHT))
 	//if (mouseButtonState(SDL_BUTTON_RIGHT) == MouseButtonState::Down)

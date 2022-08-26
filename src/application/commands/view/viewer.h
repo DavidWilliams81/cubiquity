@@ -7,11 +7,11 @@
 
 #include "base/materials.h"
 
-class Demo : public Window
+class Viewer : public Window
 {
 public:
 
-	Demo(const std::string& filename, WindowType windowType);
+	Viewer(const std::string& filename, WindowType windowType);
 
 	const Camera& camera() { return mCamera; }
 	const Cubiquity::Volume& volume() { return mVolume; }

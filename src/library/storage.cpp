@@ -653,7 +653,7 @@ namespace Cubiquity
 		return nodeIndex;
 	}
 
-	MaterialId Volume::voxel(int32_t x, int32_t y, int32_t z)
+	MaterialId Volume::voxel(int32_t x, int32_t y, int32_t z) const
 	{
 		uint32_t nodeIndex = rootNodeIndex();
 		uint32_t height = logBase2(VolumeSideLength);

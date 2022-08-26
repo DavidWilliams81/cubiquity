@@ -11,7 +11,6 @@
 * If not, see http://creativecommons.org/publicdomain/zero/1.0/.                                   *
 ***************************************************************************************************/
 
-#include "demo.h"
 #include "pathtracing_demo.h"
 
 // Cubiquity
@@ -208,7 +207,7 @@ void Pathtracer::raytrace(const Volume& volume, const MaterialSet& materials, co
 
 void PathtracingDemo::onUpdate(float deltaTime)
 {
-	Demo::onUpdate(deltaTime);
+	Viewer::onUpdate(deltaTime);
 
 	// No timeout needed in preview mode because it is fast anyway, and having
 	// it appear immeditely looks nicer than seeing the progressive loading.
@@ -249,7 +248,7 @@ void PathtracingDemo::setPreviewMode(bool previewMode)
 
 void PathtracingDemo::onKeyDown(const SDL_KeyboardEvent& event)
 {
-	Demo::onKeyDown(event);
+	Viewer::onKeyDown(event);
 
 	if (event.keysym.sym == SDLK_F1)
 	{
@@ -285,19 +284,19 @@ void PathtracingDemo::onKeyDown(const SDL_KeyboardEvent& event)
 
 void PathtracingDemo::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 {
-	Demo::onMouseButtonDown(event);
+	Viewer::onMouseButtonDown(event);
 	setPreviewMode(true);
 }
 
 void PathtracingDemo::onMouseButtonUp(const SDL_MouseButtonEvent& event)
 {
-	Demo::onMouseButtonUp(event);
+	Viewer::onMouseButtonUp(event);
 	setPreviewMode(false);
 }
 
 void PathtracingDemo::onMouseMotion(const SDL_MouseMotionEvent& event)
 {
-	Demo::onMouseMotion(event);
+	Viewer::onMouseMotion(event);
 
 	if (mouseButtonState(SDL_BUTTON_RIGHT) == MouseButtonState::Down)
 	{

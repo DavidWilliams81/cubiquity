@@ -13,7 +13,7 @@
 #ifndef CUBIQUITY_PATHTRACING_DEMO_H
 #define CUBIQUITY_PATHTRACING_DEMO_H
 
-#include "demo.h"
+#include "viewer.h"
 
 // Cubiquity
 #include "geometry.h"
@@ -61,12 +61,12 @@ public:
 	uint pixelCount;
 };
 
-class PathtracingDemo : public Demo
+class PathtracingDemo : public Viewer
 {
 public:
 
 	PathtracingDemo(const std::string& filename)
-		: Demo(filename, WindowType::Software) {}
+		: Viewer(filename, WindowType::Software) {}
 
 	void setPreviewMode(bool previewMode);
 

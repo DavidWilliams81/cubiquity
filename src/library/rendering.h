@@ -35,6 +35,8 @@ namespace Cubiquity
 {
 	using namespace Internals;
 
+	enum class NormalEstimation { None, FromChildren, FromNeighbours };
+
 	struct Bounds
 	{
 		Vector2i lower;
@@ -222,27 +224,30 @@ namespace Cubiquity
 		VisibilityCalculator();
 		~VisibilityCalculator();
 
-		Glyph buildGlyphFromNode(float centreX, float centreY, float centreZ, uint32_t size, Node nodeForNormal, uint32_t nodeIndex, const Volume* volume, const Vector3d& cameraPos);
-
-		uint32_t findVisibleOctreeNodes(CameraData* cameraData, const Volume* volume, Glyph* glyphs, uint32_t maxGlyphCount);
-		void processNode(uint32 nodeIndex, CameraData* cameraData, const Volume* volume, Glyph* glyphs, uint32_t maxGlyphCount, uint32_t& glyphCount, const Vector3d& nodeCentre, const Vector3d& centreViewSpace, uint32 nodeHeight);
+		uint32_t findVisibleOctreeNodes(const Volume* volume, CameraData* cameraData, NormalEstimation normalEstimation,
+			                            bool subdivideMaterialNodes, Glyph* glyphs, uint32_t maxGlyphCount);
+		void processNode(uint32 nodeIndex, const Vector3d& nodeCentre, const Vector3d& nodeCentreViewSpace, uint32 nodeHeight, const Vector3f& nodeNormal,
+						 const Volume* volume, CameraData* cameraData, Glyph* glyphs, uint32_t maxGlyphCount, uint32_t& glyphCount);
 
 		float mMaxFootprintSize;
-		float mMinDrawSize;
-		float mMinTestSize;
 
 		VisibilityMask* mVisMask;
 		double mVisMaskHalfFaceSize;
 
 		std::array<std::array<Vector3d, 8>, 32> mCubeVertices;
 		std::array<std::array<Vector3d, 8>, 32> mCubeVerticesViewSpace;
+
+	private:
+		NormalEstimation mNormalEstimation;
+
+		// It's not yet clear how useful this setting is. Subdividing material nodes greatly increases the number of
+		// glyphs but may be necessary for point-based rendering. Also smaller nodes may draw into the vis mask faster.
+		bool mSubdivideMaterialNodes = false;
 	};
 
 	uint32_t getMaterialForNode(float centreX, float centreY, float centreZ, uint32_t nodeIndex, Volume* volume, const Vector3d& cameraPos);
-	Vector3f computeNodeNormal(Node node);
-	Vector3f computeNormal(float x, float y, float z, uint32_t size, Volume* volume);
-
-	Vector3f fakeNormalFromSize(int size);
+	Vector3f estimateNormalFromChildren(Node node);
+	Vector3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, Volume* volume);
 
 	void computeBounds(const PolygonVertexArray& vertices, int32_t& min_x, int32_t& min_y, int32_t& max_x, int32_t& max_y, uint32_t width);
 

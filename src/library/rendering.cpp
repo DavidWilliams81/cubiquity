@@ -698,7 +698,6 @@ namespace Cubiquity
 		mVisMask = nullptr;
 	}
 
-
 	// This function finds the material to use for a node. Only leaf nodes have a valid material, so for a given node it 
 	// descends the tree to find the (approx) nearest non-zero leaf node to the camera, and then takes the material from that.
 	// Note: This functions requres a camera position. How might a 'generic' version work without this? Just take the centre
@@ -743,45 +742,79 @@ namespace Cubiquity
 		return nodeIndex;
 	}
 
-	Vector3f computeNodeNormal(Node node)
+	// Note: We should probably make this operate on integers instead of floats.
+	Vector3f computeNodeNormalRecursive(uint32 nodeIndex, const NodeStore& nodeData, int depth)
 	{
-		Vector3f normal = {};
+		// Material nodes have no children, so we can't compute a normal for them.
+		if (isMaterialNode(nodeIndex))
+		{
+			return { 0.0f, 0.0f, 0.0f };
+		}
+
+		Node node = nodeData[nodeIndex];
+
+		Vector3f normal = { 0.0f, 0.0f, 0.0f };
 		for (uint32_t z = 0; z < 2; z++)
 		{
-			for (uint32_t y = 0; y < 2; y++)
+			for (int32_t y = 0; y < 2; y++)
 			{
 				for (uint32_t x = 0; x < 2; x++)
 				{
-					//assert(identifier.isOccupied());
-					uint8_t childId = z << 2 | y << 1 | x;
-
-					//bool hasChild = node.hasChild(childIndex);
+					const uint8_t childId = z << 2 | y << 1 | x;
 					const uint32_t childIndex = node[childId];
 
-					// If the child is not occupied then add a normal contribution in it's direction.
+					Vector3f normalContribution = { 0.0f, 0.0f, 0.0f };
 					if (childIndex == EmptyNodeIndex)
 					{
-						Vector3i normalContribution({ int(x) * 2 - 1, int(y) * 2 - 1, int(z) * 2 - 1 });
-						normal += static_cast<Vector3f>(normalContribution);
+						normalContribution = { float(x) * 2 - 1, float(y) * 2 - 1, float(z) * 2 - 1 };
+					} else if (childIndex < MaterialCount)
+					{
+						normalContribution = { float(x) * 2 - 1, float(y) * 2 - 1, float(z) * 2 - 1 };
+						normalContribution *= -1.0f;
 					}
+					else if (depth > 0)
+					{
+						// If a surface passes though a node then it might exactly cut the node in half,
+						// meaning half the children are solid and half are empty. But it is much more
+						// likely to pass through one or more of the children. It seems logical that these
+						// children should have a greater contribution (arguably the only contribution?)
+						// to the normal for the node. This is the logic behind the weighing factor below,
+						// though it is still not clear what it should be set to.
+						const float childWeighting = 100;
+						normalContribution = computeNodeNormalRecursive(childIndex, nodeData, depth - 1);
+						normalContribution *= childWeighting;
+					}
+
+					//normalContribution = normalize(normalContribution);
+					normal += normalContribution;
 				}
 			}
 		}
-		return normalize(normal);
+		float len = length(normal);
+		if (len > 0.1)
+		{
+			normal = normalize(normal);
+		}
+		
+		return normal;
 	}
 
-	Vector3f computeNormal(float x, float y, float z, uint32_t size, Volume* volume)
+	Vector3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, const Volume* volume)
 	{
 		Vector3f centre = { x, y, z };
-		float fSize = size == 1 ? 1.0f : size * 0.5f + 0.5f;
+
+		float fSize = size * 0.5f + 0.5f; // It should theorectcally be ok to sample just outside the node
+
+		float fudgeFactor = 2.0f;    // In practice some extra scaling
+		fSize *= fudgeFactor; // results in a smoother normal.
 
 		Vector3f normal = {};
 
-		for (int zOffset = -1; zOffset <= 1; zOffset += 2)
+		for (int zOffset = -1; zOffset <= 1; zOffset += 1)
 		{
-			for (int yOffset = -1; yOffset <= 1; yOffset += 2)
+			for (int yOffset = -1; yOffset <= 1; yOffset += 1)
 			{
-				for (int xOffset = -1; xOffset <= 1; xOffset += 2)
+				for (int xOffset = -1; xOffset <= 1; xOffset += 1)
 				{
 					Vector3f offset({ static_cast<float>(xOffset), static_cast<float>(yOffset), static_cast<float>(zOffset) });
 					offset *= fSize;
@@ -801,48 +834,10 @@ namespace Cubiquity
 		return normalize(normal);
 	}
 
-	Vector3f fakeNormalFromSize(int size)
+	uint32_t VisibilityCalculator::findVisibleOctreeNodes(const Volume* volume, CameraData* cameraData, NormalEstimation normalEstimation, bool subdivideMaterialNodes, Glyph* glyphs, uint32_t maxGlyphCount)
 	{
-		unsigned int uHeight = logBase2(size);
-		uHeight++; // Avoid black voxels
-		unsigned int x = uHeight >> 0 & 0x01;
-		unsigned int y = uHeight >> 1 & 0x01;
-		unsigned int z = uHeight >> 2 & 0x01;
-		return Vector3f({ static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) }) * 2.0f - 1.0f;
-	}
-
-	Glyph VisibilityCalculator::buildGlyphFromNode(float centreX, float centreY, float centreZ, uint32_t size, Node nodeForNormal, uint32_t nodeIndex, const Volume* volume, const Vector3d& cameraPos)
-	{
-		Glyph glyph;
-		glyph.x = centreX;
-		glyph.y = centreY;
-		glyph.z = centreZ;
-		glyph.size = size;
-
-		//Vector3f norm = fakeNormalFromSize(size);
-		Vector3f norm = computeNodeNormal(nodeForNormal);
-		//Vector3f norm = computeNormal(centreX, centreY, centreZ, size, volume); // Normal from parent as we haven't updated 'node'
-
-		/*uint32_t hash;
-		Vector3f fCenter = glyphList.centreInLocalSpace();
-		Vector3i centre(fCenter.x, fCenter.y, fCenter.z); // FIXME - Should round by adding 0.5 here?
-		MurmurHash3_x86_32(&(centre), sizeof(centre), 42, &hash);
-		norm.x = ((hash >> 0) & 0xFF);
-		norm.y = ((hash >> 2) & 0xFF);
-		norm.z = ((hash >> 4) & 0xFF);
-		norm /= 127.5f; // Map 0.0 to 2.0
-		norm -= 1.0f; // Map -1.0 to 1.0*/
-
-		glyph.a = norm.x();
-		glyph.b = norm.y();
-		glyph.c = norm.z();
-		glyph.d = getMaterialForNode(centreX, centreY, centreZ, nodeIndex, volume, cameraPos);
-
-		return glyph;
-	}
-
-	uint32_t VisibilityCalculator::findVisibleOctreeNodes(CameraData* cameraData, const Volume* volume, Glyph* glyphs, uint32_t maxGlyphCount)
-	{
+		mNormalEstimation = normalEstimation;
+		mSubdivideMaterialNodes = subdivideMaterialNodes;
 		uint32_t glyphCount = 0;
 		mVisMask->clear();
 
@@ -880,13 +875,16 @@ namespace Cubiquity
 
 		Vector3d rootCentre3 = { rootCentre[0], rootCentre[1], rootCentre[2]};
 		Vector3d rootCentreViewSpace3 = { rootCentreViewSpace[0], rootCentreViewSpace[1], rootCentreViewSpace[2] };
+		Vector3f rootNormal = { 0.0, 0.0, 0.0 };
 
-		processNode(getRootNodeIndex(*volume), cameraData, volume, glyphs, maxGlyphCount, glyphCount, rootCentre3, rootCentreViewSpace3, rootHeight);
+		processNode(getRootNodeIndex(*volume), rootCentre3, rootCentreViewSpace3, rootHeight, rootNormal,
+			volume, cameraData, glyphs, maxGlyphCount, glyphCount);
 
 		return glyphCount;
 	}
 
-	void VisibilityCalculator::processNode(uint32 nodeIndex, CameraData* cameraData, const Volume* volume, Glyph* glyphs, uint32_t maxGlyphCount, uint32_t& glyphCount, const Vector3d& nodeCentre, const Vector3d& centreViewSpace, uint32 nodeHeight)
+	void VisibilityCalculator::processNode(uint32 nodeIndex, const Vector3d& nodeCentre, const Vector3d& nodeCentreViewSpace, uint32 nodeHeight, const Vector3f& nodeNormal,
+										   const Volume* volume, CameraData* cameraData, Glyph* glyphs, uint32_t maxGlyphCount, uint32_t& glyphCount)
 	{
 		const NodeStore& nodeData = getNodes(*volume).nodes();
 		const Node& node = nodeData[nodeIndex];
@@ -913,7 +911,7 @@ namespace Cubiquity
 			if (childIndex == 0) { continue; } // Empty child
 			
 			Vector3d childCentre = nodeCentre + mCubeVertices[childHeight][childId];
-			Vector3d childCentreViewSpace = centreViewSpace + mCubeVerticesViewSpace[childHeight][childId];
+			Vector3d childCentreViewSpace = nodeCentreViewSpace + mCubeVerticesViewSpace[childHeight][childId];
 
 			// Culling - note that testing against the four sides implicitly culls anything behind the
 			// origin (as nothing can be in front of all planes behind the point where they intersect).
@@ -975,25 +973,57 @@ namespace Cubiquity
 			frontFaces[4] = cameraData->position().z() < (childCentre.z() - childHalfSize);
 			frontFaces[5] = cameraData->position().z() > (childCentre.z() + childHalfSize);
 
-			// Forcing subdivision of material nodes generates a lot more glyphs (often more than twice as many)
-			// but may be useful for better normals? Smaller nodes also rasterise faster into the vibility buffer.
-			const bool subdivideMaterialNodes = false;
-			const bool drawable = // Attempt to draw (rather than recursing further) if:
+			const bool drawNotTraverse = // Attempt to draw (rather than traversing further) if:
 				(childHeight == 0) || // We've reached a leaf
 				(childFootprintSize <= mMaxFootprintSize) || // We are below the size threshold
-				(isMaterialNode(childIndex) && !subdivideMaterialNodes); // We hit a material node.
+				(isMaterialNode(childIndex) && !mSubdivideMaterialNodes); // We hit a material node.
 
 			// Determine whether the node is visible, whilst also updating the visibility buffer if the node
 			// is drawable. Nodes which can't be rasterised (due to straddling z=0) are assumed to be visible.
 			const bool straddlesZeroPlane = childCentreViewSpace.z() >= -childHalfDiagonal;
 			const bool isChildVisible = straddlesZeroPlane ||
-										mVisMask->drawNode(corners2DInt, frontFaces, drawable);
+										mVisMask->drawNode(corners2DInt, frontFaces, drawNotTraverse);
+
+			Vector3f rawChildNormal = { 0.0f, 0.0f, 0.0f };
+			Vector3f childNormal = { 0.0f, 0.0f, 0.0f };
+			if (mNormalEstimation == NormalEstimation::FromChildren)
+			{
+				// There are some nodes for which we cannot compute normals from the chidren (e.g it could be a leaf
+				// node, or it could be an internal node consisting of different materials but no empty space). In
+				// this case we use the normal from the parent instead. Note that we only use the immediate parent
+				// rather than propergating the normals right down the tree, as we have found this causes artifacts.
+				rawChildNormal = computeNodeNormalRecursive(childIndex, nodeData, 3);
+				if (length(rawChildNormal) > 0.01f)
+				{
+					childNormal = normalize(rawChildNormal);
+				}
+				else
+				{
+					childNormal = normalize(nodeNormal);
+				}
+			}
+
 			if (isChildVisible)
 			{
-				if (drawable)
+				if (drawNotTraverse)
 				{
-					// Normal from parent as we haven't updated 'node'
-					Glyph glyph = buildGlyphFromNode(childCentre.x(), childCentre.y(), childCentre.z(), childSize, node, childIndex, volume, cameraData->position());
+					if (mNormalEstimation == NormalEstimation::FromNeighbours)
+					{
+						// This generates high quality normals and also works for leaf 
+						// nodes. There is no need for a contribution from the parent.
+						childNormal = estimateNormalFromNeighbours(childCentre.x(), childCentre.y(), childCentre.z(), childSize, volume);
+					}
+
+					Glyph glyph;
+					glyph.x = childCentre.x();
+					glyph.y = childCentre.y();
+					glyph.z = childCentre.z();
+					glyph.size = childSize;
+
+					glyph.a = childNormal.x();
+					glyph.b = childNormal.y();
+					glyph.c = childNormal.z();
+					glyph.d = getMaterialForNode(childCentre.x(), childCentre.y(), childCentre.z(), childIndex, volume, cameraPos);
 
 					assert(glyphCount < maxGlyphCount);
 					glyphs[glyphCount] = glyph;
@@ -1007,8 +1037,8 @@ namespace Cubiquity
 				else
 				{
 					// Not drawable, descend further down the tree.
-					processNode(childIndex, cameraData, volume, glyphs, maxGlyphCount, glyphCount,
-						childCentre, childCentreViewSpace, childHeight);
+					processNode(childIndex, childCentre, childCentreViewSpace, childHeight, rawChildNormal,
+						volume, cameraData, glyphs, maxGlyphCount, glyphCount);
 				}
 			}
 		}

@@ -13,12 +13,12 @@ bool viewVolume(const flags::args& args)
 	if (mode == "instancing")
 	{
 		InstancingDemo app(inputPath.string());
-		app.show(800, 600);
+		app.show(1600, 1200);
 	}
 	else if (mode == "pathtracing")
 	{
 		PathtracingDemo pathtracingDemo(inputPath.string());
-		pathtracingDemo.show(800, 600);
+		pathtracingDemo.show(1600, 1200);
 	}
 	else
 	{

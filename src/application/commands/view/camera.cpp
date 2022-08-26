@@ -79,5 +79,5 @@ Matrix4x4d Camera::viewMatrix() const
 
 Matrix4x4d Camera::projectionMatrix() const
 {
-	return perspective_matrix(fovInDegrees * 0.0174533, aspect, 0.1, 10000.0);
+	return perspective_matrix(fovInDegrees * 0.0174533, aspect, 1.0, 10000.0);
 }
