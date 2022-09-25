@@ -21,7 +21,6 @@ Viewer::Viewer(const std::string& filename, WindowType windowType)
 	}
 	std::cout << " done" << std::endl;
 
-	
 	mMaterials.load(getMaterialsPath(filename));
 }
 
@@ -128,7 +127,7 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 
 		Ray3d ray = mCamera.rayFromViewportPos(event.x, event.y, width(), height());
 
-		RayVolumeIntersection intersection = ray_parameter(mVolume, ray);
+		RayVolumeIntersection intersection = intersectVolume(mVolume, ray);
 		if (intersection)
 		{
 			SphereBrush brush(static_cast<Vector3f>(intersection.position), 30);

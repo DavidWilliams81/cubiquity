@@ -1,83 +1,21 @@
 #version 330 core
 
-////////////////////////////////////////////////////////////////////////////////
-// Utility code shared between instancing and pathtracing shaders
-////////////////////////////////////////////////////////////////////////////////
+in vec4 positionModelSpace;
+in vec4 positionWorldSpace;
 
-// Simple local lighting model similar to OpenGL fixed-function pipeline.
-// See: https://developer.download.nvidia.com/CgTutorial/cg_tutorial_chapter05.html
-vec3 light(vec3 surfaceColour, vec3 P, vec3 N, vec3 eyePosition)
-{
-	// Material properties
-	vec3 Ke = vec3(0.0, 0.0, 0.0);
-	vec3 Ka = surfaceColour;
-	vec3 Kd = surfaceColour;
-	vec3 Ks = vec3(0.0, 0.0, 0.0);
-	float shininess = 1.0f;
+in float glyphSize;
+in vec3  glyphNormal;
+in float glyphMaterial;
+in vec4  glyphCentreWorldSpace;
 
-	// Light properties
-	vec3 lightDir = vec3(0.3, 0.5, 0.7); // Pointing towards light
-	vec3 lightColor = vec3(0.7, 0.7, 0.7);
-	vec3 globalAmbient = vec3(0.3, 0.3, 0.3);
+out vec4 color;
 
-	// Compute emissive contribution
-	vec3 emissive = Ke;
+uniform vec3 cameraPos;
+uniform sampler1D materials;
+uniform unsigned int mode;
 
-	// Compute ambient contribution
-	vec3 ambient = Ka * globalAmbient;
-
-	// Compute diffuse contribution
-	vec3 L = normalize(lightDir);
-	float diffuseLight = max(dot(N, L), 0);
-	vec3 diffuse = Kd * lightColor * diffuseLight;
-
-	// Compute specular contribution
-	vec3 V = normalize(eyePosition - P);
-	vec3 H = normalize(L + V);
-	float specularLight = pow(max(dot(N, H), 0), shininess);
-
-	if (diffuseLight <= 0) specularLight = 0;
-	vec3 specular = Ks * lightColor * specularLight;
-
-	vec3 result = emissive + ambient + diffuse + specular;
-	return result;
-}
-
-vec4 getMaterial(float materialId, sampler1D materialsTexture)
-{
-	int materialCount = textureSize(materialsTexture, 0);
-	float u = (materialId+0.5) / materialCount; // Map material id to range 0.0 - 1.0
-	return texture(materialsTexture, u);
-}
-
-float positionBasedNoise(vec4 positionAndStrength)
-{
-	//'floor' is more widely supported than 'round'. Offset consists of:
-	// - 0.5 to perform the rounding
-	// - Tiny offset to eliminate acne as surfaces lie *exactly* between two voxels.
-	vec3 roundedPos = floor(positionAndStrength.xyz + vec3(0.501, 0.501, 0.501));
-
-	// The noise function below seems to do remarkably well even for large inputs. None-the-less, it is
-	// better for small inputs so we limit the input range to within a few hundred voxels of the origin.
-	roundedPos += vec3(256.0, 256.0, 256.0);
-	roundedPos += mod(roundedPos, vec3(512.0, 512.0, 512.0));
-
-	// Based on this: http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
-	// I've modified it to use a 3D seed with the third coefficient being a number I picked at random. Because it is 
-	// using a 3D seed the magnitude of the dot product could be much larger, so I've reduced each of the coefficients
-	// by a factor of 10 to limit precision problems for high seed values. We can tweak these further in the future.
-	float noise = fract(sin(mod(dot(roundedPos.xyz, vec3(1.29898,7.8233, 4.26546)), 3.14)) * 43758.5453);
-
-	//Scale the noise
-	float halfNoiseStrength = positionAndStrength.w * 0.5;
-	noise = -halfNoiseStrength + positionAndStrength.w * noise; //http://www.opengl.org/wiki/GLSL_Optimizations#Get_MAD
-
-	return noise;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// End of shared utility code
-////////////////////////////////////////////////////////////////////////////////
+const uint CUBE = 0u;
+const uint DISC = 1u;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Functions for calculating normals based on model/world positions.
@@ -143,6 +81,31 @@ vec3 roundedNormalForVoxel(vec3 positionModelSpace, vec3 positionWorldSpace)
 	return normal;
 }
 
+float positionBasedNoise(vec4 positionAndStrength)
+{
+	//'floor' is more widely supported than 'round'. Offset consists of:
+	// - 0.5 to perform the rounding
+	// - Tiny offset to eliminate acne as surfaces lie *exactly* between two voxels.
+	vec3 roundedPos = floor(positionAndStrength.xyz + vec3(0.501, 0.501, 0.501));
+
+	// The noise function below seems to do remarkably well even for large inputs. None-the-less, it is
+	// better for small inputs so we limit the input range to within a few hundred voxels of the origin.
+	roundedPos += vec3(256.0, 256.0, 256.0);
+	roundedPos += mod(roundedPos, vec3(512.0, 512.0, 512.0));
+
+	// Based on this: http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
+	// I've modified it to use a 3D seed with the third coefficient being a number I picked at random. Because it is 
+	// using a 3D seed the magnitude of the dot product could be much larger, so I've reduced each of the coefficients
+	// by a factor of 10 to limit precision problems for high seed values. We can tweak these further in the future.	
+	float noise = fract(sin(mod(dot(roundedPos.xyz, vec3(1.29898,7.8233, 4.26546)), 3.14)) * 43758.5453);
+
+	//Scale the noise
+	float halfNoiseStrength = positionAndStrength.w * 0.5;
+	noise = -halfNoiseStrength + positionAndStrength.w * noise; //http://www.opengl.org/wiki/GLSL_Optimizations#Get_MAD
+
+	return noise;
+}
+
 float min3 (vec3 v) {
   return min (min (v.x, v.y), v.z);
 }
@@ -183,29 +146,52 @@ bool intersectPlane(vec3 n, vec3 p0, vec3 l0, vec3 l, inout float t)
     return false; 
 }
 
-in vec4 positionModelSpace;
-in vec4 positionWorldSpace;
+// Simple local lighting model similar to OpenGL fixed-function pipeline.
+// See: https://developer.download.nvidia.com/CgTutorial/cg_tutorial_chapter05.html
+vec3 light(vec3 surfaceColour, vec3 P, vec3 N, vec3 eyePosition)
+{
+	// Material properties
+	vec3 Ke = vec3(0.0, 0.0, 0.0);
+	vec3 Ka = surfaceColour;
+	vec3 Kd = surfaceColour;
+	vec3 Ks = vec3(0.0, 0.0, 0.0);
+	float shininess = 1.0f;
 
-in float glyphSize;
-in vec3  glyphNormal;
-in float glyphMaterial;
-in vec4  glyphCentreWorldSpace;
+	// Light properties
+	vec3 lightDir = vec3(0.3, 0.5, 0.7); // Pointing towards light
+	vec3 lightColor = vec3(0.7, 0.7, 0.7);
+	vec3 globalAmbient = vec3(0.3, 0.3, 0.3);
 
-out vec4 color;
+	// Compute emissive contribution
+	vec3 emissive = Ke;
 
-uniform vec3 cameraPos;
-uniform sampler1D materials;
-uniform unsigned int mode;
+	// Compute ambient contribution
+	vec3 ambient = Ka * globalAmbient;
 
-const uint CUBE = 0u;
-const uint DISC = 1u;
+	// Compute diffuse contribution
+	vec3 L = normalize(lightDir);
+	float diffuseLight = max(dot(N, L), 0);
+	vec3 diffuse = Kd * lightColor * diffuseLight;
 
+	// Compute specular contribution
+	vec3 V = normalize(eyePosition - P);
+	vec3 H = normalize(L + V);
+	float specularLight = pow(max(dot(N, H), 0), shininess);
+
+	if (diffuseLight <= 0) specularLight = 0;
+	vec3 specular = Ks * lightColor * specularLight;
+
+	vec3 result = emissive + ambient + diffuse + specular;
+	return result;
+}
 
 void main()
 {
 	if(mode == CUBE)
 	{
-		vec4 voxelColor = getMaterial(glyphMaterial, materials);
+		int materialCount = textureSize(materials, 0);
+		float u = (glyphMaterial+0.5) / materialCount; // Map material id to range 0.0 - 1.0
+		vec4 voxelColor = texture(materials, u);
 
 		float noise = positionBasedNoise(vec4(positionWorldSpace.xyz, 0.08));
 
@@ -265,7 +251,9 @@ void main()
 			worldNormal = normalize(worldNormal);
 		}
 		
-		vec4 voxelColor = getMaterial(glyphMaterial, materials);
+		int materialCount = textureSize(materials, 0);
+		float u = (glyphMaterial+0.5) / materialCount; // Map material id to range 0.0 - 1.0
+		vec4 voxelColor = texture(materials, u);
 
 		color.rgb = light(voxelColor.xyz, intersection, worldNormal, cameraPos) * weight;
 		//color.rgb = (normalize((worldNormal.xyz)) * 0.5 + vec3(0.5, 0.5, 0.5)) * weight;

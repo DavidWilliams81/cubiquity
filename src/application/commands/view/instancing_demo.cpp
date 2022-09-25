@@ -49,7 +49,7 @@ void InstancingDemo::onInitialise()
 	glBindTexture(GL_TEXTURE_1D, materialsTexture);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, materials().data().size(), 0, GL_RGB, GL_FLOAT, materials().data().data());
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	materialsTextureID = glGetUniformLocation(glyphProgram, "materials");
@@ -261,7 +261,7 @@ void InstancingDemo::onShutdown()
 
 void InstancingDemo::onKeyDown(const SDL_KeyboardEvent & event)
 {
-	OpenGLViewer::onKeyUp(event);
+	OpenGLViewer::onKeyDown(event);
 
 	if (event.keysym.sym == SDLK_SPACE)
 	{

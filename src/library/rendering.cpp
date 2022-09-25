@@ -32,6 +32,11 @@ namespace Cubiquity
 	
 	const int VisibilityMask::TileSize; // Should need this line as an int should be declarable in the header... but g++ gets upset.
 
+	// Used for near to far octree traversal described here:
+	// https://www.flipcode.com/archives/Harmless_Algorithms-Issue_02_Scene_Traversal_Algorithms.shtml#octh
+	// Note: '4' comes before '3' in this array. This is not a mistake (see link above)
+	const uint nearToFar[] = { 0x00, 0x01, 0x02, 0x04, 0x03, 0x05, 0x06, 0x07 };
+
 	// Counter-clockwise winding in a right-handed (OpenGL-style) coordinate system.
 	std::array<Vector4i, 6> cubeIndices = {
 			Vector4i{4,6,2,0}, // min x
@@ -719,10 +724,7 @@ namespace Cubiquity
 
 		while (!isMaterialNode(nodeIndex))
 		{
-			// Based on Octree traversal method here: https://www.flipcode.com/archives/Harmless_Algorithms-Issue_02_Scene_Traversal_Algorithms.shtml#octh
-			const uint8_t bitToggles[] = { 0x00, 0x01, 0x02, 0x04, 0x03, 0x05, 0x06, 0x07 };
-
-			for (auto bt : bitToggles)
+			for (auto bt : nearToFar)
 			{
 				uint32_t childId = nearestChild ^ bt;
 				uint32_t childIndex = nodeData[nodeIndex][childId];
@@ -894,19 +896,15 @@ namespace Cubiquity
 		const double childHalfSize = childSize * 0.5;
 		const double childHalfDiagonal = childSize * 1.73205080757 * 0.5;
 
-		// Near to far octree traversal described here:
-		// https://www.flipcode.com/archives/Harmless_Algorithms-Issue_02_Scene_Traversal_Algorithms.shtml#octh
+		// Near to far octree traversal
 		uint8 nearestChild = 0;
 		const Vector3d& cameraPos = cameraData->position();
 		if (cameraPos.x() > nodeCentre.x()) nearestChild |= 0x01;
 		if (cameraPos.y() > nodeCentre.y()) nearestChild |= 0x02;
 		if (cameraPos.z() > nodeCentre.z()) nearestChild |= 0x04;
-		// Note: '4' comes before '3' in this array. This is not a mistake (see link above)
-		const uint8_t bitToggles[] = { 0x00, 0x01, 0x02, 0x04, 0x03, 0x05, 0x06, 0x07 };
-
 		for(uint i = 0; i < 8; i++) // Iterate over the children
 		{
-			uint32_t childId = nearestChild ^ bitToggles[i]; // See octree traversal link above
+			uint32_t childId = nearestChild ^ nearToFar[i]; // See octree traversal link above
 			const uint32_t childIndex = isMaterialNode(nodeIndex) ? nodeIndex :node[childId];
 			if (childIndex == 0) { continue; } // Empty child
 			
@@ -1059,11 +1057,12 @@ namespace Cubiquity
 	///////////////////////////////////////////////////////////////////////////////////////////////////
 	// See "An Efficient Parametric Algorithm for Octree Traversal"
 	///////////////////////////////////////////////////////////////////////////////////////////////////
-	unsigned char a;
 
-	int first_node(double tx0, double ty0, double tz0, double txm, double tym, double tzm)
+	uint a;
+
+	uint firstNode(float tx0, float ty0, float tz0, float txm, float tym, float tzm)
 	{
-		unsigned char answer = 0;   // initialize to 00000000
+		uint answer = 0u;   // initialize to 00000000
 									// select the entry plane and set bits
 		if (tx0 > ty0)
 		{
@@ -1071,7 +1070,7 @@ namespace Cubiquity
 			{
 				if (tym < tx0) answer |= (1 << 1);
 				if (tzm < tx0) answer |= (1 << 2);
-				return (int)answer;
+				return answer;
 			}
 		}
 		else {
@@ -1079,16 +1078,16 @@ namespace Cubiquity
 			{
 				if (txm < ty0) answer |= (1 << 0);
 				if (tzm < ty0) answer |= (1 << 2);
-				return (int)answer;
+				return answer;
 			}
 		}
 		// PLANE XY
 		if (txm < tz0) answer |= (1 << 0);
 		if (tym < tz0) answer |= (1 << 1);
-		return (int)answer;
+		return answer;
 	}
 
-	int new_node(double txm, int x, double tym, int y, double tzm, int z)
+	uint nextNode(float txm, uint x, float tym, uint y, float tzm, uint z)
 	{
 		if (txm < tym)
 		{
@@ -1101,20 +1100,12 @@ namespace Cubiquity
 		return z; // XY plane;
 	}
 
-	std::string indent(uint level)
-	{
-		return std::string(level * 2, ' ');
-	}
-
-	void proc_subtree(double tx0, double ty0, double tz0, double tx1, double ty1, double tz1, const Internals::NodeStore& nodes, uint32 nodeIndex, RayVolumeIntersection& intersection, int level)
+	void intersectSubtree(float tx0, float ty0, float tz0, float tx1, float ty1, float tz1, const Internals::NodeStore& nodes, uint32 nodeIndex, RayVolumeIntersection& intersection, int level)
 	{
 		if (intersection) return;
-		//childId = reverseBits(childId);
 
-		//std::cout << indent(level) << childId << std::endl;
-
-		double txm, tym, tzm;
-		int currNode;
+		float txm, tym, tzm;
+		uint currNode;
 
 		if (tx1 < 0.0 || ty1 < 0.0 || tz1 < 0.0)
 		{
@@ -1141,7 +1132,7 @@ namespace Cubiquity
 					intersection.normal[2] = -1.0;
 				}
 
-				// Flip normals if requred
+				// Flip normals if required
 				if (a & 1) { intersection.normal[0] *= -1.0f; }
 				if (a & 2) { intersection.normal[1] *= -1.0f; }
 				if (a & 4) { intersection.normal[2] *= -1.0f; }
@@ -1156,14 +1147,14 @@ namespace Cubiquity
 		tym = 0.5*(ty0 + ty1);
 		tzm = 0.5*(tz0 + tz1);
 
-		currNode = first_node(tx0, ty0, tz0, txm, tym, tzm);
+		currNode = firstNode(tx0, ty0, tz0, txm, tym, tzm);
 
 		do
 		{
 			// Note: The constants below are in the reverse order compared to the paper. Cubiquity uses the
 			// LSBs in 'zyx' to index child nodes, but the paper *appears* to use 'xyz'? The paper actually
 			// seems inconsistent, because Figure 1 imples 'xyz' order but Table 1 implies 'zyx'? Or they
-			// are just numbering their bits differently? Maybe I am missunderstanding something.
+			// are just numbering their bits differently? Maybe I am misunderstanding something.
 
 			// FIXME: I think the calls to 'new_node' can probably be inlined and then simplified? It might
 			// not be necessary to do quite so many comparisons in each case? E.g. for case '5' we could say
@@ -1173,246 +1164,331 @@ namespace Cubiquity
 			switch (currNode)
 			{
 			case 0:
-				proc_subtree(tx0, ty0, tz0, txm, tym, tzm, nodes, nodes[nodeIndex][a], intersection, level + 1);
-				currNode = new_node(txm, 1, tym, 2, tzm, 4);
+				intersectSubtree(tx0, ty0, tz0, txm, tym, tzm, nodes, nodes[nodeIndex][a], intersection, level + 1);
+				currNode = nextNode(txm, 1u, tym, 2u, tzm, 4u);
 				break;
 			case 1:
-				proc_subtree(txm, ty0, tz0, tx1, tym, tzm, nodes, nodes[nodeIndex][1 ^ a], intersection, level + 1);
-				currNode = new_node(tx1, 8, tym, 3, tzm, 5);
+				intersectSubtree(txm, ty0, tz0, tx1, tym, tzm, nodes, nodes[nodeIndex][1 ^ a], intersection, level + 1);
+				currNode = nextNode(tx1, 8u, tym, 3u, tzm, 5u);
 				break;
 			case 2:
-				proc_subtree(tx0, tym, tz0, txm, ty1, tzm, nodes, nodes[nodeIndex][2 ^ a], intersection, level + 1);
-				currNode = new_node(txm, 3, ty1, 8, tzm, 6);
+				intersectSubtree(tx0, tym, tz0, txm, ty1, tzm, nodes, nodes[nodeIndex][2 ^ a], intersection, level + 1);
+				currNode = nextNode(txm, 3u, ty1, 8u, tzm, 6u);
 				break;
 			case 3:
-				proc_subtree(txm, tym, tz0, tx1, ty1, tzm, nodes, nodes[nodeIndex][3 ^ a], intersection, level + 1);
-				currNode = new_node(tx1, 8, ty1, 8, tzm, 7);
+				intersectSubtree(txm, tym, tz0, tx1, ty1, tzm, nodes, nodes[nodeIndex][3 ^ a], intersection, level + 1);
+				currNode = nextNode(tx1, 8u, ty1, 8u, tzm, 7u);
 				break;
 			case 4:
-				proc_subtree(tx0, ty0, tzm, txm, tym, tz1, nodes, nodes[nodeIndex][4 ^ a], intersection, level + 1);
-				currNode = new_node(txm, 5, tym, 6, tz1, 8);
+				intersectSubtree(tx0, ty0, tzm, txm, tym, tz1, nodes, nodes[nodeIndex][4 ^ a], intersection, level + 1);
+				currNode = nextNode(txm, 5u, tym, 6u, tz1, 8u);
 				break;
 			case 5:
-				proc_subtree(txm, ty0, tzm, tx1, tym, tz1, nodes, nodes[nodeIndex][5 ^ a], intersection, level + 1);
-				currNode = new_node(tx1, 8, tym, 7, tz1, 8);
+				intersectSubtree(txm, ty0, tzm, tx1, tym, tz1, nodes, nodes[nodeIndex][5 ^ a], intersection, level + 1);
+				currNode = nextNode(tx1, 8u, tym, 7u, tz1, 8u);
 				break;
 			case 6:
-				proc_subtree(tx0, tym, tzm, txm, ty1, tz1, nodes, nodes[nodeIndex][6 ^ a], intersection, level + 1);
-				currNode = new_node(txm, 7, ty1, 8, tz1, 8);
+				intersectSubtree(tx0, tym, tzm, txm, ty1, tz1, nodes, nodes[nodeIndex][6 ^ a], intersection, level + 1);
+				currNode = nextNode(txm, 7u, ty1, 8u, tz1, 8u);
 				break;
 			case 7:
-				proc_subtree(txm, tym, tzm, tx1, ty1, tz1, nodes, nodes[nodeIndex][7 ^ a], intersection, level + 1);
+				intersectSubtree(txm, tym, tzm, tx1, ty1, tz1, nodes, nodes[nodeIndex][7 ^ a], intersection, level + 1);
 				currNode = 8;
 				break;
 			}
 		} while (currNode < 8);
 	}
 
-	void proc_subtree_iter(double tx0In, double ty0In, double tz0In, double tx1In, double ty1In, double tz1In, const Internals::NodeStore& nodes, uint32 nodeIndexIn, RayVolumeIntersection& intersection, int level)
+	void intersectSubtreeIterative(float tx0In, float ty0In, float tz0In, float tx1In, float ty1In, float tz1In, const Internals::NodeStore& nodes, uint nodeIndexIn, RayVolumeIntersection& intersection)
 	{
+		const uint INVALID_CHILD = 9u; // Only eight children
+
 		struct State
 		{
-			void set(double tx0In, double ty0In, double tz0In, double tx1In, double ty1In, double tz1In, uint32 nodeIndexIn)
-			{
-				tx0 = tx0In; ty0 = ty0In; tz0 = tz0In; tx1 = tx1In; ty1 = ty1In; tz1 = tz1In; nodeIndex = nodeIndexIn; currNode = -1;
-			}
-
-			double tx0, ty0, tz0, tx1, ty1, tz1, txm, tym, tzm;
-			uint32 nodeIndex;
-			int currNode;
+			float tx0, ty0, tz0, tx1, ty1, tz1, txm, tym, tzm;
+			uint nodeIndex;
+			uint currNode;
 		};
 
-		State stack[33]; // FIXME - How big should this be?
-		State* pState = &(stack[0]);
-		pState->set(tx0In, ty0In, tz0In, tx1In, ty1In, tz1In, nodeIndexIn);
+		int depth = 0; // Relative to subtree (not root)
+		State states[33]; // FIXME - How big should this be?
+		//State* pState = &(stack[0]);
+		//memset(pState, 0, sizeof(State) * 33);
+		State state = { tx0In, ty0In, tz0In, tx1In, ty1In, tz1In, 0.0, 0.0, 0.0, nodeIndexIn, INVALID_CHILD };
+		states[depth] = state;
+		
+		
 
 		do
 		{
-			if (pState->currNode == -1)
+			if (states[depth].currNode == INVALID_CHILD)
 			{
 				//std::cout << indent(level) << state.childId << std::endl;
 
-				if (pState->tx1 < 0.0 || pState->ty1 < 0.0 || pState->tz1 < 0.0)
+				if (states[depth].tx1 < 0.0 || states[depth].ty1 < 0.0 || states[depth].tz1 < 0.0)
 				{
-					level--;
-					pState--;
+					depth--;
 					continue;
 				}
 
-				if (isMaterialNode(pState->nodeIndex))
+				if (states[depth].nodeIndex < MaterialCount) // is a material node
 				{
-					if (pState->nodeIndex > 0) // Occupied node
+					if (states[depth].nodeIndex > 0) // Occupied node
 					{
-						intersection.material = pState->nodeIndex;
-						intersection.distance = std::max(std::max(pState->tx0, pState->ty0), pState->tz0);
-						intersection.normal = Vector3d({ 0.0, 0.0, 0.0 });
-						if (pState->tx0 > pState->ty0 && pState->tx0 > pState->tz0)
+						intersection.material = states[depth].nodeIndex;
+						intersection.distance = std::max(std::max(states[depth].tx0, states[depth].ty0), states[depth].tz0);
+						intersection.normal[0] = 0.0;
+						intersection.normal[1] = 0.0;
+						intersection.normal[2] = 0.0;
+						if (states[depth].tx0 > states[depth].ty0 && states[depth].tx0 > states[depth].tz0)
 						{
 							intersection.normal[0] = -1.0;
 						}
-						if (pState->ty0 > pState->tx0 && pState->ty0 > pState->tz0)
+						if (states[depth].ty0 > states[depth].tx0 && states[depth].ty0 > states[depth].tz0)
 						{
 							intersection.normal[1] = -1.0;
 						}
-						if (pState->tz0 > pState->tx0 && pState->tz0 > pState->ty0)
+						if (states[depth].tz0 > states[depth].tx0 && states[depth].tz0 > states[depth].ty0)
 						{
 							intersection.normal[2] = -1.0;
 						}
 
-						// Flip normals if requred
-						if (a & 1) { intersection.normal[0] *= -1.0f; }
-						if (a & 2) { intersection.normal[1] *= -1.0f; }
-						if (a & 4) { intersection.normal[2] *= -1.0f; }
+						// Flip normals if required
+						if (bool(a & 1)) { intersection.normal[0] *= -1.0; }
+						if (bool(a & 2)) { intersection.normal[1] *= -1.0; }
+						if (bool(a & 4)) { intersection.normal[2] *= -1.0; }
 
 						return;
 					}
-					level--;
-					pState--;
+					depth--;
 					continue;
 				}
 
 				// FIXME - We need to handle infinite values here. Either as described in the paper, or
 				// by adding a tiny offset to input vector components to make sure they are never zero.
-				pState->txm = 0.5*(pState->tx0 + pState->tx1);
-				pState->tym = 0.5*(pState->ty0 + pState->ty1);
-				pState->tzm = 0.5*(pState->tz0 + pState->tz1);
+				states[depth].txm = 0.5 * (states[depth].tx0 + states[depth].tx1);
+				states[depth].tym = 0.5 * (states[depth].ty0 + states[depth].ty1);
+				states[depth].tzm = 0.5 * (states[depth].tz0 + states[depth].tz1);
 
-				pState->currNode = first_node(pState->tx0, pState->ty0, pState->tz0, pState->txm, pState->tym, pState->tzm);
+				states[depth].currNode = firstNode(states[depth].tx0, states[depth].ty0, states[depth].tz0, states[depth].txm, states[depth].tym, states[depth].tzm);
 			}
 
 			// Note: The constants below are in the reverse order compared to the paper. Cubiquity uses the
 			// LSBs in 'zyx' to index child nodes, but the paper *appears* to use 'xyz'? The paper actually
 			// seems inconsistent, because Figure 1 imples 'xyz' order but Table 1 implies 'zyx'? Or they
-			// are just numbering their bits differently? Maybe I am missunderstanding something.
-			State* pNextState = pState + 1;
-			switch (pState->currNode)
+			// are just numbering their bits differently? Maybe I am misunderstanding something.
+			//State* pNextState = pState + 1;
+			switch (states[depth].currNode)
 			{
-			case 0:
-				pNextState->set(pState->tx0, pState->ty0, pState->tz0, pState->txm, pState->tym, pState->tzm, nodes[pState->nodeIndex][a]);
-				pState->currNode = new_node(pState->txm, 1, pState->tym, 2, pState->tzm, 4);
-				break;
-			case 1:
-				//if (nodes[pState->nodeIndex].mChildren[1 ^ a] == 0) { level--; pState--; continue; }
-				pNextState->set(pState->txm, pState->ty0, pState->tz0, pState->tx1, pState->tym, pState->tzm, nodes[pState->nodeIndex][1 ^ a]);
-				pState->currNode = new_node(pState->tx1, 8, pState->tym, 3, pState->tzm, 5);
-				break;
-			case 2:
-				pNextState->set(pState->tx0, pState->tym, pState->tz0, pState->txm, pState->ty1, pState->tzm, nodes[pState->nodeIndex][2 ^ a]);
-				pState->currNode = new_node(pState->txm, 3, pState->ty1, 8, pState->tzm, 6);
-				break;
-			case 3:
-				pNextState->set(pState->txm, pState->tym, pState->tz0, pState->tx1, pState->ty1, pState->tzm, nodes[pState->nodeIndex][3 ^ a]);
-				pState->currNode = new_node(pState->tx1, 8, pState->ty1, 8, pState->tzm, 7);
-				break;
-			case 4:
-				pNextState->set(pState->tx0, pState->ty0, pState->tzm, pState->txm, pState->tym, pState->tz1, nodes[pState->nodeIndex][4 ^ a]);
-				pState->currNode = new_node(pState->txm, 5, pState->tym, 6, pState->tz1, 8);
-				break;
-			case 5:
-				pNextState->set(pState->txm, pState->ty0, pState->tzm, pState->tx1, pState->tym, pState->tz1, nodes[pState->nodeIndex][5 ^ a]);
-				pState->currNode = new_node(pState->tx1, 8, pState->tym, 7, pState->tz1, 8);
-				break;
-			case 6:
-				pNextState->set(pState->tx0, pState->tym, pState->tzm, pState->txm, pState->ty1, pState->tz1, nodes[pState->nodeIndex][6 ^ a]);
-				pState->currNode = new_node(pState->txm, 7, pState->ty1, 8, pState->tz1, 8);
-				break;
-			case 7:
-				pNextState->set(pState->txm, pState->tym, pState->tzm, pState->tx1, pState->ty1, pState->tz1, nodes[pState->nodeIndex][7 ^ a]);
-				pState->currNode = 8;
-				break;
-			case 8:
-				level--;
-				pState--;
-				continue;
+				case 0:
+				{
+					State nextState = { states[depth].tx0, states[depth].ty0, states[depth].tz0, states[depth].txm, states[depth].tym, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][a], INVALID_CHILD };;
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].txm, 1u, states[depth].tym, 2u, states[depth].tzm, 4u);
+					break;
+				}
+				case 1:
+				{
+					State nextState = { states[depth].txm, states[depth].ty0, states[depth].tz0, states[depth].tx1, states[depth].tym, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][1 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].tx1, 8u, states[depth].tym, 3u, states[depth].tzm, 5u);
+					break;
+				}
+				case 2:
+				{
+					State nextState = { states[depth].tx0, states[depth].tym, states[depth].tz0, states[depth].txm, states[depth].ty1, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][2 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].txm, 3u, states[depth].ty1, 8u, states[depth].tzm, 6u);
+					break;
+				}
+				case 3:
+				{
+					State nextState = { states[depth].txm, states[depth].tym, states[depth].tz0, states[depth].tx1, states[depth].ty1, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][3 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].tx1, 8u, states[depth].ty1, 8u, states[depth].tzm, 7u);
+					break;
+				}
+				case 4:
+				{
+					State nextState = { states[depth].tx0, states[depth].ty0, states[depth].tzm, states[depth].txm, states[depth].tym, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][4 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].txm, 5u, states[depth].tym, 6u, states[depth].tz1, 8u);
+					break;
+				}
+				case 5:
+				{
+					State nextState = { states[depth].txm, states[depth].ty0, states[depth].tzm, states[depth].tx1, states[depth].tym, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][5 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].tx1, 8u, states[depth].tym, 7u, states[depth].tz1, 8u);
+					break;
+				}
+				case 6:
+				{
+					State nextState = { states[depth].tx0, states[depth].tym, states[depth].tzm, states[depth].txm, states[depth].ty1, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][6 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = nextNode(states[depth].txm, 7u, states[depth].ty1, 8u, states[depth].tz1, 8u);
+					break;
+				}
+				case 7:
+				{
+					State nextState = { states[depth].txm, states[depth].tym, states[depth].tzm, states[depth].tx1, states[depth].ty1, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][7 ^ a], INVALID_CHILD };
+					states[depth + 1] = nextState;
+					states[depth].currNode = 8;
+					break;
+				}
+				case 8:
+				{
+					depth--;
+					continue;
+				}
 			}
 
-			pState++;
-			level++;
+			depth++;
 
-		} while (level >= 0);
+		} while (depth >= 0);
 	}
 
-
-	RayVolumeIntersection ray_parameter(const Volume& volume, Ray3d ray)
+	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex)
 	{
-		// This algorithm is implmented with double precision. I have experimented with float
-		// precision but found it is not sufficient. This is not surprising, considering we
-		// (potentially) need sub-voxel precision covering the whole 2^32 space.
-		//
-		// It might be interesing to implement it using fixed point arithmetic at some point.
-		// During the traversal I think the main operations are taking the average of two values
-		// and some comparisons, which should all be easy enough with fixed point data encoded
-		// in int64s.
-		//
-		// The current impementation always starts by intersecting with the root node and
-		// traversing down fom there. I think there are two ways we can improve this:
-		//
-		//    - As large parts of the volume are often unoccupied it might make more sense to start
-		//      from the 'effective root', i.e. the first node with more than one child. We don't
-		//      curently have direct access to that (though we could quickly traverse to find it),
-		//      but it could be considered in the future. This might also help the algorithm to
-		//      work at floating point precision.
-		//    - We could start traversal from the lowest node which encapsulates the ray (if we
-		//      give the ray an end point or maximum length). This involves finding the bounds of 
-		//      the ray and adjusting them to the ppropriate power-of-two. Details are still to
-		//      be worked out.
-		//
-		// I think the two approaches are orthogonal and both useful. The first is probably quicker
-		// to find (and can be cached for the volume?) while the second can be applied even the
-		// effective root is the real root but the ray itself is much smaller.
+		SubDAGArray subDAGs;
+		const Node rootNode = nodes[rootNodeIndex];
+		const Vector3i rootLowerBound = Vector3i::filled(std::numeric_limits<int32>::min());
 
-		Ray3d inputRay = ray;
+		for (uint childId = 0; childId < 8; childId++)
+		{
+			SubDAG& subDAG = subDAGs[childId];
+			subDAG.nodeIndex = nodes[rootNodeIndex][childId];
 
+			uint childSizePower = 31;
+			subDAG.lowerBound = rootLowerBound;
+			// XOR (rather than OR) as sign bit might need to get cleared.
+			subDAG.lowerBound[0] ^= ((childId & 0x1) >> 0) << childSizePower;
+			subDAG.lowerBound[1] ^= ((childId & 0x2) >> 1) << childSizePower;
+			subDAG.lowerBound[2] ^= ((childId & 0x4) >> 2) << childSizePower;
+
+			uint childCount;
+			do
+			{
+				childCount = 0;
+				uint32 onlyChildId;
+				for (uint i = 0; i < 8; i++)
+				{
+					if (nodes[subDAG.nodeIndex][i] > 0)
+					{
+						childCount++;
+						onlyChildId = i;
+					}
+				}
+				if (childCount == 1)
+				{
+					childSizePower--;
+					subDAG.nodeIndex = nodes[subDAG.nodeIndex][onlyChildId];
+					subDAG.lowerBound[0] ^= ((onlyChildId & 0x1) >> 0) << childSizePower;
+					subDAG.lowerBound[1] ^= ((onlyChildId & 0x2) >> 1) << childSizePower;
+					subDAG.lowerBound[2] ^= ((onlyChildId & 0x4) >> 2) << childSizePower;
+				}
+			} while (childCount == 1);
+
+			uint childSize = 1 << childSizePower;
+			Vector3i childSizeVector = { childSize - 1, childSize - 1, childSize - 1 };
+			subDAG.upperBound = subDAG.lowerBound + childSizeVector;
+		}
+
+		return subDAGs;
+	}
+
+	RayVolumeIntersection intersectNodes(const Internals::NodeStore& nodes, const SubDAGArray& subDAGs, Ray3d ray)
+	{
 		RayVolumeIntersection intersection;
 		intersection.material = 0;
 
-		a = 0;
+		int minInt = -2147483648;
+		ivec3 rootLowerBound = { minInt , minInt , minInt };
 
-		const Internals::NodeStore& nodes = Internals::getNodes(volume).nodes();
-
-		Vector3i rootLowerBound = Vector3i::filled(std::numeric_limits<int32>::min());
-		Vector3i rootUpperBound = Vector3i::filled(std::numeric_limits<int32>::max());
-
-		if (ray.mDir.x() < 0.0)
+		// Near to far octree traversal
+		uint nearestChild = 0;
+		if (ray.mOrigin[0] > -0.5) nearestChild |= 0x1;
+		if (ray.mOrigin[1] > -0.5) nearestChild |= 0x2;
+		if (ray.mOrigin[2] > -0.5) nearestChild |= 0x4;
+		for (uint i = 0; i < 8; i++) 
 		{
-			ray.mOrigin[0] += 0.5f;
-			ray.mOrigin[0] = /*(std::numeric_limits<uint32>::max() + 1.0)*/ -ray.mOrigin[0];
-			ray.mOrigin[0] -= 0.5f;
-			ray.mDir[0] = -ray.mDir[0];
-			a |= 1;
-		}
-		if (ray.mDir.y() < 0.0)
-		{
-			ray.mOrigin[1] += 0.5f;
-			ray.mOrigin[1] = /*(std::numeric_limits<uint32>::max() + 1.0)*/ -ray.mOrigin[1];
-			ray.mOrigin[1] -= 0.5f;
-			ray.mDir[1] = -ray.mDir[1];
-			a |= 2;
-		}
-		if (ray.mDir.z() < 0.0)
-		{
-			ray.mOrigin[2] += 0.5f;
-			ray.mOrigin[2] = /*(std::numeric_limits<uint32>::max() + 1.0)*/ -ray.mOrigin[2];
-			ray.mOrigin[2] -= 0.5f;
-			ray.mDir[2] = -ray.mDir[2];
-			a |= 4;
+			uint childId = nearestChild ^ nearToFar[i];
+			uint childNodeIndex = subDAGs[childId].nodeIndex;
+
+			Ray3d reflectedRay = ray;
+			ivec3 reflectedLowerBound = subDAGs[childId].lowerBound;
+			ivec3 reflectedUpperBound = subDAGs[childId].upperBound;
+
+			a = 0;
+			if (reflectedRay.mDir[0] < 0.0)
+			{
+				reflectedRay.mOrigin[0] = -reflectedRay.mOrigin[0] - 1.0;
+				reflectedRay.mDir[0] = -reflectedRay.mDir[0];
+				reflectedLowerBound[0] = ~reflectedLowerBound[0];
+				reflectedUpperBound[0] = ~reflectedUpperBound[0];
+				int temp = reflectedLowerBound[0]; // Replace below with std::swap.
+				reflectedLowerBound[0] = reflectedUpperBound[0];
+				reflectedUpperBound[0] = temp;
+				a |= 1;
+			}
+			if (reflectedRay.mDir[1] < 0.0)
+			{
+				reflectedRay.mOrigin[1] = -reflectedRay.mOrigin[1] - 1.0;
+				reflectedRay.mDir[1] = -reflectedRay.mDir[1];
+				reflectedLowerBound[1] = ~reflectedLowerBound[1];
+				reflectedUpperBound[1] = ~reflectedUpperBound[1];
+				int temp = reflectedLowerBound[1]; // Replace below with std::swap.
+				reflectedLowerBound[1] = reflectedUpperBound[1];
+				reflectedUpperBound[1] = temp;
+				a |= 2;
+			}
+			if (reflectedRay.mDir[2] < 0.0)
+			{
+				reflectedRay.mOrigin[2] = -reflectedRay.mOrigin[2] - 1.0;
+				reflectedRay.mDir[2] = -reflectedRay.mDir[2];
+				reflectedLowerBound[2] = ~reflectedLowerBound[2];
+				reflectedUpperBound[2] = ~reflectedUpperBound[2];
+				int temp = reflectedLowerBound[2]; // Replace below with std::swap.
+				reflectedLowerBound[2] = reflectedUpperBound[2];
+				reflectedUpperBound[2] = temp;
+				a |= 4;
+			}
+
+			float tx0 = ((reflectedLowerBound[0] - 0.5) - reflectedRay.mOrigin[0]) / reflectedRay.mDir[0];
+			float tx1 = ((reflectedUpperBound[0] + 0.5) - reflectedRay.mOrigin[0]) / reflectedRay.mDir[0];
+			float ty0 = ((reflectedLowerBound[1] - 0.5) - reflectedRay.mOrigin[1]) / reflectedRay.mDir[1];
+			float ty1 = ((reflectedUpperBound[1] + 0.5) - reflectedRay.mOrigin[1]) / reflectedRay.mDir[1];
+			float tz0 = ((reflectedLowerBound[2] - 0.5) - reflectedRay.mOrigin[2]) / reflectedRay.mDir[2];
+			float tz1 = ((reflectedUpperBound[2] + 0.5) - reflectedRay.mOrigin[2]) / reflectedRay.mDir[2];
+
+			if (std::max(std::max(tx0, ty0), tz0) < std::min(std::min(tx1, ty1), tz1))
+			{
+				//intersectSubtree(tx0, ty0, tz0, tx1, ty1, tz1, nodes, childNodeIndex, intersection, 0);
+				intersectSubtreeIterative(tx0, ty0, tz0, tx1, ty1, tz1, nodes, childNodeIndex, intersection);
+			}
+
+			if (intersection) { break; }
 		}
 
-		// FIXME - Do we need the +/-0.5 here? And the +1.0 above?
-		double tx0 = ((rootLowerBound.x() - 0.5) - ray.mOrigin.x()) / ray.mDir.x();
-		double tx1 = ((rootUpperBound.x() + 0.5) - ray.mOrigin.x()) / ray.mDir.x();
-		double ty0 = ((rootLowerBound.y() - 0.5) - ray.mOrigin.y()) / ray.mDir.y();
-		double ty1 = ((rootUpperBound.y() + 0.5) - ray.mOrigin.y()) / ray.mDir.y();
-		double tz0 = ((rootLowerBound.z() - 0.5) - ray.mOrigin.z()) / ray.mDir.z();
-		double tz1 = ((rootUpperBound.z() + 0.5) - ray.mOrigin.z()) / ray.mDir.z();
-
-		if (std::max(std::max(tx0, ty0), tz0) < std::min(std::min(tx1, ty1), tz1))
-		{
-			proc_subtree_iter(tx0, ty0, tz0, tx1, ty1, tz1, nodes, getRootNodeIndex(volume), intersection, 0);
-		}
-
-		intersection.position = inputRay.mOrigin + (inputRay.mDir * intersection.distance);
-
+		intersection.position = ray.mOrigin + (ray.mDir * intersection.distance);
 		return intersection;
+	}
+
+	// It might be interesing to implement this using fixed point arithmetic at some point.
+	// During the traversal I think the main operations are taking the average of two values
+	// and some comparisons, which should all be easy enough with fixed point data encoded
+	// in int64s.
+	//
+	// Also could start traversal from the lowest node which encapsulates the ray (if we
+	// give the ray an end point or maximum length), rather than starting from the root.
+	// This involves finding the bounds of the ray and adjusting them to the appropriate
+	// power-of-two. Details are still to be worked out.
+	RayVolumeIntersection intersectVolume(const Volume& volume, Ray3d ray)
+	{
+		//ray.mOrigin = { -10.0, -10.0, -10.0 };
+		//ray.mDir = { 1.0, 1.0, 1.0 };
+		const Internals::NodeStore& nodes = Internals::getNodes(volume).nodes();
+		SubDAGArray subDAGs = findSubDAGs(nodes, getRootNodeIndex(volume));
+		return intersectNodes(nodes, subDAGs, ray);
 	}
 }

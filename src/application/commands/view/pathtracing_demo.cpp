@@ -73,7 +73,7 @@ Vector3d gatherLighting(Vector3d position, Vector3d normal, const Volume& volume
 		Vector3d sunDir(normalize(Vector3d({ 1.0, -2.0, 10.0 })));
 
 		Ray3d sunShadowRay(position + offset, sunDir);
-		RayVolumeIntersection sunShadowIntersection = ray_parameter(volume, sunShadowRay);
+		RayVolumeIntersection sunShadowIntersection = intersectVolume(volume, sunShadowRay);
 		if (!sunShadowIntersection)
 		{
 			intensity += std::max(dot(sunDir, normal), 0.0) * sunIntensity;
@@ -85,7 +85,7 @@ Vector3d gatherLighting(Vector3d position, Vector3d normal, const Volume& volume
 		double skyIntensity = 1.0;
 		const Vector3d skyDir = normalize(normal + randomPointInUnitSphere());
 		Ray3d skyShadowRay(position + offset, skyDir);
-		RayVolumeIntersection skyShadowIntersection = ray_parameter(volume, skyShadowRay);
+		RayVolumeIntersection skyShadowIntersection = intersectVolume(volume, skyShadowRay);
 		if (!skyShadowIntersection)
 		{
 			intensity += skyIntensity;
@@ -101,7 +101,7 @@ Vector3d traceSingleRay(const Ray3d& ray, const Volume& volume, const MaterialSe
 
 	Vector3d pixelColour = { 0.0f, 0.0f, 0.0f };
 
-	RayVolumeIntersection intersection = ray_parameter(volume, ray);
+	RayVolumeIntersection intersection = intersectVolume(volume, ray);
 	if (intersection)
 	{
 		pixelColour = Vector3d({ materials[intersection.material][0], materials[intersection.material][1], materials[intersection.material][2] });

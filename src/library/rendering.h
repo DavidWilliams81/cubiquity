@@ -264,7 +264,25 @@ namespace Cubiquity
 		MaterialId material;
 	};
 
-	RayVolumeIntersection ray_parameter(const Volume& volume, Ray3d ray);
+	RayVolumeIntersection intersectVolume(const Volume& volume, Ray3d ray);
+
+	typedef Vector3f vec3;
+	typedef Vector3i ivec3;
+	typedef Vector4i ivec4;
+
+	struct SubDAG
+	{
+		uint nodeIndex;
+		uint padding1, padding2, padding3;
+		ivec3 lowerBound;
+		int padding4;
+		ivec3 upperBound; // Could store size instead?
+		int padding5;
+	};
+
+	typedef std::array<SubDAG, 8> SubDAGArray;
+
+	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex);
 }
 
 #endif //CUBIQUITY_RENDERING_H

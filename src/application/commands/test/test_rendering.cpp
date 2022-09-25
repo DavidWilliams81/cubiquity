@@ -156,7 +156,7 @@ bool testRaytracingBehaviour()
 	Vector3f dir = normalize(Vector3f(1, 1, 1));
 	Ray3f ray(origin, dir);
 
-	RayVolumeIntersection intersection = ray_parameter(volume, ray);
+	RayVolumeIntersection intersection = intersectVolume(volume, ray);
 	std::cout << intersection.distance << std::endl;
 
 	return true;*/
@@ -182,7 +182,7 @@ bool testRaytracingBehaviour()
 		dir = normalize(dir);
 		Ray3d ray(origin, dir);
 
-		RayVolumeIntersection intersection = ray_parameter(volume, ray);
+		RayVolumeIntersection intersection = intersectVolume(volume, ray);
 		if (intersection) { hitCount++; }
 
 		RayVolumeIntersection intersectionRef = traceRayRef(volume, static_cast<Ray3f>(ray));
@@ -229,7 +229,7 @@ bool testRaytracingPerformance()
 		dir = normalize(dir);
 		Ray3d ray(origin, dir);
 
-		RayVolumeIntersection intersection = ray_parameter(volume, ray);
+		RayVolumeIntersection intersection = intersectVolume(volume, ray);
 		if (intersection) { hitCount++; }
 	}
 

@@ -1,4 +1,5 @@
 #include "view.h"
+#include "gpu_pathtracing_viewer.h"
 #include "instancing_demo.h"
 #include "pathtracing_demo.h"
 
@@ -15,10 +16,15 @@ bool viewVolume(const flags::args& args)
 		InstancingDemo app(inputPath.string());
 		app.show(1600, 1200);
 	}
+	else if (mode == "gpu-pathtracing")
+	{
+		GPUPathtracingViewer gpuPathtracingViewer(inputPath.string());
+		gpuPathtracingViewer.show(800, 600);
+	}
 	else if (mode == "pathtracing")
 	{
 		PathtracingDemo pathtracingDemo(inputPath.string());
-		pathtracingDemo.show(1600, 1200);
+		pathtracingDemo.show(800, 600);
 	}
 	else
 	{
