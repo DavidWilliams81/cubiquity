@@ -19,7 +19,7 @@ bool viewVolume(const flags::args& args)
 	else if (mode == "gpu-pathtracing")
 	{
 		GPUPathtracingViewer gpuPathtracingViewer(inputPath.string());
-		gpuPathtracingViewer.show(800, 600);
+		gpuPathtracingViewer.show(1600, 1200);
 	}
 	else if (mode == "pathtracing")
 	{

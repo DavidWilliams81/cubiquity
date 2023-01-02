@@ -34,8 +34,12 @@ void InstancingDemo::onInitialise()
 
 	// Create and compile our GLSL program from the shaders
 	std::cout << "Warning - Using hard-coded paths to shaders in ../src/application/commands/view" << std::endl;
-	glyphProgram = loadProgram("../src/application/commands/view/glyph_vertex_program.glsl", "../src/application/commands/view/glyph_fragment_program.glsl");
-	screenQuadProgram = loadProgram("../src/application/commands/view/screen_quad_vertex_program.glsl", "../src/application/commands/view/screen_quad_fragment_program.glsl");
+	glyphProgram = loadProgram(
+		"../src/application/commands/view/glsl/instancing_glyph_vertex_program.glsl", 
+		"../src/application/commands/view/glsl/instancing_glyph_fragment_program.glsl");
+	screenQuadProgram = loadProgram(
+		"../src/application/commands/view/glsl/instancing_screen_quad_vertex_program.glsl", 
+		"../src/application/commands/view/glsl/instancing_screen_quad_fragment_program.glsl");
 
 	// Set up access to uniforms
 	modelMatrixID = glGetUniformLocation(glyphProgram, "modelMatrix");

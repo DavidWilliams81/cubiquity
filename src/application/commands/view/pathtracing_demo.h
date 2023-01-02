@@ -37,29 +37,9 @@
 
 using namespace Cubiquity;
 
-class Pathtracer
-{
-public:
-
-	Pathtracer();
-	void setResolution(uint width, uint height);
-	void clear();
-	void raytrace(const Volume& volume, const MaterialSet& materials, const Camera& camera, uint timeoutMs = 0); // Zero for no timeout
-
-	uint mWidth;
-	uint mHeight;
-	Vector3u8* renderSurface = nullptr;
-
-	uint bounces = 1;
-	uint samples = 1;
-	bool includeSun = true;
-	bool includeSky = true;
-	bool addNoise = true;
-
-	// Iterates over pixels in a pseudorandom order (used for progressive rendering).
-	ShuffledSequence gPixelSequence;
-	uint pixelCount;
-};
+typedef Vector3f vec3;
+typedef Vector3i ivec3;
+typedef Vector4i ivec4;
 
 class PathtracingDemo : public Viewer
 {
@@ -85,8 +65,38 @@ protected:
 	void onCameraModified() override;
 	void onVolumeModified() override;
 
-	Pathtracer mPathtracer;
+private:
+	void updateResolution();
+	void clear();
+	void raytrace(const Camera& camera);
+
+	float positionBasedNoise(const vec3& position);
+	vec3 surfaceColour(const RayVolumeIntersection& intersection);
+	const vec3& randomPointInUnitSphere();
+	vec3 gatherLighting(vec3 position, vec3 normal);
+	vec3 traceSingleRayRecurse(const Ray3f& ray, uint depth);
+	vec3 traceSingleRay(const Ray3f& ray, uint depth);
+
+	// Floating point target for path tracing
+	uint mImageWidth;
+	uint mImageHeight;
+	std::vector<Vector3f> mImage;
+
+	// Intermediate SDL target for blitting with scaling.
+	SDL_Surface* mRgbSurface = nullptr;
+
+	// Pathtracing properties
+	uint bounces = 1;
+	bool addNoise = true;
+	bool includeSun = true;
+	bool includeSky = true;
+	float maxFootprint = 0.005; // For LOD
+
+	// General properties
+	uint mAccumulatedFrameCount = 0;
 	bool mPreviewMode = false;
+
+	SubDAGArray subDAGs;
 };
 
 #endif // CUBIQUITY_PATHTRACING_DEMO_H

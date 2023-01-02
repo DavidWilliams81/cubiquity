@@ -20,11 +20,21 @@ public:
 
 	void onKeyDown(const SDL_KeyboardEvent& event);
 
+	void onCameraModified();
 
+	void clear();
+
+	GLuint mainProgram;
 	GLuint screenQuadProgram;
+
 	GLuint mMaterialsTexture;
 
+	unsigned int framebuffer;
+	unsigned int textureColorbuffer;
+
 	Cubiquity::Timer mTimer;
+
+	unsigned int randSeed = 42;
 };
 
 #endif // CUBIQUITY_GPU_PATHTRACING_VIEWER_H

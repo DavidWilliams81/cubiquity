@@ -149,18 +149,6 @@ RayVolumeIntersection traceRayRef(Volume& volume, Ray3f ray)
 
 bool testRaytracingBehaviour()
 {
-	/*Volume volume;
-	volume.setVoxel(0, 0, 0, 1);
-
-	Vector3f origin(-1, -1, -1);
-	Vector3f dir = normalize(Vector3f(1, 1, 1));
-	Ray3f ray(origin, dir);
-
-	RayVolumeIntersection intersection = intersectVolume(volume, ray);
-	std::cout << intersection.distance << std::endl;
-
-	return true;*/
-
 	Volume volume;
 	volume.load("../data/axis.vol");
 
@@ -173,16 +161,19 @@ bool testRaytracingBehaviour()
 
 	Timer timer;
 
+	SubDAGArray subDAGs = findSubDAGs(
+		Internals::getNodes(volume).nodes(), getRootNodeIndex(volume));
+
 	const uint rayCount = 1000;
 	for (uint i = 0; i < rayCount; i++)
 	{
-		Vector3d origin = static_cast<Vector3d>(sampler.next());
-		Vector3d target = static_cast<Vector3d>(sampler.next());
-		Vector3d dir = target - origin;
+		Vector3f origin = sampler.next();
+		Vector3f target = sampler.next();
+		Vector3f dir = target - origin;
 		dir = normalize(dir);
-		Ray3d ray(origin, dir);
+		Ray3f ray(origin, dir);
 
-		RayVolumeIntersection intersection = intersectVolume(volume, ray);
+		RayVolumeIntersection intersection = intersectVolume(volume, subDAGs, ray);
 		if (intersection) { hitCount++; }
 
 		RayVolumeIntersection intersectionRef = traceRayRef(volume, static_cast<Ray3f>(ray));
@@ -220,16 +211,19 @@ bool testRaytracingPerformance()
 
 	Timer timer;
 
+	SubDAGArray subDAGs = findSubDAGs(
+		Internals::getNodes(volume).nodes(), getRootNodeIndex(volume));
+
 	const uint rayCount = 1000000;
 	for (uint i = 0; i < rayCount; i++)
 	{
-		Vector3d origin = static_cast<Vector3d>(sampler.next());
-		Vector3d target = static_cast<Vector3d>(sampler.next());
-		Vector3d dir = target - origin;
+		Vector3f origin = sampler.next();
+		Vector3f target = sampler.next();
+		Vector3f dir = target - origin;
 		dir = normalize(dir);
-		Ray3d ray(origin, dir);
+		Ray3f ray(origin, dir);
 
-		RayVolumeIntersection intersection = intersectVolume(volume, ray);
+		RayVolumeIntersection intersection = intersectVolume(volume, subDAGs, ray);
 		if (intersection) { hitCount++; }
 	}
 

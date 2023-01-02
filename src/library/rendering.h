@@ -258,13 +258,11 @@ namespace Cubiquity
 	{
 		explicit operator bool() { return material > 0; }
 
-		Vector3d position;
-		Vector3d normal;
-		double distance;
-		MaterialId material;
+		Vector3f position;
+		Vector3f normal;
+		double distance = 0.0f;
+		MaterialId material = 0;
 	};
-
-	RayVolumeIntersection intersectVolume(const Volume& volume, Ray3d ray);
 
 	typedef Vector3f vec3;
 	typedef Vector3i ivec3;
@@ -273,7 +271,8 @@ namespace Cubiquity
 	struct SubDAG
 	{
 		uint nodeIndex;
-		uint padding1, padding2, padding3;
+		uint depth;
+		uint padding2, padding3;
 		ivec3 lowerBound;
 		int padding4;
 		ivec3 upperBound; // Could store size instead?
@@ -283,6 +282,9 @@ namespace Cubiquity
 	typedef std::array<SubDAG, 8> SubDAGArray;
 
 	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex);
+
+	const float MAX_FOOTPRINT_DISABLED = -1.0f;
+	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs, Ray3f ray, float maxFootprint = MAX_FOOTPRINT_DISABLED);
 }
 
 #endif //CUBIQUITY_RENDERING_H

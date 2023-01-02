@@ -141,7 +141,7 @@ namespace Cubiquity
 				Node node = mNodes[nodeIndex - offset];
 				for (uint32& childIndex : node)
 				{
-					if (childIndex >= MaxMaterial)
+					if (childIndex > MaxMaterial)
 					{
 						childIndex += offset;
 					}

@@ -1060,292 +1060,382 @@ namespace Cubiquity
 
 	uint a;
 
-	uint firstNode(float tx0, float ty0, float tz0, float txm, float tym, float tzm)
+	float min3(vec3 vec)
 	{
-		uint answer = 0u;   // initialize to 00000000
-									// select the entry plane and set bits
-		if (tx0 > ty0)
-		{
-			if (tx0 > tz0) // PLANE YZ
-			{
-				if (tym < tx0) answer |= (1 << 1);
-				if (tzm < tx0) answer |= (1 << 2);
-				return answer;
-			}
-		}
-		else {
-			if (ty0 > tz0) // PLANE XZ
-			{
-				if (txm < ty0) answer |= (1 << 0);
-				if (tzm < ty0) answer |= (1 << 2);
-				return answer;
-			}
-		}
-		// PLANE XY
-		if (txm < tz0) answer |= (1 << 0);
-		if (tym < tz0) answer |= (1 << 1);
-		return answer;
+		return std::min(std::min(vec.x(), vec.y()), vec.z());
 	}
 
-	uint nextNode(float txm, uint x, float tym, uint y, float tzm, uint z)
+	float max3(vec3 vec)
 	{
-		if (txm < tym)
-		{
-			if (txm < tzm) { return x; }  // YZ plane
-		}
-		else
-		{
-			if (tym < tzm) { return y; } // XZ plane
-		}
-		return z; // XY plane;
+		return std::max(std::max(vec.x(), vec.y()), vec.z());
 	}
 
-	void intersectSubtree(float tx0, float ty0, float tz0, float tx1, float ty1, float tz1, const Internals::NodeStore& nodes, uint32 nodeIndex, RayVolumeIntersection& intersection, int level)
+	// I seem to have arrived at a slightly simpler construction than in the ESVO paper?
+	// They have separate logic for first node vs next node, but I can use the logic below
+	// for both. Presumably I (or they) do something slightly different elsewhere.
+	// Also note we could use bvec type and 'lessThanEqual' GLSL function which might
+	// be better than the below, but then we would need to convert the bvec to/from a
+	// bitfield to later use it for indexing a node. Probabbly not optimal but could be
+	// tested. Keep in mind this: https://stackoverflow.com/a/71857863
+	uint lessThanOrEqualTo(vec3 vec, float threshold)
 	{
-		if (intersection) return;
+		uint result = 0;
+		if (vec.x() <= threshold) { result |= 0x1; }
+		if (vec.y() <= threshold) { result |= 0x2; }
+		if (vec.z() <= threshold) { result |= 0x4; }
+		return result;
+	}
 
-		float txm, tym, tzm;
-		uint currNode;
-
-		if (tx1 < 0.0 || ty1 < 0.0 || tz1 < 0.0)
+	std::string indent(uint amount)
+	{
+		std::stringstream ss;
+		for (uint i = 0; i < amount; i++)
 		{
-			return;
+			ss << " ";
 		}
+		return ss.str();
+	}
 
-		if (isMaterialNode(nodeIndex))
-		{
-			if (nodeIndex > 0) // Occupied node
-			{
-				intersection.material = nodeIndex;
-				intersection.distance = std::max(std::max(tx0, ty0), tz0);
-				intersection.normal = {};
-				if (tx0 > ty0 && tx0 > tz0)
-				{
-					intersection.normal[0] = -1.0;
-				}
-				if (ty0 > tx0 && ty0 > tz0)
-				{
-					intersection.normal[1] = -1.0;
-				}
-				if (tz0 > tx0 && tz0 > ty0)
-				{
-					intersection.normal[2] = -1.0;
-				}
+	float footprintSize(int depth, vec3 childTm, Ray3f ray)
+	{
+		// Compute the child size from the parent node depth.
+		float childNodeSize = float(0x01 << (32 - (depth + 1)));
 
-				// Flip normals if required
-				if (a & 1) { intersection.normal[0] *= -1.0f; }
-				if (a & 2) { intersection.normal[1] *= -1.0f; }
-				if (a & 4) { intersection.normal[2] *= -1.0f; }
-			}
+		// Alternatively we can track the child node size as we move up and down
+		// the tree, optionally packed into a fourth component of the child step.
+		// Another option is to compute is as follows (test on newer GPU):
+		// float childNodeSize = min3((childT1 - childT0) * ray.mDir);
 
-			return;
-		}
+		vec3 temp = ray.mDir * childTm; // Element-wise
+		float dist = length(temp);
+		float projSize = childNodeSize / dist;
+		return projSize;
+	}
 
-		// FIXME - We need to handle infinite values here. Either as described in the paper, or
-		// by adding a tiny offset to input vector components to make sure they are never zero.
-		txm = 0.5*(tx0 + tx1);
-		tym = 0.5*(ty0 + ty1);
-		tzm = 0.5*(tz0 + tz1);
+	RayVolumeIntersection intersectSubtree(const Vector3f& t0, const Vector3f& t1, const Internals::NodeStore& nodes, uint32 nodeIndex, int depth, const Ray3f& ray, float maxFootprint)
+	{
+		RayVolumeIntersection intersection;
 
-		currNode = firstNode(tx0, ty0, tz0, txm, tym, tzm);
+		const Vector3f tm = (t0 + t1) * 0.5f;
+		const Vector3f childStep = tm - t0;
+		float nodeEntry = max3(t0);
 
+		//uint childId = firstNode(t0, tm);
+		uint childId = lessThanOrEqualTo(tm, nodeEntry);
+		uint nextChildFlips = 0;
 		do
 		{
-			// Note: The constants below are in the reverse order compared to the paper. Cubiquity uses the
-			// LSBs in 'zyx' to index child nodes, but the paper *appears* to use 'xyz'? The paper actually
-			// seems inconsistent, because Figure 1 imples 'xyz' order but Table 1 implies 'zyx'? Or they
-			// are just numbering their bits differently? Maybe I am misunderstanding something.
+			uint negChildId = ~childId;
+			const uint x = (negChildId & 0x1);
+			const uint y = (negChildId & 0x2) >> 1;
+			const uint z = (negChildId & 0x4) >> 2;
+			const Vector3f negChildIdAsVec3 = { x, y, z };
 
-			// FIXME: I think the calls to 'new_node' can probably be inlined and then simplified? It might
-			// not be necessary to do quite so many comparisons in each case? E.g. for case '5' we could say
-			// currNode = (tym < tx1 && tym < tz1) ? 7 : 8. Is that actually better? It would allow early-out
-			// if the first comparison fails? Or invert the logic so that the statement will usually pass
-			// (for predictive branching)?
-			switch (currNode)
+			const Vector3f childT1 = t1 - (childStep * negChildIdAsVec3);
+
+			// Test if node exit is in front of ray start.
+			if (min3(childT1) > 0.0)
 			{
-			case 0:
-				intersectSubtree(tx0, ty0, tz0, txm, tym, tzm, nodes, nodes[nodeIndex][a], intersection, level + 1);
-				currNode = nextNode(txm, 1u, tym, 2u, tzm, 4u);
-				break;
-			case 1:
-				intersectSubtree(txm, ty0, tz0, tx1, tym, tzm, nodes, nodes[nodeIndex][1 ^ a], intersection, level + 1);
-				currNode = nextNode(tx1, 8u, tym, 3u, tzm, 5u);
-				break;
-			case 2:
-				intersectSubtree(tx0, tym, tz0, txm, ty1, tzm, nodes, nodes[nodeIndex][2 ^ a], intersection, level + 1);
-				currNode = nextNode(txm, 3u, ty1, 8u, tzm, 6u);
-				break;
-			case 3:
-				intersectSubtree(txm, tym, tz0, tx1, ty1, tzm, nodes, nodes[nodeIndex][3 ^ a], intersection, level + 1);
-				currNode = nextNode(tx1, 8u, ty1, 8u, tzm, 7u);
-				break;
-			case 4:
-				intersectSubtree(tx0, ty0, tzm, txm, tym, tz1, nodes, nodes[nodeIndex][4 ^ a], intersection, level + 1);
-				currNode = nextNode(txm, 5u, tym, 6u, tz1, 8u);
-				break;
-			case 5:
-				intersectSubtree(txm, ty0, tzm, tx1, tym, tz1, nodes, nodes[nodeIndex][5 ^ a], intersection, level + 1);
-				currNode = nextNode(tx1, 8u, tym, 7u, tz1, 8u);
-				break;
-			case 6:
-				intersectSubtree(tx0, tym, tzm, txm, ty1, tz1, nodes, nodes[nodeIndex][6 ^ a], intersection, level + 1);
-				currNode = nextNode(txm, 7u, ty1, 8u, tz1, 8u);
-				break;
-			case 7:
-				intersectSubtree(txm, tym, tzm, tx1, ty1, tz1, nodes, nodes[nodeIndex][7 ^ a], intersection, level + 1);
-				currNode = 8;
-				break;
-			}
-		} while (currNode < 8);
-	}
+				uint32 childNodeIndex = nodes[nodeIndex][childId ^ a];
 
-	void intersectSubtreeIterative(float tx0In, float ty0In, float tz0In, float tx1In, float ty1In, float tz1In, const Internals::NodeStore& nodes, uint nodeIndexIn, RayVolumeIntersection& intersection)
-	{
-		const uint INVALID_CHILD = 9u; // Only eight children
-
-		struct State
-		{
-			float tx0, ty0, tz0, tx1, ty1, tz1, txm, tym, tzm;
-			uint nodeIndex;
-			uint currNode;
-		};
-
-		int depth = 0; // Relative to subtree (not root)
-		State states[33]; // FIXME - How big should this be?
-		//State* pState = &(stack[0]);
-		//memset(pState, 0, sizeof(State) * 33);
-		State state = { tx0In, ty0In, tz0In, tx1In, ty1In, tz1In, 0.0, 0.0, 0.0, nodeIndexIn, INVALID_CHILD };
-		states[depth] = state;
-		
-		
-
-		do
-		{
-			if (states[depth].currNode == INVALID_CHILD)
-			{
-				//std::cout << indent(level) << state.childId << std::endl;
-
-				if (states[depth].tx1 < 0.0 || states[depth].ty1 < 0.0 || states[depth].tz1 < 0.0)
+				// Test if node is occupied
+				if (childNodeIndex > 0)
 				{
-					depth--;
-					continue;
-				}
+					const Vector3f childT0 = childT1 - childStep;
+					const Vector3f childTm = (childT0 + childT1) * 0.5f;
 
-				if (states[depth].nodeIndex < MaterialCount) // is a material node
-				{
-					if (states[depth].nodeIndex > 0) // Occupied node
+					// In GLSL the two parts of this condition seem faster when ordered as below.
+					// I would have expected that lazy evaluation of the more expensive function
+					// call would be faster, but perhaps this stops it being inlined or something?
+					if ((footprintSize(depth, childTm, ray) < maxFootprint) || (childNodeIndex < MaterialCount))
 					{
-						intersection.material = states[depth].nodeIndex;
-						intersection.distance = std::max(std::max(states[depth].tx0, states[depth].ty0), states[depth].tz0);
-						intersection.normal[0] = 0.0;
-						intersection.normal[1] = 0.0;
-						intersection.normal[2] = 0.0;
-						if (states[depth].tx0 > states[depth].ty0 && states[depth].tx0 > states[depth].tz0)
+						while (!isMaterialNode(childNodeIndex))
+						{
+							for (auto bt : nearToFar)
+							{
+								uint32_t childId = a ^ bt;
+								uint32_t nextLevelChildIndex = nodes[childNodeIndex][childId];
+								// Zero is a material used to denote empty space. But for the purpose of this function
+								// we don't want to include it as it doesn't help provide a valid material for rendering.
+								if (nextLevelChildIndex > 0)
+								{
+									childNodeIndex = nextLevelChildIndex;
+									break;
+								}
+							}
+						}
+						assert(isMaterialNode(childNodeIndex));
+
+						intersection.material = childNodeIndex;
+						intersection.distance = max3(childT0);
+						intersection.normal = {};
+						if (childT0.x() > childT0.y() && childT0.x() > childT0.z())
 						{
 							intersection.normal[0] = -1.0;
 						}
-						if (states[depth].ty0 > states[depth].tx0 && states[depth].ty0 > states[depth].tz0)
+						if (childT0.y() > childT0.x() && childT0.y() > childT0.z())
 						{
 							intersection.normal[1] = -1.0;
 						}
-						if (states[depth].tz0 > states[depth].tx0 && states[depth].tz0 > states[depth].ty0)
+						if (childT0.z() > childT0.x() && childT0.z() > childT0.y())
 						{
 							intersection.normal[2] = -1.0;
 						}
 
 						// Flip normals if required
-						if (bool(a & 1)) { intersection.normal[0] *= -1.0; }
-						if (bool(a & 2)) { intersection.normal[1] *= -1.0; }
-						if (bool(a & 4)) { intersection.normal[2] *= -1.0; }
-
-						return;
+						if (a & 1) { intersection.normal[0] *= -1.0f; }
+						if (a & 2) { intersection.normal[1] *= -1.0f; }
+						if (a & 4) { intersection.normal[2] *= -1.0f; }
 					}
-					depth--;
-					continue;
+					else
+					{
+						intersection = intersectSubtree(childT0, childT1, nodes, childNodeIndex, depth + 1, ray, maxFootprint);
+					}
 				}
-
-				// FIXME - We need to handle infinite values here. Either as described in the paper, or
-				// by adding a tiny offset to input vector components to make sure they are never zero.
-				states[depth].txm = 0.5 * (states[depth].tx0 + states[depth].tx1);
-				states[depth].tym = 0.5 * (states[depth].ty0 + states[depth].ty1);
-				states[depth].tzm = 0.5 * (states[depth].tz0 + states[depth].tz1);
-
-				states[depth].currNode = firstNode(states[depth].tx0, states[depth].ty0, states[depth].tz0, states[depth].txm, states[depth].tym, states[depth].tzm);
 			}
 
-			// Note: The constants below are in the reverse order compared to the paper. Cubiquity uses the
-			// LSBs in 'zyx' to index child nodes, but the paper *appears* to use 'xyz'? The paper actually
-			// seems inconsistent, because Figure 1 imples 'xyz' order but Table 1 implies 'zyx'? Or they
-			// are just numbering their bits differently? Maybe I am misunderstanding something.
-			//State* pNextState = pState + 1;
-			switch (states[depth].currNode)
+			nextChildFlips = lessThanOrEqualTo(childT1, min3(childT1));
+			childId ^= nextChildFlips;
+
+		} while (((childId & nextChildFlips) != 0) && (!intersection));
+
+		return intersection;
+	}
+
+	// Implements https://registry.khronos.org/OpenGL-Refpages/gl4/html/bitfieldInsert.xhtml
+	uint bitfieldInsert(uint base, uint insert, int offset, int bits)
+	{
+		assert(offset >= 0 && bits >= 0);
+		uint mask = ~(0xffffffff << bits) << offset;
+		return (base & ~mask) | (insert << offset);
+	}
+
+	//Implements https://registry.khronos.org/OpenGL-Refpages/gl4/html/bitfieldExtract.xhtml
+	uint bitfieldExtract(uint value, int offset, int bits)
+	{
+		assert(offset >= 0 && bits >= 0);
+		uint mask = ~(0xffffffff << bits);
+		return (value >> offset) & mask;
+	}
+
+	// This is the core function used to intersect a ray against our DAG. The
+	// algorithm was originally based on 'An Efficient Parametric Algorithm for
+	// Octree Traversal' by J. Revelles et al, but was later reworked to take a
+	// ideas from 'Efficient Sparse Voxel Octrees – Analysis, Extensions, and
+	// Implementation' by S. Laine et al. The concepts are very similar but the
+	// latter is more suitable for GPU implementation.
+	//
+	// It is an iterative implementation of what is naturally a recursive
+	// algorithm - we recursively check the ray against each child of the node
+	// until an intersection is found or the ray leaves the node. A true recursive
+	// implementation also exists (in C++ only) which is useful for debugging.
+	//
+	// This iterative version was developed against a GTX 660 which is already
+	// 10 years old at the time of writing and may have different performance
+	// characteristics to modern GPUs. This may be worth testing at some point.
+	// 
+	// When porting the recursive algorithm to an iterative implementation I
+	// found that the single biggest factor affecting performance was to avoid
+	// pushing and popping too much data from the stack. Therefore node index and
+	// child id get packed together, and no other parameters get stored.
+	//
+	// There are a couple more optimisation opportunities I could potentially
+	// explore in the future:
+	//   - The child index is a bitfield which gets updated based on comparisons
+	//     with a threshold, but using a bvec in combination with GLSL functions
+	//     like 'lessThanEqual()' might allow better parallelism here. But I'd
+	//     probably still need to convert the bvec to/from a bitfield to store it
+	//     on the stack. 
+	//   - Instead of carefully iterating over only those children which we know
+	//     intersect the ray, would could iterate over all children and do an
+	//     intersection test against each. It would simplify the stepping forward
+	//     logic at the expense of some extra tests. I think something like this might
+	//     be described in 'The HERO Algorithm for Ray Tracing Octrees'. Rather than
+	//     sorting children I think we already know how to traverse them near-to-far.
+	//
+	// My old GTX 660 and drivers do not really like these nested conditional
+	// statements in this function and prefer to see some combined into a flatter
+	// hierarchy (without the 'continue's) for about a 10% speed gain. But I'm
+	// leaving the hierarchy in place because it makes the code clearer, reveals
+	// logical optimisations (e.g. only read node value if it is in front of the
+	// camera), and I'm hoping newer hardware handles conditionals/continue's better.
+	//
+	// I've also seen evidence that returning early (in the middle of a function/loop)
+	// has another 10% performance penalty, but again I'm hoping this is a result
+	// of old GPU/drivers and am choosing to accept this for simpler code.
+	void intersectSubtreeIterative(Vector3f t0, Vector3f t1, const Internals::NodeStore& nodes, uint nodeIndexIn, RayVolumeIntersection& intersection, int subDagDepth, const Ray3f& ray, float maxFootprint)
+	{
+		int depth = subDagDepth;
+
+		vec3 childStep = (t1 - t0) * 0.5f;
+		vec3 tm = t0 + childStep;
+		float nodeEntry = max3(t0);
+
+		// We could pack these into a single bitfield but GLSL seems to prefer that
+		// we don't. Therefore we keep them separate and only pack when placing on the
+		// stack, at which point saving stack accesses/memory makes a big difference.
+		uint nodeIndex = nodeIndexIn;
+		uint childId = lessThanOrEqualTo(tm, nodeEntry); // First child
+
+		uint nextChildFlips = 0;
+
+		uint states[32];
+
+		do
+		{
+			// We compute childT1 from t1 on each iteration. An alternative approach is to only
+			// compute childT1 when moving up or down the tree, and then adjust it incrementally 
+			// when advancing on the same level. I did not find a measurable performance difference
+			// between the two approaches and recomputing it on each iteration is simpler.
+			vec3 childT1 = t1;
+			if ((childId & 0x1) == 0) { childT1[0] -= childStep[0]; }
+			if ((childId & 0x2) == 0) { childT1[1] -= childStep[1]; }
+			if ((childId & 0x4) == 0) { childT1[2] -= childStep[2]; }
+
+			// Test if node exit is in front of ray start and node is occupied.
+			// Using min3() seems faster than all(greaterThan(childT1, vec3(0.0)))
+			if (min3(childT1) > 0.0)
 			{
-				case 0:
+				// Only touch memory once we are in front of the ray start.
+				uint childNodeIndex = nodes[nodeIndex][childId ^ a];
+
+				if (childNodeIndex > 0) // Child is occupied
 				{
-					State nextState = { states[depth].tx0, states[depth].ty0, states[depth].tz0, states[depth].txm, states[depth].tym, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][a], INVALID_CHILD };;
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].txm, 1u, states[depth].tym, 2u, states[depth].tzm, 4u);
-					break;
-				}
-				case 1:
-				{
-					State nextState = { states[depth].txm, states[depth].ty0, states[depth].tz0, states[depth].tx1, states[depth].tym, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][1 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].tx1, 8u, states[depth].tym, 3u, states[depth].tzm, 5u);
-					break;
-				}
-				case 2:
-				{
-					State nextState = { states[depth].tx0, states[depth].tym, states[depth].tz0, states[depth].txm, states[depth].ty1, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][2 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].txm, 3u, states[depth].ty1, 8u, states[depth].tzm, 6u);
-					break;
-				}
-				case 3:
-				{
-					State nextState = { states[depth].txm, states[depth].tym, states[depth].tz0, states[depth].tx1, states[depth].ty1, states[depth].tzm, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][3 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].tx1, 8u, states[depth].ty1, 8u, states[depth].tzm, 7u);
-					break;
-				}
-				case 4:
-				{
-					State nextState = { states[depth].tx0, states[depth].ty0, states[depth].tzm, states[depth].txm, states[depth].tym, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][4 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].txm, 5u, states[depth].tym, 6u, states[depth].tz1, 8u);
-					break;
-				}
-				case 5:
-				{
-					State nextState = { states[depth].txm, states[depth].ty0, states[depth].tzm, states[depth].tx1, states[depth].tym, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][5 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].tx1, 8u, states[depth].tym, 7u, states[depth].tz1, 8u);
-					break;
-				}
-				case 6:
-				{
-					State nextState = { states[depth].tx0, states[depth].tym, states[depth].tzm, states[depth].txm, states[depth].ty1, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][6 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = nextNode(states[depth].txm, 7u, states[depth].ty1, 8u, states[depth].tz1, 8u);
-					break;
-				}
-				case 7:
-				{
-					State nextState = { states[depth].txm, states[depth].tym, states[depth].tzm, states[depth].tx1, states[depth].ty1, states[depth].tz1, 0.0, 0.0, 0.0, nodes[states[depth].nodeIndex][7 ^ a], INVALID_CHILD };
-					states[depth + 1] = nextState;
-					states[depth].currNode = 8;
-					break;
-				}
-				case 8:
-				{
-					depth--;
-					continue;
+					vec3 childT0 = childT1 - childStep;
+					vec3 childTm = (childT0 + childT1) * 0.5f; // Midpoint
+
+					float tEntry = max3(childT0);
+
+					// If we have an internal (non-leaf) node we can traverse it further.
+					if (childNodeIndex >= MaterialCount)
+					{
+						// Apply dithering to LOD transition. Does not actually look very nice
+						// so might not keep it but I'll see how it looks with sub-pixel voxels.
+						// Might it instead be useful for shadow rays rather than primary rays?
+						// Setting ditherRange to 1.0 means some footprints get scaled by a factor
+						// of two, and hence adjacent transitions start to touch each other.
+						// Setting this to zero also seems to let the optimiser remove scaling code.
+						float ditherRange = 0.3; // Typically 0.0 (disabled) - 1.0
+
+						// Dither based on parent node (not including child id). This means all
+						// children get the same scale factor, and hence preserve the size
+						// relationship. If we don't traverse into a nearer child then we won't 
+						// traverse into a more distant one either.
+						float footprintScale = float(mix(nodeIndex) & 0xffff); // 0 - 65535
+						footprintScale *= (1.0 / 65535.0f); // 0.0 - 1.0
+						footprintScale *= ditherRange; // 0.0 - ditherRange
+						footprintScale += 1.0f; // 1.0 - ditherRange
+						float scaledMaxFootprint = footprintScale * maxFootprint;
+
+						// Traverse further is the node is large in screen space.
+						if (footprintSize(depth, childTm, ray) >= scaledMaxFootprint)
+						{
+							// Push the current state onto the stack. Packing the variables
+							// together reduces the maximum node index we can use, but it
+							// is still huge and a smaller stack really helps performance.
+							assert((nodeIndex >> 29) == 0); // Check upper three bits are clear.
+							states[depth] = (nodeIndex << 3) | childId;
+
+							nodeIndex = childNodeIndex;
+							childId = lessThanOrEqualTo(childTm, tEntry); // First node
+
+							t1 = childT1;
+							childStep *= 0.5f;
+							depth++;
+							continue;
+						}
+					}
+
+					// Node is occupied and we chose not to descend, so this is where we stop.
+					// But if we didn't yet get to a leaf node then we need to peek down the
+					// tree to find the correct material.
+					// FIXME - We should be able to skip determining the material (and the
+					// normal?) for shadow rays, but doing so currently appears to trigger a
+					// bug possibly related to code being incorrectly optimised out. So I'll
+					// come back to this with new GPU/drivers.
+					while (childNodeIndex >= MaterialCount)
+					{
+						const uint nearToFar[] = { 0x00, 0x01, 0x02, 0x04, 0x03, 0x05, 0x06, 0x07 };
+						for (uint i = 0; i < 8; i++)
+						{
+							uint bt = nearToFar[i];
+							uint childId = a ^ bt;
+							uint nextLevelChildIndex = nodes[childNodeIndex][childId];
+							// Zero is a material used to denote empty space. But for the purpose of this function
+							// we don't want to include it as it doesn't help provide a valid material for rendering.
+							if (nextLevelChildIndex > 0)
+							{
+								childNodeIndex = nextLevelChildIndex;
+								break;
+							}
+						}
+					}
+
+					intersection.material = childNodeIndex;
+					intersection.distance = tEntry;
+
+					// FIXME - Normal calculation can probably also be skipped for shadow rays.
+					if (childT0.x() == tEntry)
+					{
+						intersection.normal = vec3({ -1.0, 0.0, 0.0 });
+					}
+					if (childT0.y() == tEntry)
+					{
+						intersection.normal = vec3({ 0.0, -1.0, 0.0 });
+					}
+					if (childT0.z() == tEntry)
+					{
+						intersection.normal = vec3({ 0.0, 0.0, -1.0 });
+					}
+
+					// Flip normals if required
+					if (bool(a & 1)) { intersection.normal[0] *= -1.0; }
+					if (bool(a & 2)) { intersection.normal[1] *= -1.0; }
+					if (bool(a & 4)) { intersection.normal[2] *= -1.0; }
+
+					return;
+
 				}
 			}
 
-			depth++;
+			// Advance forward to the next child node
+			nextChildFlips = lessThanOrEqualTo(childT1, min3(childT1)); // Next node
+			childId ^= nextChildFlips;
 
-		} while (depth >= 0);
+			// If we could not advance forward then move up a level in the tree and try moving
+			// forward from there. Keep doing this until we do successfully move forward. It
+			// might seem natural to merge this while loop with the main one to eliminate some
+			// duplication but this is not as easy as it seems. Also keeping this separate tighter
+			// loop lets us avoid checking against T1 and the node index as we move up the tree
+			// (we know parent nodes are valid, as we came from them previously).
+			while ((childId & nextChildFlips) == 0)
+			{
+				// Terminate with a 'miss' if we reach the start depth (and so can't go higher).
+				if(depth == subDagDepth) { return; }
+
+				depth--;
+				assert(depth >= 0);
+				childStep *= 2.0f;
+
+				// Pop off the previous state and unpack.
+				nodeIndex = states[depth] >> 3;
+				childId = states[depth] & 0x7;
+
+				childT1 = t1;
+
+				// We do not store t1 on a stack (this appeared to be slow) as we move
+				// down the tree so we have to recompute it as we move back up the tree.
+				// It is sort of the reverse of computing childT1 from t1 on each iteration
+				// and feels a little redundant, but I haven't yet found a better way.
+				if ((childId & 0x1) == 0) { t1[0] += childStep[0]; }
+				if ((childId & 0x2) == 0) { t1[1] += childStep[1]; }
+				if ((childId & 0x4) == 0) { t1[2] += childStep[2]; }
+
+				nextChildFlips = lessThanOrEqualTo(childT1, min3(childT1)); // Next node
+				childId ^= nextChildFlips;
+			}
+
+		} while (true);
 	}
 
 	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex)
@@ -1359,6 +1449,7 @@ namespace Cubiquity
 			SubDAG& subDAG = subDAGs[childId];
 			subDAG.nodeIndex = nodes[rootNodeIndex][childId];
 
+			uint childDepth = 1;
 			uint childSizePower = 31;
 			subDAG.lowerBound = rootLowerBound;
 			// XOR (rather than OR) as sign bit might need to get cleared.
@@ -1381,7 +1472,9 @@ namespace Cubiquity
 				}
 				if (childCount == 1)
 				{
+					childDepth++;
 					childSizePower--;
+					subDAG.depth = childDepth;
 					subDAG.nodeIndex = nodes[subDAG.nodeIndex][onlyChildId];
 					subDAG.lowerBound[0] ^= ((onlyChildId & 0x1) >> 0) << childSizePower;
 					subDAG.lowerBound[1] ^= ((onlyChildId & 0x2) >> 1) << childSizePower;
@@ -1397,7 +1490,7 @@ namespace Cubiquity
 		return subDAGs;
 	}
 
-	RayVolumeIntersection intersectNodes(const Internals::NodeStore& nodes, const SubDAGArray& subDAGs, Ray3d ray)
+	RayVolumeIntersection intersectNodes(const Internals::NodeStore& nodes, const SubDAGArray& subDAGs, Ray3f ray, float maxFootprint)
 	{
 		RayVolumeIntersection intersection;
 		intersection.material = 0;
@@ -1415,7 +1508,7 @@ namespace Cubiquity
 			uint childId = nearestChild ^ nearToFar[i];
 			uint childNodeIndex = subDAGs[childId].nodeIndex;
 
-			Ray3d reflectedRay = ray;
+			Ray3f reflectedRay = ray;
 			ivec3 reflectedLowerBound = subDAGs[childId].lowerBound;
 			ivec3 reflectedUpperBound = subDAGs[childId].upperBound;
 
@@ -1463,8 +1556,39 @@ namespace Cubiquity
 
 			if (std::max(std::max(tx0, ty0), tz0) < std::min(std::min(tx1, ty1), tz1))
 			{
-				//intersectSubtree(tx0, ty0, tz0, tx1, ty1, tz1, nodes, childNodeIndex, intersection, 0);
-				intersectSubtreeIterative(tx0, ty0, tz0, tx1, ty1, tz1, nodes, childNodeIndex, intersection);
+				if (childNodeIndex > 0)
+				{
+					if (childNodeIndex < MaterialCount)
+					{
+						intersection.material = childNodeIndex;
+						intersection.distance = std::max(std::max(tx0, ty0), tz0);
+						intersection.normal = {};
+						if (tx0 > ty0 && tx0 > tz0)
+						{
+							intersection.normal[0] = -1.0;
+						}
+						if (ty0 > tx0 && ty0 > tz0)
+						{
+							intersection.normal[1] = -1.0;
+						}
+						if (tz0 > tx0 && tz0 > ty0)
+						{
+							intersection.normal[2] = -1.0;
+						}
+
+						// Flip normals if required
+						if (a & 1) { intersection.normal[0] *= -1.0f; }
+						if (a & 2) { intersection.normal[1] *= -1.0f; }
+						if (a & 4) { intersection.normal[2] *= -1.0f; }
+					}
+					else
+					{
+						Vector3f t0 = { tx0, ty0, tz0 };
+						Vector3f t1 = { tx1, ty1, tz1 };
+						//intersection = intersectSubtree(t0, t1, nodes, childNodeIndex, subDAGs[childId].depth, reflectedRay, maxFootprint);
+						intersectSubtreeIterative(t0, t1, nodes, childNodeIndex, intersection, subDAGs[childId].depth, reflectedRay, maxFootprint);
+					}
+				}
 			}
 
 			if (intersection) { break; }
@@ -1483,12 +1607,19 @@ namespace Cubiquity
 	// give the ray an end point or maximum length), rather than starting from the root.
 	// This involves finding the bounds of the ray and adjusting them to the appropriate
 	// power-of-two. Details are still to be worked out.
-	RayVolumeIntersection intersectVolume(const Volume& volume, Ray3d ray)
+	//
+	// Could also allow the ray traversal to terminate early,once nodes drop below a certain size or depth.
+	//
+	// Could also skip calculating surface materials, normals, etc for shadow rays.
+
+	// Note: This function does not implement special handling of the case where a component of the
+	// ray direction is zero. This is discussed in Section 3.3 of An 'Efficient Parametric Algorithm
+	// for Octree Traversal'. I think that the standard behaviour of IEEE 754 handling of +/-infinity
+	// and NaNs might be enough but I am not certain. If it proves to be a problem (if we ever see
+	// NaNs?) then it can be solved by nudging tiny direction components away from zero.
+	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs, Ray3f ray, float maxFootprint)
 	{
-		//ray.mOrigin = { -10.0, -10.0, -10.0 };
-		//ray.mDir = { 1.0, 1.0, 1.0 };
 		const Internals::NodeStore& nodes = Internals::getNodes(volume).nodes();
-		SubDAGArray subDAGs = findSubDAGs(nodes, getRootNodeIndex(volume));
-		return intersectNodes(nodes, subDAGs, ray);
+		return intersectNodes(nodes, subDAGs, ray, maxFootprint);
 	}
 }

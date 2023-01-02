@@ -21,11 +21,25 @@ Viewer::Viewer(const std::string& filename, WindowType windowType)
 	}
 	std::cout << " done" << std::endl;
 
+	// FIXME - This cube doesn't pathtrace properly
+	/*for (int z = -8; z < 7; z++)
+	{
+		for (int y = -8; y < 7; y++)
+		{
+			for (int x = -8; x < 7; x++)
+			{
+				mVolume.setVoxel(x, y, z, 250);
+			}
+		}
+	}*/
+
 	mMaterials.load(getMaterialsPath(filename));
 }
 
 void Viewer::onInitialise()
 {
+	onVolumeModified();
+
 	mVolume.setTrackEdits(true);
 
 	//Box3i bounds = computeBounds(mVolume, [](MaterialId matId) { return matId != 0; });
@@ -90,6 +104,8 @@ void Viewer::onUpdate(float deltaTime)
 		mCamera.position -= mCamera.right() * static_cast<double>(deltaTime * speedMultiplier * CameraMoveSpeed);
 		onCameraModified();
 	}
+
+	mFrameNumber++;
 }
 
 void Viewer::onKeyUp(const SDL_KeyboardEvent& event)
@@ -125,9 +141,10 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 	{
 		//std::cout << "x = " << event.x << ", y = " << event.y << std::endl;
 
-		Ray3d ray = mCamera.rayFromViewportPos(event.x, event.y, width(), height());
-
-		RayVolumeIntersection intersection = intersectVolume(mVolume, ray);
+		Ray3f ray = static_cast<Ray3f>(mCamera.rayFromViewportPos(event.x, event.y, width(), height()));
+		SubDAGArray subDAGs = findSubDAGs(
+			Internals::getNodes(volume()).nodes(), getRootNodeIndex(volume()));
+		RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs, ray);
 		if (intersection)
 		{
 			SphereBrush brush(static_cast<Vector3f>(intersection.position), 30);

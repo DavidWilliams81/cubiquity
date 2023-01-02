@@ -14,7 +14,12 @@ void GPUPathtracingViewer::onInitialise()
 
 	// Create and compile our GLSL program from the shaders
 	std::cout << "Warning - Using hard-coded paths to shaders in ../src/application/commands/view" << std::endl;
-	screenQuadProgram = loadProgram("../src/application/commands/view/gpu_pathtracing_screen_quad_vertex_program.glsl", "../src/application/commands/view/gpu_pathtracing_screen_quad_fragment_program.glsl");
+	mainProgram = loadProgram(
+		"../src/application/commands/view/glsl/gpu_pathtracing_main_vertex_program.glsl",
+		"../src/application/commands/view/glsl/gpu_pathtracing_main_fragment_program.glsl");
+	screenQuadProgram = loadProgram(
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_fragment_program.glsl");
 
 	// Black background
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -50,6 +55,29 @@ void GPUPathtracingViewer::onInitialise()
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
+
+	glGenFramebuffers(1, &framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+
+	// generate texture
+	glGenTextures(1, &textureColorbuffer);
+	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width(), height(), 0, GL_RGBA, GL_FLOAT, NULL); // FIXME - Use correct dimensions
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// attach it to currently bound framebuffer object
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+
+	unsigned int rbo;
+	glGenRenderbuffers(1, &rbo);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width(), height()); // use a single renderbuffer object for both a depth AND stencil buffer.
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
 	mTimer.start();
 }
 
@@ -60,24 +88,49 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	Matrix4x4f PInv = static_cast<Matrix4x4f>(inverse(camera().projectionMatrix()));
 	Matrix4x4f VInv = static_cast<Matrix4x4f>(inverse(camera().viewMatrix()));
 
-	glUseProgram(screenQuadProgram);
-	glUniformMatrix4fv(glGetUniformLocation(screenQuadProgram, "VInv"), 1, GL_FALSE, &VInv[0][0]);
-	glUniformMatrix4fv(glGetUniformLocation(screenQuadProgram, "PInv"), 1, GL_FALSE, &PInv[0][0]);
-	glUniform3f(glGetUniformLocation(screenQuadProgram, "cameraPos"), camera().position.x(), camera().position.y(), camera().position.z());
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// Bind our texture in Texture Unit 1
-	glActiveTexture(GL_TEXTURE1);
+	glUseProgram(mainProgram);
+	glUniformMatrix4fv(glGetUniformLocation(mainProgram, "VInv"), 1, GL_FALSE, &VInv[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(mainProgram, "PInv"), 1, GL_FALSE, &PInv[0][0]);
+	glUniform3f(glGetUniformLocation(mainProgram, "cameraPos"), camera().position.x(), camera().position.y(), camera().position.z());
+	glUniform1ui(glGetUniformLocation(mainProgram, "randSeed"), randSeed);
+	randSeed = mix(randSeed);
+
+	// Bind our texture in Texture Unit 0
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_1D, mMaterialsTexture);
-	// Set our texture sampler sampler to use Texture Unit 1
-	glUniform1i(glGetUniformLocation(screenQuadProgram, "materials"), 1);
+	// Set our texture sampler sampler to use Texture Unit 0
+	glUniform1i(glGetUniformLocation(mainProgram, "materials"), 0);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE); // Additive blending
 	
+	glDisable(GL_DEPTH_TEST);
+	drawScreenAlignedQuad();
+
+	glDisable(GL_BLEND);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//screenShader.use();
+	glUseProgram(screenQuadProgram);
+	glUniform1i(glGetUniformLocation(screenQuadProgram, "screenTexture"), 0);
+
+	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);	// use the color attachment texture as the texture of the quad plane
 	glDisable(GL_DEPTH_TEST);
 	drawScreenAlignedQuad();
 
 	glCheckError();
 
-	std::cout << "Frame time = " << mTimer.elapsedTimeInMilliSeconds() << "ms" << std::endl;
-	mTimer.start(); // Reset
+	const int groupSize = 100;
+	if (frameNumber() % groupSize == 0)
+	{
+		std::cout << "Frame time = " << mTimer.elapsedTimeInMilliSeconds() / groupSize << "ms" << std::endl;
+		mTimer.start(); // Reset
+	}
 }
 
 void GPUPathtracingViewer::onShutdown()
@@ -88,4 +141,16 @@ void GPUPathtracingViewer::onShutdown()
 void GPUPathtracingViewer::onKeyDown(const SDL_KeyboardEvent & event)
 {
 	OpenGLViewer::onKeyDown(event);
+}
+
+void GPUPathtracingViewer::onCameraModified()
+{
+	clear();
+}
+
+void GPUPathtracingViewer::clear()
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

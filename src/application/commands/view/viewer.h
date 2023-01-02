@@ -36,6 +36,8 @@ protected:
 	virtual void onCameraModified() {}
 	virtual void onVolumeModified() {}
 
+	int frameNumber() { return mFrameNumber; }
+
 private:
 
 	const float CameraMoveSpeed = 500.0f; // units per second
@@ -44,6 +46,8 @@ private:
 	Camera mCamera;
 	Cubiquity::Volume mVolume;
 	MaterialSet mMaterials;
+
+	int mFrameNumber;
 };
 
 #endif // CUBIQUITY_DEMO_H_E38EB3A1

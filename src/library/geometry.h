@@ -134,6 +134,7 @@ namespace Cubiquity
 
 	template <typename Type> using Vector3 = Vector<Type, 3>;
     typedef Vector<int, 3> Vector3i;
+	typedef Vector<uint, 3> Vector3u;
 	typedef Vector<uint8_t, 3> Vector3u8;
 	typedef Vector<int64_t, 3> Vector3i64;
 	typedef Vector<float, 3> Vector3f;

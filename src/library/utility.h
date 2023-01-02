@@ -18,12 +18,28 @@
 #include "storage.h"
 
 #include <chrono>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
 
 namespace Cubiquity
 {
+	// A little utility class useful for debugging and profiling.
+	class Counter
+	{
+	public:
+		Counter(const std::string& name) : mName(name) {}
+		~Counter()
+		{
+			std::cout << mName << " = " << mValue << std::endl;
+		}
+		void inc() { mValue++; }
+	private:
+		std::string mName;
+		uint64 mValue = 0;
+	};
+
 	class Timer
 	{
 	public:
