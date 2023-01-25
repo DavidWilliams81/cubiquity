@@ -26,15 +26,19 @@ public:
 
 	GLuint mainProgram;
 	GLuint screenQuadProgram;
+	GLuint screenQuadCopyProgram;
+	GLuint screenQuadHBlurProgram;
+	GLuint screenQuadVBlurProgram;
 
 	GLuint mMaterialsTexture;
 
 	unsigned int framebuffer;
 	unsigned int textureColorbuffer;
 
-	Cubiquity::Timer mTimer;
+	unsigned int framebuffer2;
+	unsigned int textureColorbuffer2;
 
-	unsigned int randSeed = 42;
+	Cubiquity::Timer mTimer;
 };
 
 #endif // CUBIQUITY_GPU_PATHTRACING_VIEWER_H

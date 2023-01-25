@@ -20,6 +20,15 @@ void GPUPathtracingViewer::onInitialise()
 	screenQuadProgram = loadProgram(
 		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
 		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_fragment_program.glsl");
+	screenQuadCopyProgram = loadProgram(
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_copy_fragment_program.glsl");
+	screenQuadHBlurProgram = loadProgram(
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_hblur_fragment_program.glsl");
+	screenQuadVBlurProgram = loadProgram(
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
+		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vblur_fragment_program.glsl");
 
 	// Black background
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -63,8 +72,8 @@ void GPUPathtracingViewer::onInitialise()
 	glGenTextures(1, &textureColorbuffer);
 	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width(), height(), 0, GL_RGBA, GL_FLOAT, NULL); // FIXME - Use correct dimensions
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// attach it to currently bound framebuffer object
@@ -75,6 +84,31 @@ void GPUPathtracingViewer::onInitialise()
 	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width(), height()); // use a single renderbuffer object for both a depth AND stencil buffer.
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+
+
+
+	glGenFramebuffers(1, &framebuffer2);
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer2);
+
+	// generate texture
+	glGenTextures(1, &textureColorbuffer2);
+	glBindTexture(GL_TEXTURE_2D, textureColorbuffer2);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width(), height(), 0, GL_RGBA, GL_FLOAT, NULL); // FIXME - Use correct dimensions
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// attach it to currently bound framebuffer object
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer2, 0);
+
+	unsigned int rbo2;
+	glGenRenderbuffers(1, &rbo2);
+	glBindRenderbuffer(GL_RENDERBUFFER, rbo2);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, width(), height()); // use a single renderbuffer object for both a depth AND stencil buffer.
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo2); // now actually attach it
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
@@ -95,8 +129,6 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	glUniformMatrix4fv(glGetUniformLocation(mainProgram, "VInv"), 1, GL_FALSE, &VInv[0][0]);
 	glUniformMatrix4fv(glGetUniformLocation(mainProgram, "PInv"), 1, GL_FALSE, &PInv[0][0]);
 	glUniform3f(glGetUniformLocation(mainProgram, "cameraPos"), camera().position.x(), camera().position.y(), camera().position.z());
-	glUniform1ui(glGetUniformLocation(mainProgram, "randSeed"), randSeed);
-	randSeed = mix(randSeed);
 
 	// Bind our texture in Texture Unit 0
 	glActiveTexture(GL_TEXTURE0);
@@ -104,20 +136,41 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	// Set our texture sampler sampler to use Texture Unit 0
 	glUniform1i(glGetUniformLocation(mainProgram, "materials"), 0);
 
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_ONE, GL_ONE); // Additive blending
-	
 	glDisable(GL_DEPTH_TEST);
 	drawScreenAlignedQuad();
 
-	glDisable(GL_BLEND);
+	int blurPasses = 0;
+	for (int i = 0; i < blurPasses; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer2);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//screenShader.use();
+		glUseProgram(screenQuadHBlurProgram);
+		glUniform1i(glGetUniformLocation(screenQuadHBlurProgram, "screenTexture"), 0);
+
+		glBindTexture(GL_TEXTURE_2D, textureColorbuffer);	// use the color attachment texture as the texture of the quad plane
+		glDisable(GL_DEPTH_TEST);
+		drawScreenAlignedQuad();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//screenShader.use();
+		glUseProgram(screenQuadVBlurProgram);
+		glUniform1i(glGetUniformLocation(screenQuadVBlurProgram, "screenTexture"), 0);
+
+		glBindTexture(GL_TEXTURE_2D, textureColorbuffer2);	// use the color attachment texture as the texture of the quad plane
+		glDisable(GL_DEPTH_TEST);
+		drawScreenAlignedQuad();
+	}
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	//screenShader.use();
-	glUseProgram(screenQuadProgram);
-	glUniform1i(glGetUniformLocation(screenQuadProgram, "screenTexture"), 0);
+	glUseProgram(screenQuadCopyProgram);
+	glUniform1i(glGetUniformLocation(screenQuadCopyProgram, "screenTexture"), 0);
 
 	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);	// use the color attachment texture as the texture of the quad plane
 	glDisable(GL_DEPTH_TEST);

@@ -98,6 +98,7 @@ struct RayVolumeIntersection
 	vec3 normal;
 	float distance;
 	uint material;
+	uint packedNodeAndChild;
 };
 
 struct SubDAG
@@ -450,6 +451,8 @@ void intersectSubtreeIterative(vec3 t0, vec3 t1, uint nodeIndexIn, out RayVolume
 				if (bool(a & 2)) { intersection.normal[1] *= -1.0; }
 				if (bool(a & 4)) { intersection.normal[2] *= -1.0; }
 				
+				intersection.packedNodeAndChild = (nodeIndex << 3) | childId;
+				
 				return;
 
 			}
@@ -650,8 +653,6 @@ uniform mat4 PInv;
 uniform vec3 cameraPos;
 uniform sampler1D materials;
 
-uniform uint randSeed;
-
 out vec4 FragColor;
 
 in vec2 TexCoords;
@@ -784,7 +785,8 @@ vec4 traceSingleRay(const Ray3d ray, uint depth)
 		}*/
 
 		pixelColour.rgb = surfCol0 * (directLighting0 + indirectLighting0);
-		pixelColour.a = 1.0;
+
+		pixelColour.a = float(intersection0.packedNodeAndChild & 0xffff);
 
 	}
 
@@ -802,25 +804,83 @@ float rand(vec2 co)
     return fract(sin(sn) * c);
 }
 
+uint hashRay(Ray3d ray)
+{
+	uint result = 0;
+	result ^= mix(floatBitsToInt(ray.mOrigin.x));
+	result ^= mix(floatBitsToInt(ray.mOrigin.y));
+	result ^= mix(floatBitsToInt(ray.mOrigin.z));
+	result ^= mix(floatBitsToInt(ray.mDir.x));
+	result ^= mix(floatBitsToInt(ray.mDir.y));
+	result ^= mix(floatBitsToInt(ray.mDir.z));
+	return result;
+}
+
 void main()
 {
-	uvec2 windowPos = uvec2(gl_FragCoord.xy);
-	uvec2 tilePos = windowPos >> 4;
-	uint hash = (tilePos.x << 16) | (tilePos.y & 0xffff) | randSeed;
+	a = 0;
+	Ray3d ray;
 	
-	FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-	//if(hash % 100 < 10)
+	bool multisample = false;
+	if(multisample)
 	{
-		a = 0;
-		vec3 rayDir = createRay(TexCoords, PInv, VInv);
+		vec2 windowSize = vec2(1600, 1200); // FIXME - Hardcoded!
+		vec2 offset = vec2(1.0 / windowSize);
+		vec2 lowerLeft = TexCoords - (offset * 0.5);
 		
-		Ray3d ray;
 		ray.mOrigin = cameraPos;
-		ray.mDir = rayDir;
+		ray.mDir = createRay(lowerLeft + vec2(0, 0), PInv, VInv);
+		nextPointInUnitSphere = hashRay(ray);
+		FragColor = traceSingleRay(ray, 0);
 		
-		float temp = rand(TexCoords * 1000); // Not sure what suitable input range is.
-		nextPointInUnitSphere = uint(temp * 1000 + float(randSeed)); // Output is 0 to 1? Or -1 to 1? Either way it needs scaling before conversion to uint.
+		ray.mOrigin = cameraPos;
+		ray.mDir = createRay(lowerLeft + vec2(offset.x, 0), PInv, VInv);
+		nextPointInUnitSphere = hashRay(ray);
+		FragColor += traceSingleRay(ray, 0);
 		
+		ray.mOrigin = cameraPos;
+		ray.mDir = createRay(lowerLeft + vec2(0, offset.y), PInv, VInv);
+		nextPointInUnitSphere = hashRay(ray);
+		FragColor += traceSingleRay(ray, 0);
+		
+		ray.mOrigin = cameraPos;
+		ray.mDir = createRay(lowerLeft + vec2(offset.x, offset.y), PInv, VInv);
+		nextPointInUnitSphere = hashRay(ray);
+		FragColor += traceSingleRay(ray, 0);
+		
+		FragColor /= 4.0;
+	}
+	else
+	{
+		ray.mOrigin = cameraPos;
+		ray.mDir = createRay(TexCoords, PInv, VInv);
+		// This variable controls the start point in the sequence of pseudorandom unit vectors.
+		// It needs to be pseudorandom (at least locally) because if it is constant then all rays
+		// which hit a given surface will reflect in the same way. Basing it on fragment position
+		// is not sufficient, because any visible noise pattern is then static in screenspace
+		// and which looks strange as the camera moves and rotates. Hence we base it on the ray
+		// so that it is static when the camera is still but changes randomly as the camera is
+		// transformed. It is also possible to mix in frame number which causes successive
+		// frames to be different. This is necessary for progressive rendering but probably
+		// undesirable otherwise (and it requires external code to provide the frame number).
+		nextPointInUnitSphere = hashRay(ray);
 		FragColor = traceSingleRay(ray, 0);
 	}
+
+
+	// For testing noise removal
+	//float noise = float(hashRay(ray) & 0xFFFF) / 65535.0;
+	//noise *= 2.0f; // Range 0.0 - 2.0 (so centred at 1.0)
+	//FragColor.rgb *= noise;
+	
+	/*uvec2 windowPos = uvec2(gl_FragCoord.xy);
+	
+	if((windowPos.x % 100 == 0) || (windowPos.y % 100 == 0))
+	{
+		FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+	}
+	else
+	{
+	FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+	}*/
 } 
