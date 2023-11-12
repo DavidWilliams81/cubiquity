@@ -2,10 +2,13 @@
 
 #include "framework.h"
 
+#include "cubiquity.h"
 #include "geometry.h"
-#include "rendering.h"
+#include "visibility.h"
+#include "raytracing.h"
 #include "utility.h"
 
+#include <cfloat>
 #include <functional>
 #include <iostream>
 #include <random>
@@ -105,14 +108,15 @@ class IntersectionFinder
 public:
 	IntersectionFinder(const Ray3f& ray) : mRay(ray)
 	{
+		mIntersection.hit = false;
 		mIntersection.material = 0;
-		mIntersection.distance = 10000000000.0f;
+		mIntersection.distance = DBL_MAX; // Note: Might change type to float in the future?
 	}
 
-	bool operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i bounds)
+	bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& bounds)
 	{
-		Box3f dilatedBounds = static_cast<Box3f>(bounds);
-		dilatedBounds.dilate(0.5f);
+		Box3d dilatedBounds = static_cast<Box3d>(bounds);
+		dilatedBounds.dilate(0.5);
 		RayBoxIntersection intersection = intersect(mRay, dilatedBounds);
 
 		if (!intersection) { return false; } // Stop traversal if the ray missed the node.
@@ -124,6 +128,7 @@ public:
 			{
 				if (intersection.entry < mIntersection.distance) // Is it closer than any other interection we foud?
 				{
+					mIntersection.hit = true;
 					mIntersection.distance = intersection.entry;
 					mIntersection.material = static_cast<MaterialId>(nodeIndex);
 				}
@@ -135,14 +140,14 @@ public:
 	}
 
 public:
-	Ray3f mRay;
+	Ray3d mRay;
 	RayVolumeIntersection mIntersection;
 };
 
 RayVolumeIntersection traceRayRef(Volume& volume, Ray3f ray)
 {
 	IntersectionFinder intersectionFinder(ray);
-	traverseNodesRecursive(volume, intersectionFinder);
+	visitVolumeNodes(volume, intersectionFinder);
 
 	return intersectionFinder.mIntersection;
 }
@@ -152,7 +157,13 @@ bool testRaytracingBehaviour()
 	Volume volume;
 	volume.load("../data/axis.vol");
 
-	Box3f bounds = static_cast<Box3f>(estimateBounds(volume).second);
+	uint8 outside_material;
+	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+
+	Box3f bounds(
+		{ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) },
+		{ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
 	Box3fSampler sampler(bounds);
 
 	uint hitCount = 0;
@@ -173,19 +184,19 @@ bool testRaytracingBehaviour()
 		dir = normalize(dir);
 		Ray3f ray(origin, dir);
 
-		RayVolumeIntersection intersection = intersectVolume(volume, subDAGs, ray);
-		if (intersection) { hitCount++; }
+		RayVolumeIntersection intersection = intersectVolume(volume, subDAGs, ray, true);
+		if (intersection.hit) { hitCount++; }
 
 		RayVolumeIntersection intersectionRef = traceRayRef(volume, static_cast<Ray3f>(ray));
-		if (intersectionRef) { hitCountRef++; }
+		if (intersectionRef.hit) { hitCountRef++; }
 
-		if (intersection && intersectionRef)
+		if (intersection.hit && intersectionRef.hit)
 		{
 			float error = std::abs(intersection.distance - intersectionRef.distance);
 			maxError = std::max(error, maxError);
-		}
 
-		check(intersection.material, intersectionRef.material);
+			check(intersection.material, intersectionRef.material);
+		}
 	}
 
 	std::cout << timer.elapsedTimeInSeconds() << " seconds\n";
@@ -204,7 +215,13 @@ bool testRaytracingPerformance()
 	Volume volume;
 	volume.load("../data/axis.vol");
 
-	Box3f bounds = static_cast<Box3f>(estimateBounds(volume).second);
+	uint8 outside_material;
+	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+
+	Box3f bounds(
+		{ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) },
+		{ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
 	Box3fSampler sampler(bounds);
 
 	uint hitCount = 0;
@@ -223,8 +240,8 @@ bool testRaytracingPerformance()
 		dir = normalize(dir);
 		Ray3f ray(origin, dir);
 
-		RayVolumeIntersection intersection = intersectVolume(volume, subDAGs, ray);
-		if (intersection) { hitCount++; }
+		RayVolumeIntersection intersection = intersectVolume(volume, subDAGs, ray, false);
+		if (intersection.hit) { hitCount++; }
 	}
 
 	std::cout << "Traced " << rayCount << " rays in " << timer.elapsedTimeInSeconds() << " seconds\n";

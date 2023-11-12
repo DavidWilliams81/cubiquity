@@ -3,7 +3,7 @@
 
 #include "base/logging.h"
 
-#include "rendering.h"
+#include "visibility.h"
 
 #include <sstream>
 #include <iostream>

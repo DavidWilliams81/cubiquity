@@ -6,7 +6,7 @@
 #include "geometry.h"
 #include "fractal_noise.h"
 #include "storage.h"
-#include "rendering.h"
+#include "visibility.h"
 
 #include <functional>
 #include <iostream>

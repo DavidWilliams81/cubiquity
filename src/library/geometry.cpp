@@ -142,33 +142,4 @@ namespace Cubiquity
 			triangle.scale(factor);
 		}
 	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	//   _____      _                          _   _                                              //
-	//  |_   _|    | |                        | | (_)                                             //
-	//    | | _ __ | |_ ___ _ __ ___  ___  ___| |_ _  ___  _ __  ___                              //
-	//    | || '_ \| __/ _ \ '__/ __|/ _ \/ __| __| |/ _ \| '_ \/ __|                             //
-	//   _| || | | | ||  __/ |  \__ \  __/ (__| |_| | (_) | | | \__ \                             //
-	//   \___/_| |_|\__\___|_|  |___/\___|\___|\__|_|\___/|_| |_|___/                             //
-	//                                                                                            //
-	////////////////////////////////////////////////////////////////////////////////////////////////
-
-	// See https://tavianator.com/fast-branchless-raybounding-box-intersections/
-	RayBoxIntersection intersect(const Ray3f& ray, const Box3f& box)
-	{
-		// Inverse direction could be precomputed and stored in the ray
-		// if we find we often intersect the same ray with multiple boxes.
-		const Vector3f invDir = Vector3f({ 1.0f, 1.0f, 1.0f }) / ray.mDir;
-
-		const Vector3f lower = (box.lower() - ray.mOrigin) * invDir;
-		const Vector3f upper = (box.upper() - ray.mOrigin) * invDir;
-
-		const Vector3f minCorner = min(lower, upper);
-		const Vector3f maxCorner = max(lower, upper);
-
-		RayBoxIntersection intersection;
-		intersection.entry = *(std::max_element(minCorner.begin(), minCorner.end()));
-		intersection.exit  = *(std::min_element(maxCorner.begin(), maxCorner.end()));
-		return intersection;
-	}
 }

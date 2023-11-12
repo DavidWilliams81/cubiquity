@@ -1022,13 +1022,33 @@ namespace Cubiquity
 	class NodeFinder
 	{
 	public:
-		bool operator()(NodeDAG& nodes, uint32 nodeIndex, Box3i nodeBounds)
+		// Not for general boxes - only works for node bounds which are cubic,
+		// powers-of-two sizes, aligned to power-of-two boundaries, etc.
+		Box3i childBounds(Box3i nodeBounds, uint childId)
+		{
+			uint childX = (childId >> 0) & 0x01;
+			uint childY = (childId >> 1) & 0x01;
+			uint childZ = (childId >> 2) & 0x01;
+			Vector3i childOffset({ static_cast<int>(childX), static_cast<int>(childY), static_cast<int>(childZ) }); // childOffset holds zeros or ones.
+
+			// Careful ordering of operations to avoid signed integer overflow. Note that child
+			// node dimensions might max-out the signed integer type but should not exceed it.
+			const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i({ 1, 1, 1 })) / 2) - (nodeBounds.lower() / 2);
+			Vector3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
+			Vector3i childUpperBound = childLowerBound + childNodeDimsInCells;
+			return Box3i(childLowerBound, childUpperBound);
+		}
+
+		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& nodeBounds)
 		{
 			// Signal to stop traversing parts of the tree which do not overlap our voxelised object.
 			if (!overlaps(nodeBounds, mBounds)) { return false; }
 
 			// If this is a non-leaf (internal) node then check if any of its children are leaves.
 			// If so, add them to the list of nodes on which the inside/outside test will be performed.
+			// FIXME - Think about whether we really need to do it like this. This is currently the
+			// only node visitor which uses the 'nodes' input, so if we can avoid it here then maybe
+			// we can simplify the interface?
 			if (!isMaterialNode(nodeIndex))
 			{
 				for (unsigned int childId = 0; childId < 8; childId++)
@@ -1069,7 +1089,7 @@ namespace Cubiquity
 	{
 		NodeFinder nodeFinder;
 		nodeFinder.mBounds = bounds;
-		traverseNodesRecursive(volume, nodeFinder);
+		visitVolumeNodes(volume, nodeFinder);
 		return nodeFinder.nodes();
 	}
 

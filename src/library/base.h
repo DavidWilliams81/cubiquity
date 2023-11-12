@@ -72,11 +72,12 @@ namespace Cubiquity
 		// Utility functions
 		bool isAligned(const void *ptr, unsigned int alignment);
 		bool isPowerOf2(uint32_t uInput);
+		int findMSB(uint32 value);
 		uint32 logBase2(uint64 value);
 		uint32 roundUpToPowerOf2(uint32 value);
 
 		// Hashing
-		uint32 mix(uint32 value);
+		uint32 mixBits(uint32 value);
 		uint32 murmurHash3(const void * key, int len, uint32 seed = 0);
 
 		// Function object to hash a given type with MurmurHash3, allowing it to be used with

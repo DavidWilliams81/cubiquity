@@ -48,11 +48,25 @@ namespace Cubiquity
 				return ((uInput & (uInput - 1)) == 0);
 		}
 
+		// Impementation of GLSL's findMSB() for *unsigned* parameter.
+		// The behaviour of the signed version is more complex.
+		int findMSB(uint32 value)
+		{
+			int result = -1;
+			while (value) {
+				result++;
+				value >>= 1;
+			}
+			return result;
+		}
+
 		// Simple brute-force approach to computing the log base 2. There are
 		// faster but more complex approaches with public domain implementations
 		// at https://graphics.stanford.edu/~seander/bithacks.html if needed.
 		uint32 logBase2(uint64 value)
 		{
+			assert(value != 0); // Log of zero is undefined
+
 			uint32 result = 0;
 			while (value >>= static_cast<uint64>(1))
 			{
@@ -243,7 +257,7 @@ namespace Cubiquity
 #endif // __GNUC__
 
 		// Slightly nicer C++ wrapper functions (not part of the MurmurHash3 reference impementation)
-		uint32 mix(uint32 value)
+		uint32 mixBits(uint32 value)
 		{
 			return fmix32(value); // Force inlined
 		}

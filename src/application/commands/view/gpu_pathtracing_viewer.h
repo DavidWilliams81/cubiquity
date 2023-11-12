@@ -3,7 +3,7 @@
 
 #include "opengl_viewer.h"
 
-#include "rendering.h"
+#include "visibility.h"
 #include "utility.h"
 
 
@@ -20,25 +20,31 @@ public:
 
 	void onKeyDown(const SDL_KeyboardEvent& event);
 
+	void onMouseButtonDown(const SDL_MouseButtonEvent& event) override;
+	void onMouseButtonUp(const SDL_MouseButtonEvent& event) override;
+
 	void onCameraModified();
 
 	void clear();
 
-	GLuint mainProgram;
-	GLuint screenQuadProgram;
-	GLuint screenQuadCopyProgram;
-	GLuint screenQuadHBlurProgram;
-	GLuint screenQuadVBlurProgram;
+	GLuint previewProgram;
+	GLuint progressiveProgram;
+	GLuint copyProgram;
+	GLuint hBlurProgram;
+	GLuint vBlurProgram;
 
 	GLuint mMaterialsTexture;
 
-	unsigned int framebuffer;
-	unsigned int textureColorbuffer;
+	unsigned int accFramebuffer;
+	unsigned int accTexture;
 
-	unsigned int framebuffer2;
-	unsigned int textureColorbuffer2;
+	unsigned int blurFramebuffer;
+	unsigned int blurTexture;
 
 	Cubiquity::Timer mTimer;
+
+	unsigned int frameId = 0;
+	unsigned int staticFrameCount = 0;
 };
 
 #endif // CUBIQUITY_GPU_PATHTRACING_VIEWER_H

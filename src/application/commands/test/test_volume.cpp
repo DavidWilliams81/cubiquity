@@ -1,9 +1,8 @@
 #include "test_volume.h"
 
-#include "linear_position_enumerator.h"
-#include "morton_position_enumerator.h"
-#include "random_position_enumerator.h"
+#include "position_enumerator.h"
 
+#include "cubiquity.h"
 #include "utility.h"
 #include "storage.h"
 
@@ -512,11 +511,20 @@ bool testCSG()
 
 	building.save("../data/csg.vol");
 
-	auto result = estimateBounds(building);
-	Box3i estimatedBounds = result.second;
-	std::cout << estimatedBounds.lower() << " " << estimatedBounds.upper() << std::endl;
-	Histogram histogram = computeHistogram(building, estimatedBounds);
-	printHistogram(histogram);
+	uint8 outside_material;
+	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(&building, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+	std::cout << Vector3i({ lower_x, lower_y, lower_z }) << " " << Vector3i({ upper_x, upper_y, upper_z }) << std::endl;
+
+	int64_t histogram[256];
+	cubiquity_compute_histogram(&building, histogram);
+	for (int i = 0; i < 256; i++)
+	{
+		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow
+		{
+			log(INF, "Material ", static_cast<uint16_t>(i), ": ", histogram[i], " voxels");
+		}
+	}
 
 	return true;
 }

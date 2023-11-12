@@ -99,9 +99,9 @@ Vector3i FractalNoise::chooseCentre(Vector3i cell)
 	uint32_t cellHash = Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
 
 	int32_t x = cellHash % mCellSize;
-	cellHash = Internals::mix(cellHash);
+	cellHash = Internals::mixBits(cellHash);
 	int32_t y = cellHash % mCellSize;
-	cellHash = Internals::mix(cellHash);
+	cellHash = Internals::mixBits(cellHash);
 	int32_t z = cellHash % mCellSize;
 
 	return cell * mCellSize + Vector3i({ x, y, z });

@@ -250,41 +250,6 @@ namespace Cubiquity
 	Vector3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, Volume* volume);
 
 	void computeBounds(const PolygonVertexArray& vertices, int32_t& min_x, int32_t& min_y, int32_t& max_x, int32_t& max_y, uint32_t width);
-
-	// Raytracing
-	double traceRay(Ray3f ray, Volume& volume);
-
-	struct RayVolumeIntersection
-	{
-		explicit operator bool() { return material > 0; }
-
-		Vector3f position;
-		Vector3f normal;
-		double distance = 0.0f;
-		MaterialId material = 0;
-	};
-
-	typedef Vector3f vec3;
-	typedef Vector3i ivec3;
-	typedef Vector4i ivec4;
-
-	struct SubDAG
-	{
-		uint nodeIndex;
-		uint depth;
-		uint padding2, padding3;
-		ivec3 lowerBound;
-		int padding4;
-		ivec3 upperBound; // Could store size instead?
-		int padding5;
-	};
-
-	typedef std::array<SubDAG, 8> SubDAGArray;
-
-	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex);
-
-	const float MAX_FOOTPRINT_DISABLED = -1.0f;
-	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs, Ray3f ray, float maxFootprint = MAX_FOOTPRINT_DISABLED);
 }
 
 #endif //CUBIQUITY_RENDERING_H

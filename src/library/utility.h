@@ -79,82 +79,76 @@ namespace Cubiquity
 		std::chrono::time_point<clock> m_start;
 	};
 
-	Box3i childBounds(Box3i nodeBounds, uint childId);
-
+	// FIXME - Can we make this take a const volume reference?
 	template<typename Functor>
-	void traverseNodesRecursive(Cubiquity::Volume& volume, Functor&& callback)
+	void visitVolumeNodes(Cubiquity::Volume& volume, Functor&& callback)
 	{
 		Internals::NodeDAG& mDAG = Internals::getNodes(volume);
-		uint32_t rootNodeIndex = Internals::getRootNodeIndex(volume);
+		const uint32_t rootNodeIndex = Internals::getRootNodeIndex(volume);
 
-		Vector3i rootLowerBound = Vector3i::filled(std::numeric_limits<int32>::min());
-		Vector3i rootUpperBound = Vector3i::filled(std::numeric_limits<int32>::max());
+		const uint32 rootHeight = 32; // FIXME - Make this a constant somewhere?
+		const Box3i rootBounds = Box3i::max();
 
-		traverseNodesRecursive(mDAG, rootNodeIndex, Box3i(rootLowerBound, rootUpperBound), callback);
-	}
+		// Call the handler on the root.
+		const bool processChildren = callback(mDAG, rootNodeIndex, rootBounds);
 
-	template<typename Functor>
-	void traverseNodesRecursive(Internals::NodeDAG& mDAG, uint32_t nodeIndex, Box3i nodeBounds, Functor&& callback)
-	{
-		bool processChildren = callback(mDAG, nodeIndex, nodeBounds);
-
-		if (processChildren && (!Internals::isMaterialNode(nodeIndex)))
+		// Process the root's children if requested and possible.
+		const bool hasChildren = !Internals::isMaterialNode(rootNodeIndex);
+		if (hasChildren && processChildren)
 		{
-			for(uint32 childId = 0; childId < 8; childId++)
-			{
-				const uint32 childNodeIndex = mDAG[nodeIndex][childId];
-				const Box3i childNodeBounds = childBounds(nodeBounds, childId);
-				traverseNodesRecursive(mDAG, childNodeIndex, childNodeBounds, callback);
-			}
+			visitChildNodes(mDAG, rootNodeIndex, rootBounds, rootHeight, callback);
 		}
 	}
 
-	typedef std::map<MaterialId, uint64> Histogram;
+	// Call the callback on each child of the specified node.
+	template<typename Functor>
+	void visitChildNodes(Internals::NodeDAG& mDAG, uint32_t nodeIndex, const Box3i& bounds, uint32 height, Functor&& callback)
+	{
+		// Determine which bit may need to be flipped
+		// to derive child bounds from parent bounds.
+		const uint32 childHeight = height - 1;
+		const uint32 bitToFlip = 0x01 << childHeight;
+
+		for(uint32 childId = 0; childId < 8; childId++)
+		{
+			const uint32 childNodeIndex = mDAG[nodeIndex][childId];
+
+			// Set the child bounds to be the same as the parent bounds and then collapse 
+			// three of the faces (selected via the child id). Note that we could actually
+			// skip the copy and modify the parent bounds in place as long as we flipped
+			// the bits again after proessing. We could also iterate over the three child
+			// components directly (rather than iterating over the child id and then
+			// extracting the components), which also lets us avoid flipping all three
+			// axes on every iteration. However, these changes complicate the code and
+			// gave only a small speed improvement.
+			Box3i childBounds = bounds;
+			childBounds.mExtents[((~childId) >> 0) & 0x01][0] ^= bitToFlip;
+			childBounds.mExtents[((~childId) >> 1) & 0x01][1] ^= bitToFlip;
+			childBounds.mExtents[((~childId) >> 2) & 0x01][2] ^= bitToFlip;
+
+			// Call the handler on this child.
+			const bool processChildren = callback(mDAG, childNodeIndex, childBounds);
+
+			// Process this child's children if requested and possible.
+			const bool hasChildren = !Internals::isMaterialNode(childNodeIndex);
+			if (hasChildren && processChildren)
+			{
+				visitChildNodes(mDAG, childNodeIndex, childBounds, childHeight, callback);
+			}
+		}
+	}
 	Cubiquity::Box3i computeBounds(Cubiquity::Volume& volume, MaterialId externalMaterial);
 	std::pair<uint16_t, Cubiquity::Box3i> estimateBounds(Cubiquity::Volume& volume);
-	Histogram computeHistogram(Volume& volume, const Box3i& bounds);
+
+	struct HistogramEntry
+	{
+		bool overflow = false;
+		uint64 count = 0;
+	};
+
+	typedef std::map<MaterialId, HistogramEntry> Histogram;
+	Histogram computeHistogram(Volume& volume);
 	void printHistogram(const Histogram& histogram);
-
-	// Implementation of a Linear Feedback Shift Register
-	//
-	// A list of masks for maximul-length LSFRs at various bit sizes is available here:
-	//
-	//     https://users.ece.cmu.edu/~koopman/lfsr/index.html
-	//
-	// Note that the start state need to be one of those visited otherwise we'll never get back to it.
-	// For a maximul-length LSFR this might mean the bit size of the start state has to be no bigger
-	// than the bit size of the mask? I didn't check this...
-	class GaloisLFSR
-	{
-	public:
-		GaloisLFSR(uint32_t mask, uint32_t startState = 1);
-
-		void next();
-		uint32_t state();
-
-		uint64_t computePeriod();
-
-	private:
-		uint32_t mMask;
-		uint32_t mState;
-	};
-
-	class ShuffledSequence
-	{
-	public:
-		ShuffledSequence(uint32 sequenceLength);
-
-		void next();
-		uint32_t state();
-
-		static uint32_t maximulLengthMask(int sizeInBits);
-
-	private:
-		uint32 mSequenceLength;
-		GaloisLFSR mGaloisLFSR;
-
-		static const uint32_t MaximulLengthMasks[33];
-	};
 }
 
 #endif // CUBIQUITY_ALGORITHMS_H

@@ -151,38 +151,6 @@ float max3 (vec3 v) {
   return max (max (v.x, v.y), v.z);
 }
 
-// See https://tavianator.com/fast-branchless-raybounding-box-intersections/
-vec2 intersect(vec3 rayOrigin, vec3 rayDir, vec3 boxLower, vec3 boxUpper)
-{
-	// Inverse direction could be precomputed and stored in the ray
-	// if we find we often intersect the same ray with multiple boxes.
-	vec3 invDir = vec3(1.0, 1.0, 1.0) / rayDir;
-
-	vec3 lower = (boxLower - rayOrigin) * invDir;
-	vec3 upper = (boxUpper - rayOrigin) * invDir;
-
-	vec3 minCorner = min(lower, upper);
-	vec3 maxCorner = max(lower, upper);
-
-	vec2 intersection;
-	intersection.x = max3(minCorner);
-	intersection.y = min3(maxCorner);
-	return intersection;
-}
-
-bool intersectPlane(vec3 n, vec3 p0, vec3 l0, vec3 l, inout float t) 
-{ 
-    // assuming vectors are all normalized
-    float denom = dot(n, l); 
-    if (denom > 1e-6) { 
-        vec3 p0l0 = p0 - l0; 
-        t = dot(p0l0, n) / denom; 
-        return (t >= 0); 
-    } 
- 
-    return false; 
-}
-
 in vec4 positionModelSpace;
 in vec4 positionWorldSpace;
 
@@ -195,80 +163,30 @@ out vec4 color;
 
 uniform vec3 cameraPos;
 uniform sampler1D materials;
-uniform unsigned int mode;
-
-const uint CUBE = 0u;
-const uint DISC = 1u;
-
 
 void main()
 {
-	if(mode == CUBE)
+	vec4 voxelColor = getMaterial(glyphMaterial, materials);
+
+	float noise = positionBasedNoise(vec4(positionWorldSpace.xyz, 0.08));
+
+	voxelColor.xyz += noise;
+
+	// The glyph normal can be zero. This might be because glyph normals weren't generated, or
+	// because this one is difficult (for example, a single voxel in an otherwise empty volume).
+	// As a fallback for cubic glyphs we then generate a normal from the cube face.
+	vec3 worldNormal;
+	if(length(glyphNormal) > 0.1)
 	{
-		vec4 voxelColor = getMaterial(glyphMaterial, materials);
-
-		float noise = positionBasedNoise(vec4(positionWorldSpace.xyz, 0.08));
-
-		voxelColor.xyz += noise;
-
-		// The glyph normal can be zero. This might be because glyph normals weren't generated, or
-		// because this one is difficult (for example, a single voxel in an otherwise empty volume).
-		// As a fallback for cubic glyphs we then generate a normal from the cube face.
-		vec3 worldNormal;
-		if(length(glyphNormal) > 0.1)
-		{
-			worldNormal = glyphNormal;
-		}
-		else
-		{
-			worldNormal = normalFromDerivatives(positionModelSpace.xyz);
-		}
-		
-		color.rgb = light(voxelColor.xyz, positionModelSpace.xyz, worldNormal, cameraPos);
-		//color.rgb = glyphNormal.xyz * 0.5 + vec3(0.5, 0.5, 0.5);
-		//color.rgb = normalize((worldNormal.xyz)) * 0.5 + vec3(0.5, 0.5, 0.5);
-		color.a = 1.0;
+		worldNormal = glyphNormal;
+	}
+	else
+	{
+		worldNormal = normalFromDerivatives(positionModelSpace.xyz);
 	}
 	
-	if(mode == DISC)
-	{
-		vec3 rayDir = normalize(positionWorldSpace.xyz - cameraPos);
-		float distToSurface = length(rayDir);
-		
-		float t = 0.0f;
-		bool hit = intersectPlane(rayDir, glyphCentreWorldSpace.xyz, cameraPos, rayDir, t);
-		
-		vec3 intersection = cameraPos + (rayDir * t);
-		
-		vec3 temp = intersection.xyz - glyphCentreWorldSpace.xyz;
-		float dist = length(temp);
-		const float overlap = 1.75;
-		float discRadius = glyphSize * 0.5 * overlap; // 0.5 converts diameter to radius, 1.75 factor makes discs overlap
-		float weight = max(discRadius - dist, 0.0);
-		weight /= discRadius; // To go to 0.0 - 1.0
-		
-		// The glyph normal can be zero. This might be because glyph normals weren't generated, or
-		// because this one is difficult (for example, a single voxel in an otherwise empty volume).
-		// As a fallback for disc glyphs we then generate a normal which is sort of spherical, by
-		// interpolating between a normal pointing at the camera and one which is orthogonal to it.
-		// There are probably better approaches, this is rather experimental.
-		vec3 worldNormal;
-		if(length(glyphNormal) > 0.1)
-		{
-			worldNormal = glyphNormal;
-		}
-		else
-		{
-			vec3 centreNormal = normalize(-rayDir);
-			vec3 edgeNormal = normalize(temp);
-			worldNormal = centreNormal * weight + edgeNormal * (1.0 - weight);
-			worldNormal = normalize(worldNormal);
-		}
-		
-		vec4 voxelColor = getMaterial(glyphMaterial, materials);
-
-		color.rgb = light(voxelColor.xyz, intersection, worldNormal, cameraPos) * weight;
-		//color.rgb = (normalize((worldNormal.xyz)) * 0.5 + vec3(0.5, 0.5, 0.5)) * weight;
-		color.a = weight;
-	}
+	color.rgb = light(voxelColor.xyz, positionModelSpace.xyz, worldNormal, cameraPos);
+	//color.rgb = glyphNormal.xyz * 0.5 + vec3(0.5, 0.5, 0.5);
+	//color.rgb = normalize((worldNormal.xyz)) * 0.5 + vec3(0.5, 0.5, 0.5);
+	color.a = 1.0;
 }

@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "rendering.h"
+#include "visibility.h"
 
 using namespace Cubiquity;
 
@@ -35,17 +35,13 @@ void InstancingDemo::onInitialise()
 	// Create and compile our GLSL program from the shaders
 	std::cout << "Warning - Using hard-coded paths to shaders in ../src/application/commands/view" << std::endl;
 	glyphProgram = loadProgram(
-		"../src/application/commands/view/glsl/instancing_glyph_vertex_program.glsl", 
-		"../src/application/commands/view/glsl/instancing_glyph_fragment_program.glsl");
-	screenQuadProgram = loadProgram(
-		"../src/application/commands/view/glsl/instancing_screen_quad_vertex_program.glsl", 
-		"../src/application/commands/view/glsl/instancing_screen_quad_fragment_program.glsl");
+		"../src/application/commands/view/glsl/glyph.vert", 
+		"../src/application/commands/view/glsl/glyph.frag");
 
 	// Set up access to uniforms
 	modelMatrixID = glGetUniformLocation(glyphProgram, "modelMatrix");
 	viewMatrixID = glGetUniformLocation(glyphProgram, "viewMatrix");
 	projMatrixID = glGetUniformLocation(glyphProgram, "projectionMatrix");
-	modeID = glGetUniformLocation(glyphProgram, "mode");
 	cameraPosID = glGetUniformLocation(glyphProgram, "cameraPos");
 
 	// Set up the texture which holds our voxel materials
@@ -77,33 +73,7 @@ void InstancingDemo::onInitialise()
 	glBufferData(GL_ARRAY_BUFFER, MaxGlyphCount * 8 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
 
 
-
-
 	mGlyphs = new Glyph[MaxGlyphCount];
-
-	glGenFramebuffers(1, &framebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-	// generate texture
-	glGenTextures(1, &textureColorbuffer);
-	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1600, 1200, 0, GL_RGBA, GL_FLOAT, NULL); // FIXME - Use correct dimensions
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	// attach it to currently bound framebuffer object
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
-
-	unsigned int rbo;
-	glGenRenderbuffers(1, &rbo);
-	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT32F, 1600, 1200); // use a single renderbuffer object for both a depth AND stencil buffer.
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-
 
 	// Black background
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -123,12 +93,10 @@ void InstancingDemo::onUpdate(float deltaTime)
 	mVisibilityCalculator->mMaxFootprintSize = 0.007f;
 	Timer timer;
 
-	NormalEstimation normalEstimation = mGlyphType == GlyphType::Disc ?
-		NormalEstimation::FromChildren : NormalEstimation::None;
+	NormalEstimation normalEstimation = NormalEstimation::None;
 
-	// Disc glyphs looks poor if they are too large, so subdivide.
-	// Likewise for per-glyph normals, even if they are applied to cubic glyphs.
-	bool subdivideMaterialNodes = (mGlyphType == GlyphType::Disc) || (normalEstimation != NormalEstimation::None);
+	// Per-glyph normals looks poor if they are too large, so subdivide.
+	bool subdivideMaterialNodes = normalEstimation != NormalEstimation::None;
 
 	if (mDoGlyphUpdates)
 	{
@@ -151,7 +119,6 @@ void InstancingDemo::onUpdate(float deltaTime)
 
 	glUniformMatrix4fv(viewMatrixID, 1, GL_FALSE, &ViewMatrix[0][0]);
 	glUniformMatrix4fv(projMatrixID, 1, GL_FALSE, &ProjectionMatrix[0][0]);
-	glUniform1ui(modeID, (unsigned int)mGlyphType);
 	glUniform3f(cameraPosID, camera().position.x(), camera().position.y(), camera().position.z());
 
 	// Bind our texture in Texture Unit 0
@@ -160,23 +127,15 @@ void InstancingDemo::onUpdate(float deltaTime)
 	// Set our "myTextureSampler" sampler to use Texture Unit 0
 	glUniform1i(materialsTextureID, 0);
 
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// We draw all glyphs in a single drawcall and OpenGL does not guaentee the ordering
 	// of these. Therefore we need to enable the depth buffer for a correct result.
 	// https://community.khronos.org/t/rendering-order-within-a-single-draw-call/66591/4
-	// This only applie to cube glyphs (as discs are simply additively blended).
-	mGlyphType == GlyphType::Cube ? glEnable(GL_DEPTH_TEST) : glDisable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 
 	Matrix4x4f ModelMatrix = translation_matrix(volumeCentre);
 	glUniformMatrix4fv(modelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-
-	if (mGlyphType == GlyphType::Disc)
-	{
-		glEnable(GL_BLEND);
-	}
-	glBlendFunc(GL_ONE, GL_ONE); // Additive blending
 
 	glBindVertexArray(VertexArrayID);
 
@@ -235,18 +194,6 @@ void InstancingDemo::onUpdate(float deltaTime)
 	glDisableVertexAttribArray(1);
 	glDisableVertexAttribArray(2);
 
-	glDisable(GL_BLEND);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-
-	//screenShader.use();
-	glUseProgram(screenQuadProgram);
-	glUniform1i(glGetUniformLocation(screenQuadProgram, "screenTexture"), 0);
-	
-	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);	// use the color attachment texture as the texture of the quad plane
-	glDisable(GL_DEPTH_TEST);
-	drawScreenAlignedQuad();
-
 	glCheckError();
 }
 
@@ -270,10 +217,5 @@ void InstancingDemo::onKeyDown(const SDL_KeyboardEvent & event)
 	if (event.keysym.sym == SDLK_SPACE)
 	{
 		mDoGlyphUpdates = !(mDoGlyphUpdates);
-	}
-
-	if (event.keysym.sym == SDLK_t)
-	{
-		mGlyphType = mGlyphType == GlyphType::Cube ? GlyphType::Disc : GlyphType::Cube;
 	}
 }

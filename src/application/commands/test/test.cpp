@@ -3,7 +3,6 @@
 #include "test_base.h"
 #include "test_linear_algebra.h"
 #include "test_rendering.h"
-#include "test_utility.h"
 #include "test_visibility.h"
 #include "test_volume.h"
 #include "test_voxelisation.h"
@@ -15,14 +14,12 @@ bool test(const flags::args& args)
 	const std::string feature{ args.positional().at(0) };
 	//testBase();
 
-	//testUtility();
-
 	//testLinearAlgebra();
 
-	if (!testRasterization())
+	/*if (!testRasterization())
 	{
 		std::cout << "TEST FAILED!" << std::endl;
-	}
+	}*/
 
 	if (!testRaytracingBehaviour())
 	{
@@ -34,14 +31,14 @@ bool test(const flags::args& args)
 		std::cout << "TEST FAILED!" << std::endl;
 	}
 
-	if (!testVisibility())
+	/*if (!testVisibility())
 	{
 		std::cout << "TEST FAILED!" << std::endl;
 	}
 
-	//testVoxelization();
+	testVoxelization();
 
-	testVolume();
+	testVolume();*/
 
 	//testMerge();
 

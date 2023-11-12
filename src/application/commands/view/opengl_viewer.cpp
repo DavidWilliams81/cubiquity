@@ -64,7 +64,7 @@ void OpenGLViewer::drawScreenAlignedQuad()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-GLuint OpenGLViewer::loadShader(GLenum shaderType, const char* filePath)
+GLuint OpenGLViewer::loadShader(GLenum shaderType, const std::string& preamble, const char* filePath)
 {
 	// Create shader
 	std::cout << "Loading " << filePath << "..." << std::endl;
@@ -79,6 +79,21 @@ GLuint OpenGLViewer::loadShader(GLenum shaderType, const char* filePath)
 	std::string shaderCode(
 		(std::istreambuf_iterator<char>(fileStream)),
 		(std::istreambuf_iterator<char>()));
+
+	// GLSL requires that #version (if present) is the first thing in
+	// the file. Therefore any preamble has to be inserted after it.
+	// Apparently this is the only way to #define preprocessor 
+	// macros from C code: https://stackoverflow.com/a/19541536
+	size_t preambleInsertionIndex = 0;
+	auto versionIndex = shaderCode.find("#version");
+	if (versionIndex != std::string::npos)
+	{
+		auto newlineIndex = shaderCode.find('\n', versionIndex);
+		preambleInsertionIndex = newlineIndex + 1;
+	}
+
+	// Insert the preamble (and a newline, in case the user forgot).
+	shaderCode.insert(preambleInsertionIndex, preamble + "\n");
 
 	// Compile shader
 	char const* shaderCodePtr = shaderCode.c_str();
@@ -98,11 +113,11 @@ GLuint OpenGLViewer::loadShader(GLenum shaderType, const char* filePath)
 	return shader;
 }
 
-GLuint OpenGLViewer::loadProgram(const char* vertex_file_path, const char* fragment_file_path)
+GLuint OpenGLViewer::loadProgram(const char* vertex_file_path, const char* fragment_file_path, std::string preamble)
 {
 	// Create the shaders
-	GLuint vertexShader = loadShader(GL_VERTEX_SHADER, vertex_file_path);
-	GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, fragment_file_path);
+	GLuint vertexShader = loadShader(GL_VERTEX_SHADER, preamble, vertex_file_path);
+	GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, preamble, fragment_file_path);
 
 	// Link the program
 	std::cout << "Linking program" << std::endl;

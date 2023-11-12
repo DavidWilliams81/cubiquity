@@ -60,6 +60,9 @@ namespace Cubiquity
 		// Nullary  arithmetic operators
 		Vector<Type, Size> operator-() const {
 			Vector<Type, Size> result; for (int i = 0; i < Size; ++i) { result[i] = -(*this)[i]; } return result; }
+		Vector<Type, Size> operator~() const {
+			Vector<Type, Size> result; for (int i = 0; i < Size; ++i) { result[i] = ~(*this)[i]; } return result;
+		}
 
 		// Unary arithmetic operators
 		void operator+=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] += rhs; } }
@@ -70,6 +73,20 @@ namespace Cubiquity
 		void operator*=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] *= rhs[i]; } }
 		void operator/=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] /= rhs; } }
 		void operator/=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] /= rhs[i]; } }
+		void operator%=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] %= rhs; } }
+		void operator%=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] %= rhs[i]; } }
+
+		void operator>>=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] >>= rhs; } }
+		void operator>>=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] >>= rhs[i]; } }
+		void operator<<=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] <<= rhs; } }
+		void operator<<=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] <<= rhs[i]; } }
+
+		void operator&=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] &= rhs; } }
+		void operator&=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] &= rhs[i]; } }
+		void operator|=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] |= rhs; } }
+		void operator|=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] |= rhs[i]; } }
+		void operator^=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] ^= rhs; } }
+		void operator^=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] ^= rhs[i]; } }
 
 		// Binary arithmetic operators as friends (non-members)
 		friend Vector<Type, Size> operator+(Vector<Type, Size> const& lhs, Type const& rhs) {
@@ -88,6 +105,32 @@ namespace Cubiquity
 			Vector<Type, Size> result(lhs); result /= rhs; return result; }
 		friend Vector<Type, Size> operator/(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
 			Vector<Type, Size> result(lhs); result /= rhs; return result; }
+		friend Vector<Type, Size> operator%(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result %= rhs; return result; }
+		friend Vector<Type, Size> operator%(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result %= rhs; return result; }
+
+		friend Vector<Type, Size> operator>>(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result >>= rhs; return result; }
+		friend Vector<Type, Size> operator>>(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result >>= rhs; return result; }
+		friend Vector<Type, Size> operator<<(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result <<= rhs; return result; }
+		friend Vector<Type, Size> operator<<(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result <<= rhs; return result; }
+
+		friend Vector<Type, Size> operator&(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result &= rhs; return result; }
+		friend Vector<Type, Size> operator&(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result &= rhs; return result; }
+		friend Vector<Type, Size> operator|(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result |= rhs; return result; }
+		friend Vector<Type, Size> operator|(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result |= rhs; return result; }
+		friend Vector<Type, Size> operator^(Vector<Type, Size> const& lhs, Type const& rhs) {
+			Vector<Type, Size> result(lhs); result ^= rhs; return result; }
+		friend Vector<Type, Size> operator^(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
+			Vector<Type, Size> result(lhs); result ^= rhs; return result; }
 
 		// Comparison operators as friends (https://stackoverflow.com/a/1145635)
 		friend bool operator==(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData == rhs.mData; }
@@ -111,6 +154,9 @@ namespace Cubiquity
 		const Type& z() const { static_assert(Size > 2, "Vector too small to call z()"); return (*this)[2]; }
 		const Type& w() const { static_assert(Size > 3, "Vector too small to call w()"); return (*this)[3]; }
 
+		// FIXME - Would be nice if we could avoid the copy here, and just return the curent vector cast to the correct type.
+		Vector<Type, 3> xyz() const { static_assert(Size > 2, "Vector too small to call xyz()"); return Vector<Type, 3> { (*this)[0], (*this)[1], (*this)[2] }; }
+
 		// Forwards for std::array interface.
 		auto begin() noexcept { return mData.begin(); }
 		auto begin() const noexcept { return mData.begin(); }
@@ -126,24 +172,41 @@ namespace Cubiquity
 		std::array<Type, Size> mData;
 	};
 
-	// Typedefs for commonly-used types
-	typedef Vector<int, 2> Vector2i;
-	typedef Vector<uint, 2> Vector2u;
+	// Typedefs for commonly-used sizes
+	template <typename Type> using Vector2 = Vector<Type, 4>;
+	template <typename Type> using Vector3 = Vector<Type, 3>;
+	template <typename Type> using Vector4 = Vector<Type, 4>;
+
+	// Typedefs for vectors with fixed-size types
+	typedef Vector<int32, 2> Vector2i32;
+	typedef Vector<uint32, 2> Vector2u32;
 	typedef Vector<float, 2> Vector2f;
 	typedef Vector<double, 2> Vector2d;
 
-	template <typename Type> using Vector3 = Vector<Type, 3>;
-    typedef Vector<int, 3> Vector3i;
-	typedef Vector<uint, 3> Vector3u;
-	typedef Vector<uint8_t, 3> Vector3u8;
-	typedef Vector<int64_t, 3> Vector3i64;
+	typedef Vector<int32, 3> Vector3i32;
+	typedef Vector<uint32, 3> Vector3u32;
+	typedef Vector<int64, 3> Vector3i64;
 	typedef Vector<float, 3> Vector3f;
 	typedef Vector<double, 3> Vector3d;
+	typedef Vector<bool, 3> Vector3b;
 
-	template <typename Type> using Vector4 = Vector<Type, 4>;
-	typedef Vector<int, 4> Vector4i;
+	typedef Vector<int32, 4> Vector4i32;
+	typedef Vector<uint32, 4> Vector4u32;
 	typedef Vector<float, 4> Vector4f;
 	typedef Vector<double, 4> Vector4d;
+	typedef Vector<bool, 4> Vector4b;
+
+	// Shorter typedefs where the user doesn't specify the size of the underlying type.
+	// Internally we fix the size of the type to that which makes sense for the size of our
+	// volume (rather than the machine native type) as this seems more useful for our application.
+	typedef Vector2i32 Vector2i;
+	typedef Vector2u32 Vector2u;
+
+	typedef Vector3i32 Vector3i;
+	typedef Vector3u32 Vector3u;
+
+	typedef Vector4i32 Vector4i;
+	typedef Vector4u32 Vector4u;
 
 	// Applied in place so only works for operators which don't change type (e.g. not lround()).
 	template<class Type, int Size, class UnaryOperation>
@@ -177,6 +240,30 @@ namespace Cubiquity
 		{
 			result[i] = std::max(minVal, std::min(vec[i], maxVal));
 		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> abs3(Vector<Type, Size> const& vec)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i) { result[i] = std::abs(vec[i]); }
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> floor(Vector<Type, Size> const& vec)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i) { result[i] = std::floor(vec[i]); }
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> fract(Vector<Type, Size> const& vec)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i) { result[i] = vec[i] - std::floor(vec[i]); }
 		return result;
 	}
 
@@ -227,6 +314,110 @@ namespace Cubiquity
 		//assert(len >= 0.001f);
 
 		result = vec * (Type(1.0) / len);
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> mix(Vector<Type, Size> x, Vector<Type, Size> y, Vector<Type, Size> a)
+	{
+		Vector<Type, Size> ones = Vector<Type, Size>::filled(1);
+		return x * (ones - a) + y * a;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> sign(Vector<Type, Size> x)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = std::copysign(1.0f, x[i]);
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> step(float edge, Vector<Type, Size> x)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = x[i] < edge ? 0 : 1;
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	bool all(Vector<Type, Size> x)
+	{
+		for (int i = 0; i < Size; ++i)
+		{
+			if (!x[i]) return false;
+		}
+		return true;
+	}
+
+	template <class Type, int Size>
+	bool any(Vector<Type, Size> x)
+	{
+		for (int i = 0; i < Size; ++i)
+		{
+			if (x[i]) return true;
+		}
+		return false;
+	}
+
+	template <class Type, int Size>
+	Vector<bool, Size> lessThan(Vector<Type, Size> x, Vector<Type, Size> y)
+	{
+		Vector<bool, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = x[i] < y[i];
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<bool, Size> lessThanEqual(Vector<Type, Size> x, Vector<Type, Size> y)
+	{
+		Vector<bool, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = x[i] <= y[i];
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<bool, Size> greaterThan(Vector<Type, Size> x, Vector<Type, Size> y)
+	{
+		Vector<bool, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = x[i] > y[i];
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<bool, Size> greaterThanEqual(Vector<Type, Size> x, Vector<Type, Size> y)
+	{
+		Vector<bool, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = x[i] >= y[i];
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<bool, Size> equal(Vector<Type, Size> x, Vector<Type, Size> y)
+	{
+		Vector<bool, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = x[i] == y[i];
+		}
 		return result;
 	}
 
@@ -426,6 +617,8 @@ namespace Cubiquity
 	class Ray
 	{
 	public:
+		Ray() {}
+
 		Ray(const Vector<Type, Size>& origin, const Vector<Type, Size>& dir)
 			: mOrigin(origin)
 			, mDir(dir)	{}
@@ -455,96 +648,64 @@ namespace Cubiquity
 		// Default constructed box starts off as invalid (min bigger than max))
 		Box() { invalidate(); }
 
-		Box(const Vector<Type, Size>& value)
-		{
-			mLower = value;
-			mUpper = value;
-		}
-
 		Box(const Vector<Type, Size>& lower, const Vector<Type, Size>& upper)
-		{
-			mLower = lower;
-			mUpper = upper;
-		}
+			:mExtents{ lower, upper } {}
 
 		// For casting betwween Box types of matching size.
 		template <typename CastType> explicit Box(const Box<CastType, Size>& box)
-		{
-			mLower = static_cast<Vector<Type, Size>>(box.lower());
-			mUpper = static_cast<Vector<Type, Size>>(box.upper());
-		}
+			:mExtents { 
+				static_cast<Vector<Type, Size>>(box.lower()),
+				static_cast<Vector<Type, Size>>(box.upper())
+			} {}
 
-		const Vector<Type, Size>& lower() const { return mLower; }
-		const Vector<Type, Size>& upper() const { return mUpper; }
+		const Vector<Type, Size>& lower() const { return mExtents[0]; }
+		const Vector<Type, Size>& upper() const { return mExtents[1]; }
 
 		// Should try to remove these non-const versions...
-		Vector<Type, Size>& lower() { return mLower; }
-		Vector<Type, Size>& upper() { return mUpper; }
+		Vector<Type, Size>& lower() { return mExtents[0]; }
+		Vector<Type, Size>& upper() { return mExtents[1]; }
 
-		Vector<float, Size> centre() const
-		{
-			return static_cast< Vector<float, Size> >(mLower + mUpper) * 0.5f;
-		}
+		
 
 
 		void accumulate(const Vector<Type, Size>& value)
 		{
-			mLower = Cubiquity::min(mLower, value);
-			mUpper = Cubiquity::max(mUpper, value);
+			lower() = Cubiquity::min(lower(), value);
+			upper() = Cubiquity::max(upper(), value);
 		}
 
 		void accumulate(const Box<Type, Size>& other)
 		{
-			mLower = Cubiquity::min(mLower, other.mLower);
-			mUpper = Cubiquity::max(mUpper, other.mUpper);
+			lower() = Cubiquity::min(lower(), other.lower());
+			upper() = Cubiquity::max(upper(), other.upper());
 		}
 
 		bool contains(const Vector<Type, Size>& value) const
 		{
-			return (value.x() >= mLower.x()) && (value.y() >= mLower.y()) && (value.z() >= mLower.z()) &&
-				(value.x() <= mUpper.x()) && (value.y() <= mUpper.y()) && (value.z() <= mUpper.z());
+			return (value.x() >= lower().x()) && (value.y() >= lower().y()) && (value.z() >= lower().z()) &&
+				(value.x() <= upper().x()) && (value.y() <= upper().y()) && (value.z() <= upper().z());
 		}
 
 		void dilate(Type amount)
 		{
 			Vector<Type, Size> amountAsVec = { amount, amount, amount };
-			mLower -= amountAsVec;
-			mUpper += amountAsVec;
+			lower() -= amountAsVec;
+			upper() += amountAsVec;
 		}
 
 		void invalidate()
 		{
-			mLower.fill(std::numeric_limits<Type>::max());
-			mUpper.fill(std::numeric_limits<Type>::lowest());
+			lower().fill(std::numeric_limits<Type>::max());
+			upper().fill(std::numeric_limits<Type>::lowest());
 		}
 
-		Type sideLength(uint32_t sideIndex) const
-		{
-			// FIXME - The '+1' is to get the 'inclusive' length... what do we
-			// really want here? Also how should negative side lengths be handled?
-			return (mUpper[sideIndex] - mLower[sideIndex]) + 1;
-		}
-		
-		float diagonalLength() const
-		{
-			return sqrtf(sideLength(0) * sideLength(0) + sideLength(1) *
-				sideLength(1) + sideLength(2) * sideLength(2));
-		}
 		static Box<Type, Size> invalid()
 		{
 			return Box<Type, Size>(); // Default-constructed box is already invalid.
 		}
 
-		static Box<Type, Size> max()
-		{
-			Vector<Type, Size> lower = Vector<Type, Size>::filled(std::numeric_limits<Type>::lowest());
-			Vector<Type, Size> upper = Vector<Type, Size>::filled(std::numeric_limits<Type>::max());
-			return Box<Type, Size>(lower, upper);
-		}
-
-	private:
-		Vector<Type, Size> mLower;
-		Vector<Type, Size> mUpper;
+	public:
+		Vector<Type, Size> mExtents[2];
 	};
 
 	template <class Type, int Size>
@@ -566,15 +727,43 @@ namespace Cubiquity
 		return true;
 	}
 
-	typedef Box<int, 2> Box2i;
-	typedef Box<float, 2> Box2f;
+	template <class Type>
+	class Box3 : public Box<Type, 3>
+	{
+	public:
+		Box3() : Box<Type, 3>() {}
+		Box3(const Vector<Type, 3>& lower, const Vector<Type, 3>& upper) : Box<Type, 3>(lower, upper) {}
+		explicit Box3(const Box<int32, 3>& box) : Box<Type, 3>(box) {}
 
-	typedef Box<int, 3> Box3i;
-	typedef Box<float, 3> Box3f;
+		Vector3f centre() const { return (this->lower() + this->upper()) * 0.5f; }
+	};
 
-	// Probably shouldn't need 4d versions - remove if I can
-	typedef Box<int, 4> Box4i;
-	typedef Box<float, 4> Box4f;
+	typedef Box3<float> Box3f;
+	typedef Box3<double> Box3d;
+
+	class Box3i : public Box<int32, 3>
+	{
+	public:
+		Box3i() : Box<int32, 3>() {}
+		Box3i(const Vector<int32, 3>& lower, const Vector<int32, 3>& upper) : Box<int32, 3>(lower, upper) {}
+		explicit Box3i(const Box<float, 3>& box) : Box<int32, 3>(box) {}
+
+		static Box3i max()
+		{
+			Vector3i lower = Vector3i::filled(std::numeric_limits<int>::lowest());
+			Vector3i upper = Vector3i::filled(std::numeric_limits<int>::max());
+			return Box3i(lower, upper);
+		}
+
+		// Note that these integer dimensions add one to include last voxel, and
+		// return integers types which are wider than the internal representation.
+		int64 width()  const { return static_cast<int64>(upper()[0]) - static_cast<int64>(lower()[0]) + 1; }
+		int64 height() const { return static_cast<int64>(upper()[1]) - static_cast<int64>(lower()[1]) + 1; }
+		int64 depth()  const { return static_cast<int64>(upper()[2]) - static_cast<int64>(lower()[2]) + 1; }
+
+		// FIXME - Handle overflow.
+		int64 voxelCount() const { return width() * height() * depth(); }
+	};
 
 	class Box3fSampler
 	{
@@ -682,7 +871,26 @@ namespace Cubiquity
 		float entry;
 		float exit;
 	};
-	RayBoxIntersection intersect(const Ray3f& ray, const Box3f& box);
+
+	// See https://tavianator.com/fast-branchless-raybounding-box-intersections/
+	template <class Type>
+	RayBoxIntersection intersect(const Ray<Type, 3>& ray, const Box3<Type>& box)
+	{
+		// Inverse direction could be precomputed and stored in the ray
+		// if we find we often intersect the same ray with multiple boxes.
+		const Vector<Type, 3> invDir = Vector<Type, 3>({ 1.0f, 1.0f, 1.0f }) / ray.mDir;
+
+		const Vector<Type, 3> lower = (box.lower() - ray.mOrigin) * invDir;
+		const Vector<Type, 3> upper = (box.upper() - ray.mOrigin) * invDir;
+
+		const Vector<Type, 3> minCorner = min(lower, upper);
+		const Vector<Type, 3> maxCorner = max(lower, upper);
+
+		RayBoxIntersection intersection;
+		intersection.entry = *(std::max_element(minCorner.begin(), minCorner.end()));
+		intersection.exit = *(std::min_element(maxCorner.begin(), maxCorner.end()));
+		return intersection;
+	}
 	
 }
 

@@ -17,7 +17,8 @@
 
 // Cubiquity
 #include "geometry.h"
-#include "rendering.h"
+#include "visibility.h"
+#include "raytracing.h"
 #include "utility.h"
 #include "storage.h"
 
@@ -72,7 +73,7 @@ private:
 
 	float positionBasedNoise(const vec3& position);
 	vec3 surfaceColour(const RayVolumeIntersection& intersection);
-	const vec3& randomPointInUnitSphere();
+	vec3 randomPointInUnitSphere();
 	vec3 gatherLighting(vec3 position, vec3 normal);
 	vec3 traceSingleRayRecurse(const Ray3f& ray, uint depth);
 	vec3 traceSingleRay(const Ray3f& ray, uint depth);
@@ -90,7 +91,7 @@ private:
 	bool addNoise = true;
 	bool includeSun = true;
 	bool includeSky = true;
-	float maxFootprint = 0.005; // For LOD
+	float maxFootprint = 0.0035; // For LOD
 
 	// General properties
 	uint mAccumulatedFrameCount = 0;

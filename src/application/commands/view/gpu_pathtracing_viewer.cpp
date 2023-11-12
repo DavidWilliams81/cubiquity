@@ -4,7 +4,8 @@
 
 #include <iostream>
 
-#include "rendering.h"
+#include "visibility.h"
+#include "raytracing.h"
 
 using namespace Cubiquity;
 
@@ -14,21 +15,22 @@ void GPUPathtracingViewer::onInitialise()
 
 	// Create and compile our GLSL program from the shaders
 	std::cout << "Warning - Using hard-coded paths to shaders in ../src/application/commands/view" << std::endl;
-	mainProgram = loadProgram(
-		"../src/application/commands/view/glsl/gpu_pathtracing_main_vertex_program.glsl",
-		"../src/application/commands/view/glsl/gpu_pathtracing_main_fragment_program.glsl");
-	screenQuadProgram = loadProgram(
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_fragment_program.glsl");
-	screenQuadCopyProgram = loadProgram(
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_copy_fragment_program.glsl");
-	screenQuadHBlurProgram = loadProgram(
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_hblur_fragment_program.glsl");
-	screenQuadVBlurProgram = loadProgram(
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vertex_program.glsl",
-		"../src/application/commands/view/glsl/gpu_pathtracing_screen_quad_vblur_fragment_program.glsl");
+	progressiveProgram = loadProgram(
+		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
+		"../src/application/commands/view/glsl/pathtracing.frag",
+		"#define PROGRESSIVE");
+	previewProgram = loadProgram(
+		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
+		"../src/application/commands/view/glsl/pathtracing.frag");
+	copyProgram = loadProgram(
+		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
+		"../src/application/commands/view/glsl/normalise.frag");
+	hBlurProgram = loadProgram(
+		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
+		"../src/application/commands/view/glsl/horz_blur.frag");
+	vBlurProgram = loadProgram(
+		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
+		"../src/application/commands/view/glsl/vert_blur.frag");
 
 	// Black background
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -44,14 +46,14 @@ void GPUPathtracingViewer::onInitialise()
 	GLuint dagData;
 	glGenBuffers(1, &dagData);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, dagData);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node) * nodeCount, nodeStore.data(), GL_DYNAMIC_COPY);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node) * nodeCount, nodeStore.data(), GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, dagData);
 	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // unbind
 
 	GLuint subDagData;
 	glGenBuffers(1, &subDagData);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, subDagData);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(subDAGs), &subDAGs, GL_DYNAMIC_COPY);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(subDAGs), &subDAGs, GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, subDagData);
 	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // unbind
 
@@ -65,19 +67,19 @@ void GPUPathtracingViewer::onInitialise()
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 
-	glGenFramebuffers(1, &framebuffer);
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glGenFramebuffers(1, &accFramebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, accFramebuffer);
 
 	// generate texture
-	glGenTextures(1, &textureColorbuffer);
-	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+	glGenTextures(1, &accTexture);
+	glBindTexture(GL_TEXTURE_2D, accTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width(), height(), 0, GL_RGBA, GL_FLOAT, NULL); // FIXME - Use correct dimensions
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// attach it to currently bound framebuffer object
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, accTexture, 0);
 
 	unsigned int rbo;
 	glGenRenderbuffers(1, &rbo);
@@ -90,19 +92,19 @@ void GPUPathtracingViewer::onInitialise()
 
 
 
-	glGenFramebuffers(1, &framebuffer2);
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer2);
+	glGenFramebuffers(1, &blurFramebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, blurFramebuffer);
 
 	// generate texture
-	glGenTextures(1, &textureColorbuffer2);
-	glBindTexture(GL_TEXTURE_2D, textureColorbuffer2);
+	glGenTextures(1, &blurTexture);
+	glBindTexture(GL_TEXTURE_2D, blurTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width(), height(), 0, GL_RGBA, GL_FLOAT, NULL); // FIXME - Use correct dimensions
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// attach it to currently bound framebuffer object
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer2, 0);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, blurTexture, 0);
 
 	unsigned int rbo2;
 	glGenRenderbuffers(1, &rbo2);
@@ -119,64 +121,104 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 {
 	OpenGLViewer::onUpdate(deltaTime);
 
+	// Switch to progressive mode for a high quality render once the camera is static.
+	// The camera needs to be static because we do not clear the window's framebuffer
+	// before drawing, instead we slowly draw the progressive version over the 
+	// preview. This is nice because then we do not see black holes where the
+	// progressive version has not yet drawn. I *think* the threshold here needs to
+	// be set to '2' because we have double buffering enabled and need to make sure
+	// both buffers have the same static preview image drawn into them before we do
+	// the progressive render over the top. An alternative might be to post-process
+	// into a 'single-buffered' target seperate from the window buffer, and then do
+	// the copy to the double-buffered window buffer from there.
+	bool progressive = staticFrameCount >= 2;
+
 	Matrix4x4f PInv = static_cast<Matrix4x4f>(inverse(camera().projectionMatrix()));
 	Matrix4x4f VInv = static_cast<Matrix4x4f>(inverse(camera().viewMatrix()));
 
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, accFramebuffer);
 	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glUseProgram(mainProgram);
-	glUniformMatrix4fv(glGetUniformLocation(mainProgram, "VInv"), 1, GL_FALSE, &VInv[0][0]);
-	glUniformMatrix4fv(glGetUniformLocation(mainProgram, "PInv"), 1, GL_FALSE, &PInv[0][0]);
-	glUniform3f(glGetUniformLocation(mainProgram, "cameraPos"), camera().position.x(), camera().position.y(), camera().position.z());
+	GLuint pathtracingProgram = progressive ? progressiveProgram : previewProgram;
+	glUseProgram(pathtracingProgram);
+	glUniformMatrix4fv(glGetUniformLocation(pathtracingProgram, "VInv"), 1, GL_FALSE, &VInv[0][0]);
+	glUniformMatrix4fv(glGetUniformLocation(pathtracingProgram, "PInv"), 1, GL_FALSE, &PInv[0][0]);
+	glUniform3f(glGetUniformLocation(pathtracingProgram, "cameraPos"), camera().position.x(), camera().position.y(), camera().position.z());
+	glUniform1ui(glGetUniformLocation(pathtracingProgram, "frameId"), ++frameId);
 
 	// Bind our texture in Texture Unit 0
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_1D, mMaterialsTexture);
 	// Set our texture sampler sampler to use Texture Unit 0
-	glUniform1i(glGetUniformLocation(mainProgram, "materials"), 0);
+	glUniform1i(glGetUniformLocation(pathtracingProgram, "materials"), 0);
 
-	glDisable(GL_DEPTH_TEST);
-	drawScreenAlignedQuad();
-
-	int blurPasses = 0;
-	for (int i = 0; i < blurPasses; i++)
+	if (progressive)
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer2);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		//screenShader.use();
-		glUseProgram(screenQuadHBlurProgram);
-		glUniform1i(glGetUniformLocation(screenQuadHBlurProgram, "screenTexture"), 0);
-
-		glBindTexture(GL_TEXTURE_2D, textureColorbuffer);	// use the color attachment texture as the texture of the quad plane
-		glDisable(GL_DEPTH_TEST);
-		drawScreenAlignedQuad();
-
-		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		//screenShader.use();
-		glUseProgram(screenQuadVBlurProgram);
-		glUniform1i(glGetUniformLocation(screenQuadVBlurProgram, "screenTexture"), 0);
-
-		glBindTexture(GL_TEXTURE_2D, textureColorbuffer2);	// use the color attachment texture as the texture of the quad plane
-		glDisable(GL_DEPTH_TEST);
-		drawScreenAlignedQuad();
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_ONE, GL_ONE); // Additive blending
+	}
+	else
+	{
+		glDisable(GL_BLEND);
 	}
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	//screenShader.use();
-	glUseProgram(screenQuadCopyProgram);
-	glUniform1i(glGetUniformLocation(screenQuadCopyProgram, "screenTexture"), 0);
-
-	glBindTexture(GL_TEXTURE_2D, textureColorbuffer);	// use the color attachment texture as the texture of the quad plane
 	glDisable(GL_DEPTH_TEST);
 	drawScreenAlignedQuad();
 
+	/*int blurPasses = 0;
+	for (int i = 0; i < blurPasses; i++)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, blurFramebuffer);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//screenShader.use();
+		glUseProgram(hBlurProgram);
+		glUniform1i(glGetUniformLocation(hBlurProgram, "screenTexture"), 0);
+
+		glBindTexture(GL_TEXTURE_2D, accTexture);	// use the color attachment texture as the texture of the quad plane
+		glDisable(GL_DEPTH_TEST);
+		drawScreenAlignedQuad();
+
+		glBindFramebuffer(GL_FRAMEBUFFER, accFramebuffer);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		//screenShader.use();
+		glUseProgram(vBlurProgram);
+		glUniform1i(glGetUniformLocation(vBlurProgram, "screenTexture"), 0);
+
+		glBindTexture(GL_TEXTURE_2D, blurTexture);	// use the color attachment texture as the texture of the quad plane
+		glDisable(GL_DEPTH_TEST);
+		drawScreenAlignedQuad();
+	}*/
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//screenShader.use();
+	glUseProgram(copyProgram);
+	glUniform1i(glGetUniformLocation(copyProgram, "screenTexture"), 0);
+
+	glBindTexture(GL_TEXTURE_2D, accTexture);	// use the color attachment texture as the texture of the quad plane
+	glDisable(GL_DEPTH_TEST);
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	drawScreenAlignedQuad();
+	glDisable(GL_BLEND);
+
+	// In non-progressive mode we have now finished with the accumulation buffer.
+	// We clear it because the next frame might be progressive and we don't want
+	// to add to the preview image (we should replace it).
+	if (!progressive)
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, accFramebuffer);
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
+
 	glCheckError();
+
+	staticFrameCount++;
 
 	const int groupSize = 100;
 	if (frameNumber() % groupSize == 0)
@@ -196,14 +238,27 @@ void GPUPathtracingViewer::onKeyDown(const SDL_KeyboardEvent & event)
 	OpenGLViewer::onKeyDown(event);
 }
 
+void GPUPathtracingViewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
+{
+	OpenGLViewer::onMouseButtonDown(event);
+}
+
+void GPUPathtracingViewer::onMouseButtonUp(const SDL_MouseButtonEvent& event)
+{
+	OpenGLViewer::onMouseButtonUp(event);
+}
+
 void GPUPathtracingViewer::onCameraModified()
 {
-	clear();
+	//cameraModified = true;
+	staticFrameCount = 0;
+	//clear();
 }
 
 void GPUPathtracingViewer::clear()
 {
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//glBindFramebuffer(GL_FRAMEBUFFER, accFramebuffer);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }

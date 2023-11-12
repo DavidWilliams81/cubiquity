@@ -1,14 +1,31 @@
 #include "test_base.h"
 
+#include "framework.h"
+
 #include "storage.h"
 
 #include <cassert>
+#include <cstdint>
 #include <iostream>
 #include <numeric>
 #include <vector>
 
 using namespace Cubiquity;
 using namespace std;
+
+uint64 mixPeriod()
+{
+	uint32 initialState = 42;
+	uint32 state = initialState;
+	uint64 steps = 0;
+	do
+	{
+		state = mixBits(state);
+		steps++;
+	} while (state != initialState);
+
+	return steps;
+}
 
 bool testBase()
 {
@@ -17,7 +34,13 @@ bool testBase()
 	assert(Internals::roundUpToPowerOf2(1024) == 1024);
 
 	// Test integer hashing
-	assert(Internals::mix(42) == 0x087fcd5c);
+	assert(Internals::mixBits(42) == 0x087fcd5c);
+
+
+	// Check the period of the mix function. In the future
+	// I hope to find one with only one cycle (max period).
+	check(mixPeriod(), UINT64_C(722985151));
+	//check(mixPeriod(), UINT64_C(0x100000000)); // This would be better
 
 	// Test data hashing
 	std::vector<int> data(1000000);

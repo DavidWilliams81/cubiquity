@@ -18,6 +18,7 @@
 
 #include "stb_image.h"
 
+#include "cubiquity.h"
 #include "geometry.h"
 #include "storage.h"
 #include "voxelization.h"
@@ -177,16 +178,19 @@ bool voxelise(const flags::args& args)
 	materials.save(getMaterialsPath(outputPath));
 	std::cout << "done." << std::endl;
 
-	auto result = estimateBounds(volume);
-	Box3i estimatedBounds = result.second;
-	std::cout << estimatedBounds.lower() << " " << estimatedBounds.upper() << std::endl;
+	uint8 outside_material;
+	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+	std::cout << Vector3i({ lower_x, lower_y, lower_z }) << " " << Vector3i({ upper_x, upper_y, upper_z }) << std::endl;
 
-	// This chunk of code can be useful for debuging and validation, but is slow.
-	// Therefore only run it for mesh voxelisation as these are usually smaller.
-	if (extension == ".obj")
+	int64_t histogram[256];
+	cubiquity_compute_histogram(&volume, histogram);
+	for(int i = 0; i < 256; i++)
 	{
-		Histogram histogram = computeHistogram(volume, estimatedBounds);
-		printHistogram(histogram);
+		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow
+		{
+			log(INF, "Material ", static_cast<uint16_t>(i), ": ", histogram[i], " voxels");
+		}
 	}
 
 	return true;

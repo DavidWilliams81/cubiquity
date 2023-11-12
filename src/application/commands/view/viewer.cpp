@@ -1,6 +1,8 @@
 #include "viewer.h"
 
-#include "rendering.h"
+#include "cubiquity.h"
+#include "visibility.h"
+#include "raytracing.h"
 #include "utility.h"
 
 #include <filesystem>
@@ -43,15 +45,22 @@ void Viewer::onInitialise()
 	mVolume.setTrackEdits(true);
 
 	//Box3i bounds = computeBounds(mVolume, [](MaterialId matId) { return matId != 0; });
-	auto result = estimateBounds(mVolume);
-	MaterialId outsideMaterialId = result.first;
-	Box3i bounds = result.second;
+	Timer timer;
 
-	if (outsideMaterialId == 0) // Solid object, point camera at centre and move it back
+	uint8 outside_material;
+	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(&mVolume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+
+	Vector3d lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
+	Vector3d upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
+	std::cout << "Lower bound = " << lower << std::endl;
+	std::cout << "Upper bound = " << upper << std::endl;
+	std::cout << "Bounds estimation took " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
+
+	Vector3d centre = (lower + upper) * 0.5;
+
+	if (outside_material == 0) // Solid object, point camera at centre and move it back
 	{
-		Vector3d lower = static_cast<Vector3d>(bounds.lower());
-		Vector3d centre = static_cast<Vector3d>(bounds.centre());
-		Vector3d upper = static_cast<Vector3d>(bounds.upper());
 		double halfDiagonal = length(upper - lower) * 0.5;
 
 		// Centred along x, then back and up a bit
@@ -63,7 +72,6 @@ void Viewer::onInitialise()
 	}
 	else // Hollow object, place camera at centre.
 	{
-		Vector3d centre = static_cast<Vector3d>(bounds.centre());
 		centre += Vector3d({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
 		mCamera.position = Vector3d({ centre.x(), centre.y(), centre.z() });
 
@@ -144,8 +152,8 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 		Ray3f ray = static_cast<Ray3f>(mCamera.rayFromViewportPos(event.x, event.y, width(), height()));
 		SubDAGArray subDAGs = findSubDAGs(
 			Internals::getNodes(volume()).nodes(), getRootNodeIndex(volume()));
-		RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs, ray);
-		if (intersection)
+		RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs, ray, false);
+		if (intersection.hit)
 		{
 			SphereBrush brush(static_cast<Vector3f>(intersection.position), 30);
 			mVolume.fillBrush(brush, 0);

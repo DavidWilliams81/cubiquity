@@ -25,8 +25,8 @@ protected:
 	//Screen aligned quad
 	unsigned int quadVAO;
 
-	GLuint loadShader(GLenum shaderType, const char* filePath);
-	GLuint loadProgram(const char* vertex_file_path, const char* fragment_file_path);
+	GLuint loadShader(GLenum shaderType, const std::string& preamble, const char* filePath);
+	GLuint loadProgram(const char* vertex_file_path, const char* fragment_file_path, std::string preamble = "");
 };
 
 #endif // CUBIQUITY_OPENGL_VIEWER_H
