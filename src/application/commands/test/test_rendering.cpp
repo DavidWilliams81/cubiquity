@@ -81,7 +81,7 @@ bool testRasterization()
 
 	cout << "\tTime elapsed = " << elapsedTime << "ms." << endl;
 
-	saveVisibilityMaskAsImage(*mask, "TestRasterizationMask.ppm");
+	saveVisibilityMaskAsImage(*mask, "TestRasterizationMask.png");
 
 	// Tile size affects memory layout and hence hash.
 	uint32_t expectedHash = 0;
@@ -155,7 +155,7 @@ RayVolumeIntersection traceRayRef(Volume& volume, Ray3f ray)
 bool testRaytracingBehaviour()
 {
 	Volume volume;
-	volume.load("../data/axis.vol");
+	volume.load("../data/tests/axis.dag");
 
 	uint8 outside_material;
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
@@ -213,7 +213,7 @@ bool testRaytracingBehaviour()
 bool testRaytracingPerformance()
 {
 	Volume volume;
-	volume.load("../data/axis.vol");
+	volume.load("../data/tests/axis.dag");
 
 	uint8 outside_material;
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
@@ -246,7 +246,7 @@ bool testRaytracingPerformance()
 
 	std::cout << "Traced " << rayCount << " rays in " << timer.elapsedTimeInSeconds() << " seconds\n";
 	std::cout << "Hit count = " << hitCount << " out of " << rayCount << std::endl;
-	check(hitCount, 124000);
+	check(hitCount, 124084);
 
 	return true;
 }

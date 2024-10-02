@@ -24,6 +24,7 @@
 #include <list>
 #include <string>
 #include <unordered_map>
+#include <span>
 #include <vector>
 #include <random>
 #include <type_traits>
@@ -31,6 +32,11 @@
 namespace Cubiquity
 {
 	const float Pi = 3.14159265358979f;
+
+	// See https ://stackoverflow.com/a/4609795
+	template <typename T> int sign(T val) {
+		return (T(0) < val) - (val < T(0));
+	}
 
 	////////////////////////////////////////////////////////////////////////////////
 	//									Vector
@@ -252,6 +258,14 @@ namespace Cubiquity
 	}
 
 	template <class Type, int Size>
+	Vector<Type, Size> ceil(Vector<Type, Size> const& vec)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i) { result[i] = std::ceil(vec[i]); }
+		return result;
+	}
+
+	template <class Type, int Size>
 	Vector<Type, Size> floor(Vector<Type, Size> const& vec)
 	{
 		Vector<Type, Size> result;
@@ -342,6 +356,17 @@ namespace Cubiquity
 		for (int i = 0; i < Size; ++i)
 		{
 			result[i] = x[i] < edge ? 0 : 1;
+		}
+		return result;
+	}
+
+	template <class Type, int Size>
+	Vector<Type, Size> pow(Vector<Type, Size> const& x, Vector<Type, Size> const& y)
+	{
+		Vector<Type, Size> result;
+		for (int i = 0; i < Size; ++i)
+		{
+			result[i] = std::pow(x[i], y[i]);
 		}
 		return result;
 	}
@@ -665,13 +690,18 @@ namespace Cubiquity
 		Vector<Type, Size>& lower() { return mExtents[0]; }
 		Vector<Type, Size>& upper() { return mExtents[1]; }
 
-		
-
-
 		void accumulate(const Vector<Type, Size>& value)
 		{
 			lower() = Cubiquity::min(lower(), value);
 			upper() = Cubiquity::max(upper(), value);
+		}
+
+		// Note: Could templatise on container
+		void accumulate(const std::array<Vector<Type, Size>, 3>& points)
+		{
+			for (auto const& point : points) {
+				accumulate(point);
+			}
 		}
 
 		void accumulate(const Box<Type, Size>& other)
@@ -686,6 +716,11 @@ namespace Cubiquity
 				(value.x() <= upper().x()) && (value.y() <= upper().y()) && (value.z() <= upper().z());
 		}
 
+		bool contains(const Box<Type, Size>& other) const
+		{
+			return contains(other.lower()) && contains(other.upper());
+		}
+
 		void dilate(Type amount)
 		{
 			Vector<Type, Size> amountAsVec = { amount, amount, amount };
@@ -697,6 +732,13 @@ namespace Cubiquity
 		{
 			lower().fill(std::numeric_limits<Type>::max());
 			upper().fill(std::numeric_limits<Type>::lowest());
+		}
+
+		bool isValid()
+		{
+			return lower().x() <= upper().x() &&
+				lower().y() <= upper().y() &&
+				lower().z() <= upper().z();
 		}
 
 		static Box<Type, Size> invalid()
@@ -736,6 +778,13 @@ namespace Cubiquity
 		explicit Box3(const Box<int32, 3>& box) : Box<Type, 3>(box) {}
 
 		Vector3f centre() const { return (this->lower() + this->upper()) * 0.5f; }
+
+		Type volume() const
+		{
+			// FIXME - Handle negative volumes?
+			Vector<Type, 3> dims = this->upper() - this->lower();
+			return dims.x() * dims.y() * dims.z();
+		}
 	};
 
 	typedef Box3<float> Box3f;
@@ -847,9 +896,10 @@ namespace Cubiquity
 		void translate(const Cubiquity::Vector3f& dir);
 		void scale(float factor);
 
-		float sideLength(uint32 index) const;
+		float sideLength(int index) const;
 		Vector3f computeNormal() const;
 		float area() const;
+		Cubiquity::Vector3f centre() const;
 
 		std::array<Cubiquity::Vector3f, 3> vertices;
 	};
@@ -858,8 +908,11 @@ namespace Cubiquity
 
 	/// A (conceptual) list of non-indexed triangles, actually stored as an std::vector
 	typedef std::vector<Cubiquity::Triangle> TriangleList;
+	typedef std::span<Triangle> TriangleSpan;
+	typedef std::span<Triangle const> ConstTriangleSpan; // See https://stackoverflow.com/a/56895806
 
-	Box3f computeBounds(const TriangleList& triangles);
+	Box3f computeBounds(const std::array<Cubiquity::Vector3f, 3>& points);
+	Box3f computeBounds(ConstTriangleSpan triangles);
 	void translate(TriangleList& triangles, const Cubiquity::Vector3f& dir);
 	void scale(TriangleList& triangles, float factor);
 
@@ -891,6 +944,8 @@ namespace Cubiquity
 		intersection.exit = *(std::min_element(maxCorner.begin(), maxCorner.end()));
 		return intersection;
 	}
+
+	bool intersect(const Ray3f& ray, const Triangle& triangle, float& t);
 	
 }
 

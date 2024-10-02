@@ -30,16 +30,16 @@ The main features of Cubiquity are:
 
 * Volume data is stored in a **Sparse Voxel DAG** which allows for extremely efficient compression and hence very large environments. The implementation builds on the [original SVDAG paper](http://www.cse.chalmers.se/~uffe/HighResolutionSparseVoxelDAGs.pdf) and also includes some concepts described in the ['HashDAG' paper](https://graphics.tudelft.nl/Publications-new/2020/CBE20/ModifyingCompressedVoxels-main.pdf), along with some novel contributions of its own. Taken together, these enable **runtime modifications** to the volume as well as support for **per-voxel material identifiers**.
 
-* A robust voxelisation algorithm based on [3D rasterisation](http://web.eecs.utk.edu/~huangj/papers/polygon.pdf) and [generalised winding numbers](https://igl.ethz.ch/projects/winding-number/robust-inside-outside-segmentation-using-generalized-winding-numbers-siggraph-2013-jacobson-et-al.pdf). This allows for **true 'solid' (filled) voxelisation** while also supporting multiple materials in the source mesh. The implementation uses a spatial hierarchy to improve performance and **includes an SIMD (AVX) version** of the winding number evaluation.
+* A robust voxelisation algorithm based on [3D rasterisation](https://research.nvidia.com/publication/2013-06_topological-approach-voxelization/) and [generalised winding numbers](https://igl.ethz.ch/projects/winding-number/). This allows for **true 'solid' (filled) voxelisation** while also supporting multiple materials in the source mesh. The implementation uses a spatial hierarchy to improve performance of the winding number evaluation.
 
 * An experimental rendering algorithm based on **geometry instancing**, driven by **a software occlusion-culling system**. This is in contrast to the more commonly used mesh extraction or raycasting process.
 
-* An implementation of [fast ray vs volume intersections](http://wscg.zcu.cz/wscg2000/Papers_2000/X31.pdf), demonstrated by a (non-real-time) pathtracer and also available for other uses such as collision detection. 
+* An implementation of the raycasting algorithm described in [Efficient Sparse Voxel Octrees](https://research.nvidia.com/sites/default/files/pubs/2010-02_Efficient-Sparse-Voxel/laine2010tr1_paper.pdf), demonstrated by a pathtracer and also available for other uses such as collision detection.
 
 ## Structure
 The engine consists of a number of modules, each [implemented in a single C++ header and corresponding source file](src/cubiquity). There are no external dependencies (beyond the C++ standard library) and each module requires only those below it in the diagram. This makes it easy to drop the source files into your project, or alternatively you can build them into a static library.
 
-The tests, tools and demos do have a small number of external dependencies, most of which are public domain and bundled in this repository. The only exception is SDL which is typically available through you Linux distribution's package manager or from their website.
+The tests, tools and demos do have a small number of permissively-licensed external dependencies, most of which are bundled in this repository. The only exception is SDL which is typically available through your Linux distribution's package manager or from their website.
 
 <p align="center"><img src="docs/images/structure.png" alt="Structure"></p>
 
@@ -157,12 +157,12 @@ Which brings us to this current version of Cubiquity. Although I have kept the n
 Cubiquity is a personal project and unfortunately I'm not looking for external contributions. Please do not send feature requests or pull requests (I actually have a separate repository for development and just copy changes across to this one, so they won't merge cleanly anyway). I'll probably address build problems and bug reports though.
 
 ## Credits
-Cubiquity makes use of a few external projects, all of which are in the public domain. Note that they are not dependencies because they have been integrated into the Cubiquity code base.
+The core library makes use of a few external projects, all of which are in the public domain. Note that they are not dependencies because they have been integrated into the Cubiquity code base.
 
 * **linalg.h:** https://github.com/sgorsten/linalg
 * **MurmurHash3:** https://github.com/aappleby/smhasher/wiki/MurmurHash3
 	
-The demos, tools, and tests also use some external projects, most of which can be found in the src/external folder (except SDL). 
+The demos, tools, and tests also use some external projects, most of which can be found in the src/external folder (except SDL). They are all either public domain or use permissive open source licenses.
 
 * **Flags library:** https://github.com/sailormoon/flags
 * **Glad OpenGL loader:** https://glad.dav1d.de/
@@ -173,3 +173,6 @@ The demos, tools, and tests also use some external projects, most of which can b
 * **STB libraries:** https://github.com/nothings/stb
 * **SDL library:** https://www.libsdl.org/
 	Note: SDL is not public domain but is also not actually included in this repository. Instead the system-provided version is used when compiling the demos.
+* **tinyobjloader:** https://github.com/tinyobjloader/tinyobjloader
+	This is under the MIT license.
+* **JSON for Medern C++:** https://github.com/nlohmann/json This is under the MIT license.

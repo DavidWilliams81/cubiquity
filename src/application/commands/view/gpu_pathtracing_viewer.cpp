@@ -61,7 +61,7 @@ void GPUPathtracingViewer::onInitialise()
 	glGenTextures(1, &mMaterialsTexture);
 	glBindTexture(GL_TEXTURE_1D, mMaterialsTexture);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, materials().data().size(), 0, GL_RGB, GL_FLOAT, materials().data().data());
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, colours().size(), 0, GL_RGB, GL_FLOAT, colours().data());
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

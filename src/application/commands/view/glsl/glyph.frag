@@ -189,4 +189,7 @@ void main()
 	//color.rgb = glyphNormal.xyz * 0.5 + vec3(0.5, 0.5, 0.5);
 	//color.rgb = normalize((worldNormal.xyz)) * 0.5 + vec3(0.5, 0.5, 0.5);
 	color.a = 1.0;
+	
+	vec4 gamma = vec4(1.0/2.2);
+	color = pow(color, gamma);
 }

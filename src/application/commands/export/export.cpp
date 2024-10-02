@@ -2,7 +2,6 @@
 
 #include "base/paths.h"
 #include "base/logging.h"
-#include "base/materials.h"
 #include "base/progress.h"
 
 #include "cubiquity.h"
@@ -15,11 +14,17 @@
 
 using namespace Cubiquity;
 
-void saveVolumeAsImages(Volume& volume, const MaterialSet& materials, const std::string& dirName)
+void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::string& dirName)
 {
 	uint8 outside_material;
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+
+	// Expand the bounds in case we have a scene with a solid exterior, as in
+	// this case it is useful to see some of the exterior in the image slices.
+	const int border = 5;
+	lower_x -= border; lower_y -= border; lower_z -= border;
+	upper_x += border; upper_y += border; upper_z += border;
 
 	for (int z = lower_z; z <= upper_z; z += 1)
 	{
@@ -37,9 +42,16 @@ void saveVolumeAsImages(Volume& volume, const MaterialSet& materials, const std:
 			{
 				MaterialId matId = volume.voxel(x, y, z);
 
-				uint8 r = std::clamp(std::lround(materials[matId][0] * 255.0f), 0L, 255L);
-				uint8 g = std::clamp(std::lround(materials[matId][1] * 255.0f), 0L, 255L);
-				uint8 b = std::clamp(std::lround(materials[matId][2] * 255.0f), 0L, 255L);
+				Col diffuse = metadata.materials.at(matId).diffuse;
+
+				float gamma = 1.0f / 2.2f;
+				diffuse[0] = pow(diffuse[0], gamma);
+				diffuse[1] = pow(diffuse[1], gamma);
+				diffuse[2] = pow(diffuse[2], gamma);
+
+				uint8 r = std::clamp(std::lround(diffuse[0] * 255.0f), 0L, 255L);
+				uint8 g = std::clamp(std::lround(diffuse[1] * 255.0f), 0L, 255L);
+				uint8 b = std::clamp(std::lround(diffuse[2] * 255.0f), 0L, 255L);
 
 				imageData.push_back(r);
 				imageData.push_back(g);
@@ -70,9 +82,8 @@ bool exportVolume(const flags::args& args)
 	if (!checkOutputDirIsValid(outputPath)) return false;
 
 	Volume volume(inputPath.string());
-	MaterialSet materials;
-	materials.load(getMaterialsPath(inputPath));
+	Metadata metadata = loadMetadataForVolume(inputPath);
 
-	saveVolumeAsImages(volume, materials, ".");
+	saveVolumeAsImages(volume, metadata, ".");
 	return true;
 }

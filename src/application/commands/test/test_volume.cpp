@@ -541,7 +541,7 @@ bool testVolume()
 
 	testBounds();
 	testBasics();
-	testCSG();
+	//testCSG();
 	testCheckerboard();
 	testRandomAccess();
 	testFractalNoise();

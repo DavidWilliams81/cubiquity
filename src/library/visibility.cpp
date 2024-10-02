@@ -22,8 +22,6 @@
 #include <stack>
 #include <vector>
 
-std::ofstream myfile("tests.txt");
-
 namespace Cubiquity
 {
 	using namespace Internals;

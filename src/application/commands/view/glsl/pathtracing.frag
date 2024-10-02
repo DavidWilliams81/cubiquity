@@ -690,7 +690,7 @@ vec3 gatherLighting(vec3 position, vec3 normal)
 
 	if (includeSun)
 	{
-		const vec3 sunColour = vec3(1.0f, 1.0f, 0.8f);
+		const vec3 sunColour = vec3(0.1, 0.1, 0.1);
 		vec3 sunDir = normalize(vec3(1.0, -2.0, 10.0 ));
 
 		Ray3f sunShadowRay;
@@ -705,7 +705,7 @@ vec3 gatherLighting(vec3 position, vec3 normal)
 
 	if (includeSky)
 	{
-		const vec3 skyColour = vec3(0.8f, 0.8f, 1.0f);
+		const vec3 skyColour = vec3(1.5f, 1.5f, 1.5f);
 		const vec3 skyDir = normalize(normal + randomPointInUnitSphere());
 		Ray3f skyShadowRay;
 		skyShadowRay.mOrigin = position + offset;
@@ -722,7 +722,7 @@ vec3 gatherLighting(vec3 position, vec3 normal)
 
 vec4 traceSingleRay(const Ray3f ray, uint depth)
 {
-	vec4 pixelColour = { 0.0f, 0.0f, 0.0f, 1.0f };
+	vec4 pixelColour = { 0.8f, 0.8f, 1.0f, 1.0f }; // Light blue background
 
 	RayVolumeIntersection intersection0 = intersectVolume(ray, true, gMaxFootprint);
 	if (intersection0.material > 0)
@@ -817,6 +817,9 @@ if(tileGroup == currentGroup)
 	nextPointInUnitSphere = hashRay(ray) ^ randSeed;
 	FragColor = traceSingleRay(ray, 0);
 }
+
+vec4 gamma = vec4(1.0/2.2);
+FragColor = pow(FragColor, gamma);
 
 //#ifndef PROGRESSIVE
 //	FragColor.g = 0.0;

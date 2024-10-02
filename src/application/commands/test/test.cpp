@@ -31,14 +31,14 @@ bool test(const flags::args& args)
 		std::cout << "TEST FAILED!" << std::endl;
 	}
 
-	/*if (!testVisibility())
+	if (!testVisibility())
 	{
 		std::cout << "TEST FAILED!" << std::endl;
 	}
 
-	testVoxelization();
+	//testVoxelization();
 
-	testVolume();*/
+	testVolume();
 
 	//testMerge();
 

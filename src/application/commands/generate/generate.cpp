@@ -14,7 +14,7 @@
 #include "generate.h"
 
 #include "base/logging.h"
-#include "base/materials.h"
+#include "base/metadata.h"
 
 #include "storage.h"
 
@@ -58,8 +58,11 @@ bool generateVolume(const flags::args& args)
 	const auto sizeExp = args.get<uint>("size_exp", 5);
 
 	Volume volume;
-	MaterialSet materials;
-	MaterialId matId = materials.findOrInsert({ 0.5, 0.5, 1.0 });
+	MaterialId matId = 1;
+	Metadata metadata;
+	metadata.materials[matId].name = "Main";
+	metadata.materials[matId].diffuse = { 0.5, 0.5, 1.0 };
+
 
 	uint32 size = 1;
 	for (uint i = 0; i < sizeExp; i++)
@@ -83,7 +86,7 @@ bool generateVolume(const flags::args& args)
 	// Save the result
 	std::cout << "Saving volume as \'" << outputPath << "\'...";
 	volume.save(outputPath.string());
-	materials.save(getMaterialsPath(outputPath));
+	saveMetadataForVolume(metadata, outputPath);
 	std::cout << "done." << std::endl;
 
 	return true;

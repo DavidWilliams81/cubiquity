@@ -50,7 +50,7 @@ float PathtracingDemo::positionBasedNoise(const vec3& position)
 
 vec3 PathtracingDemo::surfaceColour(const RayVolumeIntersection& intersection)
 {
-	vec3 colour = vec3({ materials()[intersection.material][0], materials()[intersection.material][1], materials()[intersection.material][2] });
+	vec3 colour = vec3({ colours()[intersection.material][0], colours()[intersection.material][1], colours()[intersection.material][2] });
 
 	if (addNoise)
 	{
@@ -90,7 +90,7 @@ vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 
 	if (includeSun)
 	{
-		const vec3 sunColour = vec3({ 1.0f, 1.0f, 0.8f });
+		const vec3 sunColour = vec3({ 0.1, 0.1, 0.1 });
 		vec3 sunDir(normalize(vec3({ 1.0, -2.0, 10.0 })));
 
 		Ray3f sunShadowRay(position + offset, sunDir);
@@ -103,7 +103,7 @@ vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 
 	if (includeSky)
 	{
-		const vec3 skyColour = vec3({ 0.8f, 0.8f, 1.0f });
+		const vec3 skyColour = vec3({ 1.5f, 1.5f, 1.5f });
 		const vec3 skyDir = normalize(normal + randomPointInUnitSphere());
 		Ray3f skyShadowRay(position + offset, skyDir);
 		RayVolumeIntersection skyShadowIntersection = intersectVolume(volume(), subDAGs, skyShadowRay, false, maxFootprint);
@@ -120,7 +120,7 @@ vec3 PathtracingDemo::traceSingleRayRecurse(const Ray3f& ray, uint depth)
 {
 	if (depth > bounces) { return vec3::filled(0); }
 
-	vec3 pixelColour = { 0.0f, 0.0f, 0.0f };
+	vec3 pixelColour = { 0.8f, 0.8f, 1.0f }; // Light blue background
 
 	RayVolumeIntersection intersection = intersectVolume(volume(), subDAGs, ray, true, maxFootprint);
 	if (intersection.hit)
@@ -143,7 +143,7 @@ vec3 PathtracingDemo::traceSingleRayRecurse(const Ray3f& ray, uint depth)
 
 vec3 PathtracingDemo::traceSingleRay(const Ray3f& ray, uint depth)
 {
-	vec3 pixelColour = { 0.0f, 0.0f, 0.0f };
+	vec3 pixelColour = { 0.8f, 0.8f, 1.0f }; // Light blue background
 
 	RayVolumeIntersection intersection0 = intersectVolume(volume(), subDAGs, ray, true, maxFootprint);
 	if (intersection0.hit)
@@ -164,6 +164,9 @@ vec3 PathtracingDemo::traceSingleRay(const Ray3f& ray, uint depth)
 		}
 
 		pixelColour = surfCol0 * (directLighting0 + indirectLighting0);
+
+		float gamma = 1.0 / 2.2;
+		pixelColour = pow(pixelColour, vec3({ gamma, gamma, gamma }));
 
 	}
 

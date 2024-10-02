@@ -5,7 +5,9 @@
 #include "camera.h"
 #include "storage.h"
 
-#include "base/materials.h"
+#include "base/metadata.h"
+
+typedef std::array<Col, 256> ColourArray;
 
 class Viewer : public Window
 {
@@ -15,7 +17,7 @@ public:
 
 	const Camera& camera() { return mCamera; }
 	const Cubiquity::Volume& volume() { return mVolume; }
-	const MaterialSet& materials() { return mMaterials; }
+	const ColourArray& colours() { return mColours; }
 
 protected:
 
@@ -45,7 +47,7 @@ private:
 
 	Camera mCamera;
 	Cubiquity::Volume mVolume;
-	MaterialSet mMaterials;
+	ColourArray mColours;
 
 	int mFrameNumber;
 };

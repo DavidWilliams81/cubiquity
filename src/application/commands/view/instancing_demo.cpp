@@ -48,7 +48,7 @@ void InstancingDemo::onInitialise()
 	glGenTextures(1, &materialsTexture);
 	glBindTexture(GL_TEXTURE_1D, materialsTexture);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, materials().data().size(), 0, GL_RGB, GL_FLOAT, materials().data().data());
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB, colours().size(), 0, GL_RGB, GL_FLOAT, colours().data());
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -75,8 +75,8 @@ void InstancingDemo::onInitialise()
 
 	mGlyphs = new Glyph[MaxGlyphCount];
 
-	// Black background
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	// Light blue background
+	glClearColor(0.8f, 0.8f, 1.0f, 0.0f);
 
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);

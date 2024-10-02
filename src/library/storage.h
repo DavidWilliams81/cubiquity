@@ -46,7 +46,7 @@ namespace Cubiquity
 			void setNode(uint32 index, const Internals::Node& node);
 			void setNodeChild(uint32 nodeIndex, uint32 childId, uint32 newChildIndex);
 			Node* data() const { return mData; }
-			uint32 size() const { return 0xFFFFFF; }
+			uint32 size() const { return 0x3FFFFFF; }
 			
 		private:
 			Node* mData = nullptr;

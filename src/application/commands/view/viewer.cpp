@@ -35,7 +35,13 @@ Viewer::Viewer(const std::string& filename, WindowType windowType)
 		}
 	}*/
 
-	mMaterials.load(getMaterialsPath(filename));
+	Metadata metadata = loadMetadataForVolume(filename);
+
+	// Build an array of colours from the material data for uploading to the GPU.
+	std::fill(begin(mColours), end(mColours), Metadata::Warning.diffuse);
+	for (int i = 0; i < metadata.materials.size(); i++) {
+		mColours[i] = metadata.materials[i].diffuse;
+	}
 }
 
 void Viewer::onInitialise()

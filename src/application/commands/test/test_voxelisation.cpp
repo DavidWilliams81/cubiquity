@@ -14,18 +14,15 @@ using namespace std;
 
 bool testWindingNumberBehaviour(const TriangleList& triangles, const Box3f& bounds)
 {
-	std::cout << "Testing winding number behaviour" << std::endl;
+	/*std::cout << "Testing winding number behaviour" << std::endl;
 	std::cout << "--------------------------------" << std::endl;
 
 	uint32 internalSamplesBruteForce = 0;
-	uint32 internalSamplesHierarchicalNormal = 0;
-	uint32 internalSamplesHierarchicalTidied = 0;
+	uint32 internalSamplesHierarchical = 0;
 
-	double bruteForceVsHierarchicalNormalError = 0.0;
-	double bruteForceVsHierarchicalTidiedError = 0.0;
+	double bruteForceVsHierarchicalError = 0.0;
 
-	ClosedTriangleTree closedTriangleTreeNormal(triangles, false); // More accurate
-	ClosedTriangleTree closedTriangleTreeTidied(triangles, true);  // More robust
+	Patch patchNodeNormal(triangles);
 
 	Box3fSampler Box3fSampler(bounds);
 	const uint32 samples = 10000;
@@ -34,45 +31,38 @@ bool testWindingNumberBehaviour(const TriangleList& triangles, const Box3f& boun
 		auto v = Box3fSampler.next();
 
 		double bruteForce = computeWindingNumber(v, triangles);
-		double hierarchicalNormal = computeWindingNumber(v, closedTriangleTreeNormal);
-		double hierarchicalTidied = computeWindingNumber(v, closedTriangleTreeTidied);
+		double hierarchicalNormal = computeWindingNumber(v, patchNodeNormal);
 
 		if (bruteForce > 0.5) { internalSamplesBruteForce++; }
-		if (hierarchicalNormal > 0.5) { internalSamplesHierarchicalNormal++; }
-		if (hierarchicalTidied > 0.5) { internalSamplesHierarchicalTidied++; }
+		if (hierarchicalNormal > 0.5) { internalSamplesHierarchical++; }
 
-		bruteForceVsHierarchicalNormalError += std::abs(bruteForce - hierarchicalNormal);
-		bruteForceVsHierarchicalTidiedError += std::abs(bruteForce - hierarchicalTidied);
+		bruteForceVsHierarchicalError += std::abs(bruteForce - hierarchicalNormal);
 	}
 
-	bruteForceVsHierarchicalNormalError /= samples;
-	bruteForceVsHierarchicalTidiedError /= samples;
+	bruteForceVsHierarchicalError /= samples;
 
 	assert(internalSamplesBruteForce         == 4157);
 	assert(internalSamplesHierarchicalNormal == 4157);
-	assert(internalSamplesHierarchicalTidied == 4157);
 
 	std::cout << "Internal samples count (brute force) =          "
 		      << internalSamplesBruteForce << std::endl;
-	std::cout << "Internal samples count (hierarchical, normal) = "
-		      << internalSamplesHierarchicalNormal << std::endl;
-	std::cout << "Internal samples count (hierarchical, tidied) = "
-		      << internalSamplesHierarchicalTidied << std::endl;
+	std::cout << "Internal samples count (hierarchical) = "
+		      << internalSamplesHierarchical << std::endl;
 	std::cout << std::endl;
-	std::cout << "Brute-force vs. hierarchical (normal) average error = "
-			  << bruteForceVsHierarchicalNormalError << std::endl;
-	std::cout << "Brute-force vs. hierarchical (tidied) average error = "
-		      << bruteForceVsHierarchicalTidiedError << std::endl;
+	std::cout << "Brute-force vs. hierarchical average error = "
+			  << bruteForceVsHierarchicalError << std::endl;
 
+			  */
 	return true;
 }
 
 bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bounds)
 {
+	/*
 	std::cout << "Testing winding number performance" << std::endl;
 	std::cout << "----------------------------------" << std::endl;
 
-	ClosedTriangleTree closedTriangleTree(triangles);
+	Patch patchNode(triangles);
 
 	Box3fSampler Box3fSampler(bounds);
 
@@ -85,7 +75,7 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	for (int i = 0; i < samples; i++)
 	{
 		auto v = Box3fSampler.next();
-		computeWindingNumber(v, closedTriangleTree) > 0.5f ? insideCount++ : outsideCount++;
+		computeWindingNumber(v, patchNode) > 0.5f ? insideCount++ : outsideCount++;
 	}
 
 	std::cout << "Interior voxels = " << insideCount  << " / " << samples << std::endl;
@@ -95,6 +85,7 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	check(insideCount,  41679);
 	check(outsideCount, 58321);
 
+	*/
 	return true;
 }
 

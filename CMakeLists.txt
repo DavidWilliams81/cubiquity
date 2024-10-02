@@ -21,7 +21,7 @@ project (Cubiquity)
 ################################################################################
 
 # C++17 required for flags.h library.
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -57,7 +57,13 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 file(GLOB LIBRARY_SRCS src/library/*)
 add_library(Library ${LIBRARY_SRCS})
-target_link_libraries(Library Threads::Threads)
+
+if(MSVC)
+    target_link_libraries(Library Threads::Threads)
+else()
+    # GCC parallel algorithms depend on Intel TBB.
+    target_link_libraries(Library Threads::Threads tbb)
+endif()
 
 # Required to profile release bulds.
 if(MSVC)

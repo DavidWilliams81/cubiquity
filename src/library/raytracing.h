@@ -44,9 +44,6 @@ namespace Cubiquity
 	typedef Vector3b bvec3;
 	typedef Vector4b bvec4;
 
-	// Raytracing
-	double traceRay(Ray3f ray, Volume& volume);
-
 	// This structure contains an explicit 'hit' member rather than relying on a sentinal value
 	// such as a negative distance or a material of zero. I have found this simplifies the code
 	// and we might want to skip material identification anyway (if traversal is stopped early

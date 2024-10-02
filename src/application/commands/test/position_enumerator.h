@@ -31,9 +31,9 @@ namespace Cubiquity
 			{
 				// Not sure is this constraint is necessary but
 				// I haven't thought about it enough nor tested.
-				assert(isPowerOf2(mWidth));
-				assert(isPowerOf2(mHeight));
-				assert(isPowerOf2(mDepth));
+				assert(Internals::isPowerOf2(mWidth));
+				assert(Internals::isPowerOf2(mHeight));
+				assert(Internals::isPowerOf2(mDepth));
 			}
 
 			updatePositionsFromState();

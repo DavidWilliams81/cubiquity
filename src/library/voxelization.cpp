@@ -13,1317 +13,816 @@
 #include "voxelization.h"
 
 #include "geometry.h"
-
 #include "storage.h"
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-
-// g++ currently doesn't support std::execution.
-#if defined (_MSC_VER) && _MSC_VER >= 1900
 #include <execution>
-#endif
 
+#ifdef _MSC_VER // Not supported on Debian 12 GCC
+#include <format>
+#endif //_MSC_VER
 
+#include <fstream>
 #include <mutex>
+#include <set>
 #include <thread>
-
-#ifdef CUBIQUITY_USE_AVX
-	#include <immintrin.h>
-#endif
 
 namespace Cubiquity
 {
-	using namespace Internals;
+using namespace Internals;
 
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	//   _    _ _           _ _               _   _                 _                             //
-	//  | |  | (_)         | (_)             | \ | |               | |                            //
-	//  | |  | |_ _ __   __| |_ _ __   __ _  |  \| |_   _ _ __ ___ | |__   ___ _ __ ___           //
-	//  | |/\| | | '_ \ / _` | | '_ \ / _` | | . ` | | | | '_ ` _ \| '_ \ / _ \ '__/ __|          //
-	//  \  /\  / | | | | (_| | | | | | (_| | | |\  | |_| | | | | | | |_) |  __/ |  \__ \          //
-	//   \/  \/|_|_| |_|\__,_|_|_| |_|\__, | \_| \_/\__,_|_| |_| |_|_.__/ \___|_|  |___/          //
-	//                                 __/ |                                                      //
-	//                                |___/                                                       //
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	typedef std::pair<Vector3f, Vector3f> TriangleEdge;
+// These compile-time controls are only for validation purposes
+const bool evalWindingNumberHierarchy = true; // Evaluate hierarchy rather than flat list (faster)
+const bool classifyNodesNotVoxels = true; // Classify octree nodes rather than voxels (faster)
 
-	// Theorectcally the threshold should be 0.5f. However, triangles often pass *exactly*
-	// through the centre of a voxel due to e.g. being modelled on a grid in a DCC package,
-	// and/or being scaled by interger amounts. Rounding errors mean that such triangles can
-	// end up with a noisy surface, and the epsilon below helps to avoid this.
-	const float gWindingNumberThreshold = 0.5 + 0.001f;
+/***************************************************************************************************
+*    ______       _                         __  _   _  _    _  _                                   *
+*    |  _  \     | |                       / / | | | || |  (_)| |                                  *
+*    | | | | ___ | |__   _   _   __ _     / /  | | | || |_  _ | | ___                              *
+*    | | | |/ _ \| '_ \ | | | | / _` |   / /   | | | || __|| || |/ __|                             *
+*    | |/ /|  __/| |_) || |_| || (_| |  / /    | |_| || |_ | || |\__ \                             *
+*    |___/  \___||_.__/  \__,_| \__, | /_/      \___/  \__||_||_||___/                             *
+*                                __/ |                                                             *
+*                               |___/                                                              *
+***************************************************************************************************/
 
-	TriangleEdge flip(const TriangleEdge& edge)
-	{
-		return std::make_pair(edge.second, edge.first);
+#ifdef _MSC_VER // Not supported on Debian 12 GCC
+
+// Write out the winding number tree to a stream for inspection
+void writePatch(const Patch& patch, std::ostream& file, int indent = 0)
+{
+	file << std::format("{}Patch {}: Triangle count = {}, Closing triangle count = {}",
+		std::string(indent, '\t'), reinterpret_cast<uintptr_t>(&patch),
+		patch.triangles.size(), patch.closingTriangles.size()) << std::endl;
+
+	for (const auto& child : patch.children) {
+		writePatch(child, file, indent + 1);
 	}
+}	
 
-#ifdef CUBIQUITY_USE_AVX
-
-	inline void cross(__m256 ax, __m256 ay, __m256 az, __m256 bx, __m256 by, __m256 bz, __m256& resx, __m256& resy, __m256& resz)
+// Support function for exporting Collada
+void exportGeometry(std::ostream& file, const Patch& patch)
+{
+	// For visualisation purposes it is most useful to only output geometry for leaf nodes
+	if (patch.children.empty()) // Leaf node, output triangles
 	{
-		resx = _mm256_sub_ps(_mm256_mul_ps(ay, bz), _mm256_mul_ps(az, by));
-		resy = _mm256_sub_ps(_mm256_mul_ps(az, bx), _mm256_mul_ps(ax, bz));
-		resz = _mm256_sub_ps(_mm256_mul_ps(ax, by), _mm256_mul_ps(ay, bx));
-	}
+		const int triangle_count = patch.triangles.size();
+		const std::string name = std::to_string(reinterpret_cast<uintptr_t>(&patch));		
 
-	inline __m256 dot(__m256 ax, __m256 ay, __m256 az, __m256 bx, __m256 by, __m256 bz)
-	{
-		__m256 axbx = _mm256_mul_ps(ax, bx);
-		__m256 ayby = _mm256_mul_ps(ay, by);
-		__m256 azbz = _mm256_mul_ps(az, bz);
+		file << std::format(
+			"\t\t<geometry id=\"{}-mesh\" name=\"{}\">\n"
+			"\t\t\t<mesh>\n"
+			"\t\t\t\t<source id=\"{}-mesh-positions\">\n"
+			"\t\t\t\t\t<float_array id=\"{}-mesh-positions-array\" count=\"{}\">",
+			name, name, name, name, triangle_count * 3 * 3);
 
-		__m256 result = _mm256_add_ps(axbx, ayby);
-		result = _mm256_add_ps(result, azbz);
-		return result;
-	}
-
-	inline __m256 length(__m256 x, __m256 y, __m256 z)
-	{
-		return _mm256_sqrt_ps(dot(x, y, z, x, y, z));
-	}
-
-	float computeWindingNumber(const Vector3f& queryPoint, const TriangleList& triangles)
-	{
-		if (triangles.empty())
-		{
-			// FIXME - what is allowing this to happen?
-			return 0.0f;
-		}
-
-		const uint32 avxWidth = 8; // Eight floats to each 256-bit AVX operation.
-		const uint32 elementsPerTriangle = 9;
-
-		// The triangle data comes in with the floats in an interleaved (packed) format. The order is
-		// [ax, ay, az, bx, by, bz, cx ,cy, cz, ax, ay, az, ...] which is not optimal for SIMD processing.
-		// Because AVX does not support 'gather' operations (requires AVX2) we restructure the data into
-		// a planar format where the order is [ax, ax, ..., ay, ay, ..., ..., cz, cz, ...]. We also round
-		// the number of triangles up to the nearest multiple of the AVX width (in terms of floats) to
-		// simplify later logic. All this repacking will probably disappear in the future if/when I get a
-		// CPU supporting the newer AVX2 instruction set.
-		const uint32_t triCount = triangles.size();
-		const uint32 triCountRoundedUp = (triCount + avxWidth - 1) & -avxWidth;
-
-		// Reordered version of the data. FIXME - Use aligned_alloc when my compiler supports it.
-		float* const planar = new float[triCountRoundedUp * elementsPerTriangle];
-		/*if (!isAligned(planar, 32))
-		{
-		throw std::runtime_error("Incorrect memory alignment");
-		}*/
-
-		float* dst = planar;
-		float* const dstEnd = dst + triCountRoundedUp * elementsPerTriangle;
-
-		// For each element type (ax, ay, ... cy, cy)
-		for (uint32 elementIndex = 0; elementIndex < elementsPerTriangle; elementIndex++)
-		{
-			const float* src = reinterpret_cast<const float*>(&(triangles[0])) + elementIndex;
-			const float* const srcEnd = (src + triCount * elementsPerTriangle);
-
-			// Only the end of *this particular set of elements* (not the whole planer buffer).
-			float* const dstEnd = dst + triCountRoundedUp;
-
-			// Gather the source elements into the destination buffer
-			while (src < srcEnd)
-			{
-				*dst = *src;
-				dst++;
-				src += elementsPerTriangle;
-			}
-
-			// Fill any remaining elements with zeros;
-			while (dst < dstEnd)
-			{
-				*dst = 0.0f;
-				dst++;
+		for (const auto& triangle : patch.triangles) {
+			for (const auto& vertex : triangle.vertices) {
+				file << vertex[0] << " " << vertex[1] << " " << vertex[2] << " ";
 			}
 		}
 
-		float windingNumber = 0.0f;
+		file << std::format("</float_array>\n"
+			"\t\t\t\t\t<technique_common>\n"
+			"\t\t\t\t\t\t<accessor source=\"#{}-mesh-positions-array\" count=\"{}\" stride=\"3\">\n"
+			"\t\t\t\t\t\t\t<param name=\"X\" type=\"float\"/>\n"
+			"\t\t\t\t\t\t\t<param name=\"Y\" type=\"float\"/>\n"
+			"\t\t\t\t\t\t\t<param name=\"Z\" type=\"float\"/>\n"
+			"\t\t\t\t\t\t</accessor>\n"
+			"\t\t\t\t\t</technique_common>\n"
+			"\t\t\t\t</source>\n"
+			"\t\t\t\t<vertices id=\"{}-mesh-vertices\">\n"
+			"\t\t\t\t\t<input semantic=\"POSITION\" source=\"#{}-mesh-positions\"/>\n"
+			"\t\t\t\t</vertices>\n"
+			"\t\t\t\t<triangles count=\"{}\">\n"
+			"\t\t\t\t\t<input semantic=\"VERTEX\" source=\"#{}-mesh-vertices\" offset=\"0\"/>\n",
+			name, triangle_count * 3, name, name, triangle_count, name);
 
-		__m256 qx = _mm256_set1_ps(queryPoint.x());
-		__m256 qy = _mm256_set1_ps(queryPoint.y());
-		__m256 qz = _mm256_set1_ps(queryPoint.z());
+		// Generate indices for our non-indexed triangles (as Collada seems to require them).
+		file << "\t\t\t\t\t<p>";
+		for (int index = 0; index < triangle_count * 3; index++) {
+			file << index << " ";
+		}
 
-		for (uint32_t index = 0; index < triCountRoundedUp; index += 8)
+		// Closing tags
+		file << "</p>\n\t\t\t\t</triangles>\n\t\t\t</mesh>\n\t\t</geometry>\n";
+	}
+	else // Internal node, process children
+	{
+		for (const auto& child : patch.children) {
+			exportGeometry(file, child);
+		}
+	}
+}
+
+// Support function for exporting Collada
+void exportNode(std::ostream& file, const Patch& patch, int indent)
+{
+	const std::string name = std::to_string(reinterpret_cast<uintptr_t>(&patch));
+	file << std::format("{}<node id=\"{}-node\" name=\"{}-node\" type=\"NODE\">\n",
+		std::string(indent+1, '\t'), name, name);
+	
+	// For visualisation purposes it is most useful to only output geometry for leaf nodes
+	if (patch.children.empty())	{ // Leaf node, output geometry
+		file << std::format("{}<instance_geometry url=\"#{}-mesh\" name=\"{}-name\"/>\n",
+			std::string(indent+2, '\t'), name, name);
+	}
+	else { // Internal node, process children
+		for (const auto& child : patch.children) {
+			exportNode(file, child, indent + 1);
+		}
+	}
+
+	file << std::format("{}</node>\n", std::string(indent+1, '\t'));
+}
+
+// Write the winding number tree as Collada for visualisation purposes.
+// Collada is used because it is easy to write, and supports hierarchical
+// transformations which are imported into Blender correctly.
+void exportCollada(const std::string& filename, const Patch& patch)
+{
+	std::ofstream file(filename);
+
+	file << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+	file << "<COLLADA xmlns = \"http://www.collada.org/2005/11/COLLADASchema\" "; // No newline
+	file << "version = \"1.4.1\" xmlns:xsi = \"http://www.w3.org/2001/XMLSchema-instance\">\n";
+	file << "\t<library_geometries>\n";
+
+	exportGeometry(file, patch);
+
+	file << "\t</library_geometries>\n";
+	file << "\t<library_visual_scenes>\n";
+	file << "\t\t<visual_scene id=\"Scene\" name=\"Scene\">\n";
+
+	exportNode(file, patch, 2);
+
+	file << "\t\t</visual_scene>\n";
+	file << "\t</library_visual_scenes>\n";
+	file << "\t<scene>\n";
+	file << "\t\t<instance_visual_scene url=\"#Scene\"/>\n";
+	file << "\t</scene>\n";
+	file << "</COLLADA>\n";
+	file.close();
+}
+
+#endif // _MSC_VER
+
+/***************************************************************************************************
+*   _    _ _           _ _               _   _                 _                                   *
+*  | |  | (_)         | (_)             | \ | |               | |                                  *
+*  | |  | |_ _ __   __| |_ _ __   __ _  |  \| |_   _ _ __ ___ | |__   ___ _ __ ___                 *
+*  | |/\| | | '_ \ / _` | | '_ \ / _` | | . ` | | | | '_ ` _ \| '_ \ / _ \ '__/ __|                *
+*  \  /\  / | | | | (_| | | | | | (_| | | |\  | |_| | | | | | | |_) |  __/ |  \__ \                *
+*   \/  \/|_|_| |_|\__,_|_|_| |_|\__, | \_| \_/\__,_|_| |_| |_|_.__/ \___|_|  |___/                *
+*                                 __/ |                                                            *
+*                                |___/                                                             *
+****************************************************************************************************
+* Implements the hierarchical method of winding number evaluation and segmentation as described in *
+* "Robust Inside-Outside Segmentation using Generalized Winding Numbers" by Jacobson et al (2013)  *
+***************************************************************************************************/
+
+float computeWindingNumber(const Vector3f& queryPoint, ConstTriangleSpan triangles)
+{
+	float windingNumber = 0.0f;
+
+	for (const Triangle& triangle : triangles)
+	{
+		const auto& a = triangle.vertices[0];
+		const auto& b = triangle.vertices[1];
+		const auto& c = triangle.vertices[2];
+
+		Vector3f qa = a - queryPoint;
+		Vector3f qb = b - queryPoint;
+		Vector3f qc = c - queryPoint;
+
+		const float alength = length(qa);
+		const float blength = length(qb);
+		const float clength = length(qc);
+
+		// Avoid potential NaNs/Infs in the result. If any of these values are
+		// zero then the triangle does not contribute to the winding number.
+		if (alength != 0 && blength != 0 && clength != 0)
 		{
-			// The code below is an (untested) implementation using  AVX2
-			// gather instructions. It is saved here for future reference.
-			//__m256i vindex = _mm256_set_epi32(0, 9, 18, 27, 36, 45, 54, 63); // Move out of loop
-			//float* firstTriangle = (float*)(&(paddedTriangles[index]));
-
-			//__m256 qax = _mm256_i32gather_ps(firstTriangle + 0, vindex, 4);
-			//__m256 qay = _mm256_i32gather_ps(firstTriangle + 1, vindex, 4);
-			//__m256 qaz = _mm256_i32gather_ps(firstTriangle + 2, vindex, 4);
-
-			//__m256 qbx = _mm256_i32gather_ps(firstTriangle + 3, vindex, 4);
-			//__m256 qby = _mm256_i32gather_ps(firstTriangle + 4, vindex, 4);
-			//__m256 qbz = _mm256_i32gather_ps(firstTriangle + 5, vindex, 4);
-
-			//__m256 qcx = _mm256_i32gather_ps(firstTriangle + 6, vindex, 4);
-			//__m256 qcy = _mm256_i32gather_ps(firstTriangle + 7, vindex, 4);
-			//__m256 qcz = _mm256_i32gather_ps(firstTriangle + 8, vindex, 4);
-
-			__m256 qax = _mm256_loadu_ps(planar + (triCountRoundedUp * 0) + index);
-			__m256 qay = _mm256_loadu_ps(planar + (triCountRoundedUp * 1) + index);
-			__m256 qaz = _mm256_loadu_ps(planar + (triCountRoundedUp * 2) + index);
-
-			__m256 qbx = _mm256_loadu_ps(planar + (triCountRoundedUp * 3) + index);
-			__m256 qby = _mm256_loadu_ps(planar + (triCountRoundedUp * 4) + index);
-			__m256 qbz = _mm256_loadu_ps(planar + (triCountRoundedUp * 5) + index);
-
-			__m256 qcx = _mm256_loadu_ps(planar + (triCountRoundedUp * 6) + index);
-			__m256 qcy = _mm256_loadu_ps(planar + (triCountRoundedUp * 7) + index);
-			__m256 qcz = _mm256_loadu_ps(planar + (triCountRoundedUp * 8) + index);
-
-			qax = _mm256_sub_ps(qax, qx);
-			qay = _mm256_sub_ps(qay, qy);
-			qaz = _mm256_sub_ps(qaz, qz);
-
-			qbx = _mm256_sub_ps(qbx, qx);
-			qby = _mm256_sub_ps(qby, qy);
-			qbz = _mm256_sub_ps(qbz, qz);
-
-			qcx = _mm256_sub_ps(qcx, qx);
-			qcy = _mm256_sub_ps(qcy, qy);
-			qcz = _mm256_sub_ps(qcz, qz);
-
-			// In AVX we could actually compute the(approx) reciprocal length via the rsqrt()
-			// intrinsic and do a multiply below instead of a divide. This might be faster, but
-			// the results then deviate from our reference implementation.
-			__m256 alength = length(qax, qay, qaz);
-			__m256 blength = length(qbx, qby, qbz);
-			__m256 clength = length(qcx, qcy, qcz);
-
-			// Note that the reference C++ version of the code checks that the lengths are not zero
-			// before normalizing. I've skipped that here as it's a bit more tricky when using SIMD.
-			// Should watch out for Nans/Infs though?
-			qax = _mm256_div_ps(qax, alength);
-			qay = _mm256_div_ps(qay, alength);
-			qaz = _mm256_div_ps(qaz, alength);
-
-			qbx = _mm256_div_ps(qbx, blength);
-			qby = _mm256_div_ps(qby, blength);
-			qbz = _mm256_div_ps(qbz, blength);
-
-			qcx = _mm256_div_ps(qcx, clength);
-			qcy = _mm256_div_ps(qcy, clength);
-			qcz = _mm256_div_ps(qcz, clength);
+			// Normalize the vectors
+			qa /= alength;
+			qb /= blength;
+			qc /= clength;
 
 			// Subtracting qa from qb and qc is not strictly required,
 			// but gives a more stable result if the triangle is far away.
-			__m256 qb_qax = _mm256_sub_ps(qbx, qax);
-			__m256 qb_qay = _mm256_sub_ps(qby, qay);
-			__m256 qb_qaz = _mm256_sub_ps(qbz, qaz);
+			const float numerator = dot(qa, cross(qb - qa, qc - qa));
+			const float denominator = 1.0f + dot(qa, qb) + dot(qa, qc) + dot(qb, qc);
 
-			__m256 qc_qax = _mm256_sub_ps(qcx, qax);
-			__m256 qc_qay = _mm256_sub_ps(qcy, qay);
-			__m256 qc_qaz = _mm256_sub_ps(qcz, qaz);
-
-			// Numerator
-			__m256 crossx, crossy, crossz;
-			cross(qb_qax, qb_qay, qb_qaz, qc_qax, qc_qay, qc_qaz, crossx, crossy, crossz);
-			__m256 numerator = dot(qax, qay, qaz, crossx, crossy, crossz);
-
-
-			// Denominator
-			__m256 dqaqb = dot(qax, qay, qaz, qbx, qby, qbz);
-			__m256 dqaqc = dot(qax, qay, qaz, qcx, qcy, qcz);
-			__m256 dqbqc = dot(qbx, qby, qbz, qcx, qcy, qcz);
-
-			__m256 denominator = _mm256_set1_ps(1.0f);
-			denominator = _mm256_add_ps(denominator, dqaqb);
-			denominator = _mm256_add_ps(denominator, dqaqc);
-			denominator = _mm256_add_ps(denominator, dqbqc);
-
-			// Unfortunately AVX does not provide us with a way to compute the atan2 of an __m256
-			// register. More accurately, the 'a_mm256_atan2_ps' intrinsic is part of the Intel
-			// SVML library which is not freely available. I have found other SIMD atan2()
-			// implementation but I think they implement and single atan2() via SIMD, rather than
-			// operating on a whole register at once. Agner Fog's vector library might be an
-			// exception here, but the code is complex and not public domain.
-			//
-			// Therefor I implement the atan2() part of the process by pulling the values out of the
-			// __m256 registers and just using the normal atan2() function.
-			alignas(32) float numerators[8];
-			alignas(32) float denominators[8];
-
-			_mm256_store_ps(numerators, numerator);
-			_mm256_store_ps(denominators, denominator);
-
-			for (int i = 0; i < 8; i++)
+			// Numerator of zero means we are on the surface (treat as no solid angle).
+			if (numerator != 0)
 			{
-				// Numerator of zero means we are on the surface (treat as no solid angle).
-				if (numerators[i] != 0)
-				{
-					assert(std::isnormal(numerators[i]));
-					assert(std::isnormal(denominators[i]));
-					windingNumber += 2.0f * ::atan2(numerators[i], denominators[i]);
-				}
+				//assert(std::isnormal(numerator));
+				//assert(std::isnormal(denominator));
+				windingNumber += 2.0f * ::atan2(numerator, denominator);
 			}
 		}
-
-		delete[] planar;
-
-		// Normalise to [-1.0f, 1.0f] range.
-		windingNumber /= 4.0 * 3.14159265358979323846;
-
-		// Make sure we got a 'valid' result.
-		assert(std::isnormal(windingNumber) || (windingNumber == 0));
-
-		return windingNumber;
 	}
 
-#else // CUBIQUITY_USE_AVX
+	// Normalise to [-1.0f, 1.0f] range.
+	windingNumber /= 4.0 * 3.14159265358979323846;
 
-	float computeWindingNumber(const Vector3f& queryPoint, const TriangleList& triangles)
+	// Make sure we got a 'valid' result.
+	assert(std::isnormal(windingNumber) || (windingNumber == 0));
+
+	return windingNumber;
+}
+
+float computeWindingNumber(const Vector3f& queryPoint, const Patch& patch)
+{
+	// Implementation of Algorithm 2 from Jacobson et al.
+	if (patch.children.empty()) // Leaf node
+	{
+		return computeWindingNumber(queryPoint, patch.triangles);
+	}
+	else if (!patch.bounds.contains(queryPoint)) // Outside node
+	{
+		return -computeWindingNumber(queryPoint, patch.closingTriangles); // Note negation
+	}
+	else // Inside non-leaf node
 	{
 		float windingNumber = 0.0f;
-
-		for (const Triangle& triangle : triangles)
-		{
-			const auto& a = triangle.vertices[0];
-			const auto& b = triangle.vertices[1];
-			const auto& c = triangle.vertices[2];
-
-			Vector3f qa = a - queryPoint;
-			Vector3f qb = b - queryPoint;
-			Vector3f qc = c - queryPoint;
-
-			const float alength = length(qa);
-			const float blength = length(qb);
-			const float clength = length(qc);
-
-			// Avoid potential NaNs/Infs in the result. If any of these values are
-			// zero then the triangle does not contribute to the winding number.
-			if (alength != 0 && blength != 0 && clength != 0)
-			{
-				// Normalize the vectors
-				qa /= alength;
-				qb /= blength;
-				qc /= clength;
-
-				// Subtracting qa from qb and qc is not strictly required,
-				// but gives a more stable result if the triangle is far away.
-				const float numerator = dot(qa, cross(qb - qa, qc - qa));
-				const float denominator = 1.0f + dot(qa, qb) + dot(qa, qc) + dot(qb, qc);
-
-				// Numerator of zero means we are on the surface (treat as no solid angle).
-				if (numerator != 0)
-				{
-					//assert(std::isnormal(numerator));
-					//assert(std::isnormal(denominator));
-					windingNumber += 2.0f * ::atan2(numerator, denominator);
-				}
-			}
+		for (const auto& child : patch.children) {
+			windingNumber += computeWindingNumber(queryPoint, child);
 		}
-
-		// Normalise to [-1.0f, 1.0f] range.
-		windingNumber /= 4.0 * 3.14159265358979323846;
-
-		// Make sure we got a 'valid' result.
-		assert(std::isnormal(windingNumber) || (windingNumber == 0));
-
 		return windingNumber;
 	}
+}
 
-#endif // CUBIQUITY_USE_AVX
+TriangleList computeClosingTriangles(TriangleSpan triangles)
+{
+	typedef std::pair<Vector3f, Vector3f> TriangleEdge;
+	std::unordered_map<TriangleEdge, int32_t, Internals::MurmurHash3<TriangleEdge> > edgeCounts;
 
-	float computeWindingNumber(const Vector3f& queryPoint, const ClosedTriangleTree& meshNode)
+	edgeCounts.max_load_factor(1.0); // Default anyway, changing it doesn't seem to help?
+	edgeCounts.reserve(triangles.size() * 3);
+
+	// Find the edge counts, where a count of non-zero indicates an exterior edge. I think the
+	// algorithm handles degenerate triangles gracefully (at least they don't break the result).
+	for (const auto& triangle : triangles)
 	{
-		// If one child exists they must both exist
-		assert((meshNode.mChildren[0] == nullptr) == (meshNode.mChildren[1] == nullptr));
-
-		float windingNumber = 0.0f;
-		bool hasChildren = meshNode.mChildren[0] && meshNode.mChildren[1];
-
-		if (!hasChildren)
+		for (int i = 0; i < 3; i++)
 		{
-			assert(meshNode.mTriangles.size() > 0);
-			windingNumber += computeWindingNumber(queryPoint, meshNode.mTriangles);
-			return windingNumber;
+			const Vector3f& v0 = triangle.vertices[i];
+			const Vector3f& v1 = triangle.vertices[(i + 1) % 3];
 
+			// Curiously, this condition seems arbitrary (same overall resuilt if we change
+			// 'true'  to 'false') and just serves to order vertices so we can find pairs of
+			// identical edges running in opposite directions. Jacobson et al state 'we
+			// increment count(i, j) if i < j' but don't explain what 'i' and 'j' are. Are
+			// they vertex positions or indices? I don't actually think it matters.
+			if ((v0 < v1) == true) {
+				edgeCounts[TriangleEdge(v0, v1)]++;
+			} else {
+				edgeCounts[TriangleEdge(v1, v0)]--;
+			}
 		}
-		else if (!meshNode.mBounds.contains(queryPoint))
-		{
-			//assert(meshNode.mClosingTriangles.size() > 0);
-			windingNumber += computeWindingNumber(queryPoint, meshNode.mClosingTriangles);
-			return windingNumber;
-		}
-		else
-		{
-			//assert(meshNode.mTriangles.size() == 0 && meshNode.mClosingTriangles.size() == 0);
-			windingNumber += computeWindingNumber(queryPoint, *(meshNode.mChildren[0]));
-			windingNumber += computeWindingNumber(queryPoint, *(meshNode.mChildren[1]));
-
-			return windingNumber;
-		}
-
-		return windingNumber;
 	}
 
-	std::vector<TriangleEdge> computeExteriorEdges(const TriangleList& triangles)
+	// Generate closing triangles for exterior edges. I don't believe this solution is 
+	// optimal (e.g. if a single triangle is missing then three closing triangles will
+	// be generated) but it is simple and the approach described by Jakobson et al.
+	TriangleList closingTriangles;
+	for (const auto& edgeCount : edgeCounts)
 	{
-		std::unordered_map<TriangleEdge, int32_t, Internals::MurmurHash3<TriangleEdge> > edgeCounts;
-		for (uint ct = 0; ct < triangles.size(); ct++)
+		TriangleEdge edge = edgeCount.first;
+		int32_t count = edgeCount.second;
+
+		if (count < 0)
 		{
-			Vector3f i0 = triangles[ct].vertices[0];
-			Vector3f i1 = triangles[ct].vertices[1];
-			Vector3f i2 = triangles[ct].vertices[2];
-
-			// FIXME - This assumes i0, i1 and i2 are all different
-			// values (which they should be for a decent mesh).
-			if (i0 < i1)
-			{
-				edgeCounts[TriangleEdge(i0, i1)]++;
-			}
-			else
-			{
-				edgeCounts[TriangleEdge(i1, i0)]--;
-			}
-
-			if (i1 < i2)
-			{
-				edgeCounts[TriangleEdge(i1, i2)]++;
-			}
-			else
-			{
-				edgeCounts[TriangleEdge(i2, i1)]--;
-			}
-
-			if (i2 < i0)
-			{
-				edgeCounts[TriangleEdge(i2, i0)]++;
-			}
-			else
-			{
-				edgeCounts[TriangleEdge(i0, i2)]--;
-			}
+			std::swap(edge.first, edge.second);
+			count = -count;
 		}
 
-		std::vector<TriangleEdge> exteriorEdges;
-
-		for (const auto& edgeCount : edgeCounts)
-		{
-			if (edgeCount.second > 0)
-			{
-				exteriorEdges.push_back(edgeCount.first);
-			}
-
-			if (edgeCount.second < 0)
-			{
-				exteriorEdges.push_back(flip(edgeCount.first));
-			}
-		}
-
-		return exteriorEdges;
+		// Insert 'count' copies of the closing triangle, where count can be zero
+		// (the most common case) or greater than one (as noted in the paper).
+		const Vector3f& arbitraryVertex = triangles[0].vertices[0]; // Inside bounds
+		// Jacobson et al state:
+		//     "Finally all edges with count(i, j) != 0 are declared exterior and 
+		//     triangulated with some arbitrary vertex k with orientation { i, j, k }
+		//     if count(i, j) = c > 0 and {j, i, k} if count(i, j) = -c < 0".
+		// But I think this is the wrong way around - if there are too many edges from
+		// i->j then the closing triangles need to go in the *other* direction (j->i),
+		// which is what we do here and it seems to work correctly.
+		const Triangle closingTriangle(edge.second, edge.first, arbitraryVertex);
+		closingTriangles.insert(closingTriangles.end(), count, closingTriangle);
 	}
 
-	TriangleList computeClosingTriangles(const TriangleList& triangles, std::vector<TriangleEdge> exteriorEdges)
+	return closingTriangles;
+}
+
+// Classify a point as being inside or outside the surface. Jacobson et al state:
+// 
+//   "In character meshes and CAD models, there may be [...] nearly duplicated patches of the
+//    input mesh. These shift the winding number range locally [...]. This disqualifies simply
+//    thresholding the winding number for final segmentation, hence our use of a carefully
+//    crafted graphcut energy."
+//
+// However, elsewhere (https://github.com/libigl/libigl/issues/772) the same author says:
+//
+//   "In my experience, graphcut is often not necessary. It's good for handling some gnarly cases,
+//    but I rarely use it."
+//
+// We use thresholding here as it is a simple and local operation which has so far been sufficient.
+bool isInside(const Vector3f& queryPoint, const Mesh& mesh)
+{
+	float winding_number = evalWindingNumberHierarchy ?
+		computeWindingNumber(queryPoint, *mesh.rootPatch) :
+		computeWindingNumber(queryPoint, mesh.triangles);
+
+	// Theoretically the threshold should be 0.5f. However, triangles often pass *exactly* through 
+	// the centre of a voxel due to e.g. being modelled on a grid in a DCC package, and/or being
+	// scaled by interger amounts. Rounding errors mean that such triangles can end up with a noisy 
+	// surface, and the epsilon below helps to avoid this.
+	return std::abs(winding_number) > 0.5f + 0.001f;
+}
+
+Patch::Patch(TriangleSpan triSpan)
+	:triangles(triSpan)
+{
+	bounds = computeBounds(triangles);
+	closingTriangles = computeClosingTriangles(triangles);
+
+	// Decide whether the patch should be split further. There are more sophisticated
+	// criteria which could be used (e.g. consider volume of bounding boxes) but this
+	// simple approach from Jacobson et al seems to give good results.
+	const int minTriangles = 100; // Soft limit, leaf tri count can be less
+	if (triangles.size() > closingTriangles.size() && triangles.size() > minTriangles)
 	{
-		TriangleList closingTriangles;
-		for (const auto& edge : exteriorEdges)
+		// Simply splitting along the longest axis works surprisingly well for most cases.
+		// I have tried more advanced approaches such as using mesh connectivity information
+		// or evaluating multiple split points but the limited benefits were not worth the
+		// additional code complexity and increase in tree construction time. There are
+		// still more things I could try (more than two groups, non-axis-aligned split
+		// planes, clustering algorithms, etc), but I'm not convinced they're worthwhile.
+		Vector3f dims = bounds.upper() - bounds.lower();
+		int longestAxis = std::max_element(dims.begin(), dims.end()) - dims.begin();
+
+		// Sort all triangles in this patch (other triangles in the mesh are unchanged).
+		std::sort(triangles.begin(), triangles.end(), 
+				    [=](const Triangle& a, const Triangle& b)
 		{
-			// Arbitrary vertex, but must be inside the bounding box.
-			// Using one of the original vertices is easiest.
-			Vector3f arbitraryVertex = triangles[0].vertices[0];
+			return a.centre()[longestAxis] < b.centre()[longestAxis];
+		});
 
-			Triangle closingTriangle(edge.first, edge.second, arbitraryVertex);
-			closingTriangles.push_back(closingTriangle);
-		}
+		// Split at median. Mean can be better but median is simpler and more robust
+		// against degenerate inputs (all triangles cannot fall on same side of split).
+		auto split_point = triangles.begin() + (triangles.size() / 2);
+		children.emplace_back(TriangleSpan({ triangles.begin(), split_point }));
+		children.emplace_back(TriangleSpan({ split_point,   triangles.end() }));
+	}
+}
 
-		return closingTriangles;
+/***************************************************************************************************
+*   ___________   _____                   _____                               _                    *
+*  |____ |  _  \ /  ___|                 /  __ \                             (_)                   *
+*      / / | | | \ `--.  ___ __ _ _ __   | /  \/ ___  _ ____   _____ _ __ ___ _  ___  _ __         *
+*      \ \ | | |  `--. \/ __/ _` | '_ \  | |    / _ \| '_ \ \ / / _ \ '__/ __| |/ _ \| '_ \        *
+*  .___/ / |/ /  /\__/ / (_| (_| | | | | | \__/\ (_) | | | \ V /  __/ |  \__ \ | (_) | | | |       *
+*  \____/|___/   \____/ \___\__,_|_| |_|  \____/\___/|_| |_|\_/ \___|_|  |___/_|\___/|_| |_|       *
+*                                                                                                  *
+****************************************************************************************************
+* This functionality scan-converts a 3D triangle into a corresponding set of '3D fragments' (voxel *
+* positions). For large triangles it does this by recursively subdividing them into smaller        *
+* triangles. For small triangles it iterates over each voxel in the bounding box and tests whether *
+* the distance to the trangle is below a threshold, or alternatively whether the triangle touches  *
+* the voxel's 'intersection target' described by 'A Topological Approach to Voxelization' (Laine). *
+***************************************************************************************************/
+
+// A callback for each voxel which is part of the triangle. 
+typedef std::function<void(int32, int32, int32, MaterialId)> DrawVoxelFunc;
+
+void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
+	                   float thickness, DrawVoxelFunc drawVoxel)
+{
+	Box3f triBounds = computeBounds(triangle.vertices);
+
+	// Expand bounds to encompass all candidate voxels.
+	if (thickness >= 0.0f) {
+		triBounds.dilate(thickness);
+	} else {
+		triBounds.dilate(0.5f); // Extent of intersection target.
 	}
 
-	void splitTriangles(const TriangleList& triangles, TriangleList& triangles0, TriangleList& triangles1)
+	// Shrink to fit integer bounds (captures all integer positions within float bounds).
+	// Note: We could probably make a Box member function for this.
+	Box3i triBoundsAsInt = {
+		static_cast<Vector3i>(ceil(triBounds.mExtents[0])),
+		static_cast<Vector3i>(floor(triBounds.mExtents[1])) };
+
+	for (int32_t z = triBoundsAsInt.lower().z(); z <= triBoundsAsInt.upper().z(); z++)
 	{
-		Cubiquity::Box3f input;
-
-		Vector3f mean = { 0.0f, 0.0f, 0.0f };
-
-		for (uint ct = 0; ct < triangles.size(); ct++)
+		for (int32_t y = triBoundsAsInt.lower().y(); y <= triBoundsAsInt.upper().y(); y++)
 		{
-			Vector3f i0 = triangles[ct].vertices[0];
-			Vector3f i1 = triangles[ct].vertices[1];
-			Vector3f i2 = triangles[ct].vertices[2];
-
-			Vector3f triangleCentre = (i0 + i1 + i2) / 3.0f;
-
-			mean += triangleCentre;
-
-			input.accumulate(triangleCentre);
-		}
-
-		mean /= triangles.size();
-
-		float width = input.upper().x() - input.lower().x();
-		float height = input.upper().y() - input.lower().y();
-		float depth = input.upper().z() - input.lower().z();
-
-		// I'd rather use the mean for the threshold, but it gives
-		// different results and I'm not yet sure it is better.
-		Vector3f threshold = input.centre();
-
-		for (const auto triangle : triangles)
-		{
-			Vector3f triangleCentre = (triangle.vertices[0] + 
-				triangle.vertices[1] + triangle.vertices[2]) / 3.0f;
-
-			if ((width > height) && (width > depth))
+			for (int32_t x = triBoundsAsInt.lower().x(); x <= triBoundsAsInt.upper().x(); x++)
 			{
-				if (triangleCentre.x() <= threshold.x())
+				const Vector3f pos = { x,y,z };
+
+				if (thickness >= 0.0f) // Draw surface with user-provided thickness.
 				{
-					triangles0.push_back(triangle);
-				}
-				else
-				{
-					triangles1.push_back(triangle);
-				}
-			}
-			else if (height > depth)
-			{
-				if (triangleCentre.y() <= threshold.y())
-				{
-					triangles0.push_back(triangle);
-				}
-				else
-				{
-					triangles1.push_back(triangle);
-				}
-			}
-			else
-			{
-				if (triangleCentre.z() <= threshold.z())
-				{
-					triangles0.push_back(triangle);
-				}
-				else
-				{
-					triangles1.push_back(triangle);
-				}
-			}
-		}
-	}
-
-	//! \param triangles A list of triangles to be converted into a ClosedTriangleTree.
-	//! \param tidyInput Specifies whether the triangles should be preprocessed by snapping them to
-	//!                  a sub-voxel grid and removing degnerates. This process improves the
-	//!                  robustness of the algoithm but may introduce small deviations compared to
-	//!                  the reference result. It is recommended to set it to the default value of
-	//!                  'true' as it is mostly provided for internal use.
-	ClosedTriangleTree::ClosedTriangleTree(const TriangleList &triangles, bool tidyInput)
-		: mTriangles(triangles)
-	{
-		assert(mTriangles.size() > 0);
-
-		if(tidyInput)
-		{
-			// Moves each vertex of each triangle so that it lies exactly on a grid. This helps to
-			// reduce errors if two supposely-identical positions are actually slightly different.
-			// This is important because if two edges are supposed to exactly line up, but they
-			// don't due to floating point errors, then those edges may be incorrectly identified
-			// as exterior edges and hence the generated closing triangles will be sub-optimal.
-			const int gridUnitsPerVoxel = 16;
-			for (Triangle& triangle : mTriangles)
-			{
-				for (Vector3f& vertex : triangle.vertices)
-				{
-					vertex *= gridUnitsPerVoxel;
-
-					vertex[0] = std::round(vertex[0]);
-					vertex[1] = std::round(vertex[1]);
-					vertex[2] = std::round(vertex[2]);
-
-					vertex /= gridUnitsPerVoxel;
-				}
-			}
-
-			// Remove degenerate (zero-area) triangles. We've already snapped vertex positions
-			// to a fine grid, so these exact floating-point comparisons should be well behaved.
-			auto newEnd = std::remove_if(mTriangles.begin(), mTriangles.end(),
-			[](auto const x)
-			{
-				return (x.vertices[0] == x.vertices[1]) ||
-					   (x.vertices[1] == x.vertices[2]) ||
-					   (x.vertices[2] == x.vertices[0]);
-			});
-
-			ptrdiff_t removedCount = std::distance(newEnd, mTriangles.end());
-			mTriangles.erase(newEnd, mTriangles.end());
-
-			// This is just a debug message really, as there may have been tiny (but valid)
-			// triangles which only became degenerate after snapping-to-grid. We need a better
-			// logging mechanism really.
-			if (removedCount > 0)
-			{
-				log(WARN, "Removed ", removedCount, " degenerate triangles");
-			}
-		}
-
-		// The paper doesn't mention it, but presumably we now need to expand the bounds to match
-		// the triangles it contains? Triangles were added if their centre was inside the Box, but
-		// their vertices may not be.
-		for (const auto& triangle : mTriangles)
-		{
-			mBounds.accumulate(triangle.vertices[0]);
-			mBounds.accumulate(triangle.vertices[1]);
-			mBounds.accumulate(triangle.vertices[2]);
-		}
-
-		// The paper suggests a value of 100 as a threshold for when to stop splitting, but
-		// basic testing has indiciated that a smaller value gives better runtime performance.
-		const int triangleThreshold = 20;
-
-		// From this point on we are implementing Algorithm 1 from the paper.
-		auto exteriorEdges = computeExteriorEdges(mTriangles);
-		mClosingTriangles = computeClosingTriangles(mTriangles, exteriorEdges);
-		assert(exteriorEdges.size() == mClosingTriangles.size());
-
-		if (mTriangles.size() < triangleThreshold || mClosingTriangles.size() >= mTriangles.size())
-		{
-			return;
-		}
-
-		std::vector<Triangle> triangles0, triangles1;
-		splitTriangles(mTriangles, triangles0, triangles1);
-		assert(triangles0.size() + triangles1.size() == mTriangles.size());
-
-		// The original triangles aren't needed now that we have the split lists.
-		mTriangles.clear();
-
-		// Note that we do not need to call the 'tidyInput' process when recursively
-		// building the tree, because it should already have been done for the root node.
-		mChildren[0] = std::unique_ptr<ClosedTriangleTree>(new ClosedTriangleTree(triangles0, false));
-		mChildren[1] = std::unique_ptr<ClosedTriangleTree>(new ClosedTriangleTree(triangles1, false));
-	}
-
-	Surface::Surface()
-		:mainMaterial(0) {}
-
-	void Surface::addTriangle(const Triangle& tri, MaterialId matId)
-	{
-		triangles.push_back(tri);
-		materials.push_back(matId);
-	}
-
-	void Surface::build()
-	{
-		assert(triangles.size() == materials.size());
-
-		// The mean winding number of the samples can be used to determine how well-formed the surface is.
-		//
-		// For a well-formed mesh we expect samples to have a winding number of +/-1.0 inside the surface
-		// and 0.0 outside the surface. If we assume that there are approximately the same number of inside
-		// vs. outside samples then we would expect to see a mean winding number of +/-0.5 for a well formed 
-		// mesh, but it would be closer zero for a inconsistently wound mesh (as there would be a mix of
-		// positive and negative winding numbers).
-		//
-		// In practice there may not be an equal number of inside vs. outside samples. If the mesh is long
-		// and thin then it may actually miss most of the samples, which will push the mean winding number
-		// towards zero and incorrectly suggest that it is inconsistently-wound. On the other hand, if it
-		// is a large cubic mesh it may catch most of the samples and push the winding number towards one.
-		// Note that this is less of a problem, because it should still detect an inconsistenly-wound
-		// surfaces as they will still have a mix of positive and negative values.
-		//
-		// To resolve the above we only include samples in the mean if their absolute value is above a
-		// threshold. A well formed mesh will then have amean winding number of 1.0 (as all the included
-		// samples will have a value of 1.0). If the mean winding number has a smaller magnitude it is likely
-		// to suggest that the surface is either inconsistenly-wound or is not properly closed (both of these
-		// make it difficult to fill the interiour). A mean winding number greater than 1.0 has been seen to
-		// occur when an otherwise-closed surface has extra details or protrusions seperately modelled on it.
-		// Anecdotally these do not see to cause such a problem for voxelisation (possibly just because they
-		// are typically small compred to the surface itself?)
-		const int sampleCount = 100;
-		int validSamples = 0;
-		meanWindingNumber = 0.0f;
-
-		bounds = computeBounds(triangles);
-		Cubiquity::Box3fSampler sampler(bounds);
-		for (uint32_t i = 0; i < sampleCount; i++)
-		{
-			Vector3f point = sampler.next();
-			float windingNumber = computeWindingNumber(point, triangles);
-
-			const float inclusionThreshold = 0.5f; // No real basis for this value. It can be tweaked as required.
-			if (std::abs(windingNumber) > inclusionThreshold)
-			{
-				meanWindingNumber += windingNumber;
-				validSamples++;
-			}
-		}
-		meanWindingNumber /= validSamples;
-
-		// Warn the user if the surface does not appear to be well formed.
-		const float windingNumberTolerance = 0.001;
-		if(std::abs(meanWindingNumber) < (1.0f - windingNumberTolerance))
-		{
-			log(WARN, "Surface ", name, " has a mean winding number of ", meanWindingNumber,
-				", which is closer to zero than expected. Perhaps it "
-				"contains inconsistently-wound faces or is not properly closed?");
-		}
-
-		if (std::abs(meanWindingNumber) > (1.0f + windingNumberTolerance))
-		{
-			log(WARN, "Surface ", name, " has a mean winding number of ", meanWindingNumber,
-				", which is further from zero than expected. Perhaps "
-				"it contains doubled-up geometry or separate surface details?");
-		}
-
-		// Find the main material of the surface as the material which covers the greatest area. 
-		// Attempts to use winding numbers have less obvious behaviour for open/inverted surfaces.
-		std::vector<float> areas(MaterialCount);
-		std::fill(areas.begin(), areas.end(), 0.0f);
-		for (uint i = 0; i < triangles.size(); i++)
-		{
-			areas[materials[i]] += triangles[i].area();
-		}
-		mainMaterial = std::distance(areas.begin(), std::max_element(areas.begin(), areas.end()));
-
-		// Build the closed triangle tree representaton from the list of triangles.
-		closedTriangleTree = std::make_unique<ClosedTriangleTree>(triangles);
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	//   ___________   _____                   _____                               _              //
-	//  |____ |  _  \ /  ___|                 /  __ \                             (_)             //
-	//      / / | | | \ `--.  ___ __ _ _ __   | /  \/ ___  _ ____   _____ _ __ ___ _  ___  _ __   //
-	//      \ \ | | |  `--. \/ __/ _` | '_ \  | |    / _ \| '_ \ \ / / _ \ '__/ __| |/ _ \| '_ \  //
-	//  .___/ / |/ /  /\__/ / (_| (_| | | | | | \__/\ (_) | | | \ V /  __/ |  \__ \ | (_) | | | | //
-	//  \____/|___/   \____/ \___\__,_|_| |_|  \____/\___/|_| |_|\_/ \___|_|  |___/_|\___/|_| |_| //
-	//                                                                                            //
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	//                                                                                            //
-	// This function scan-converts a 3D triangle into a corresponding set of '3D fragments'       //
-	// (voxel positions). It does this by iterating over all voxels in the triangle's bounding    //
-	// box and outputting those within a certain distance threshold of the triangle. Unless       //
-	// specified the threshold is chosen as described in the paper "An Accurate Method To         //
-	// Voxelize Polygonal Meshes" by Huang et al.                                                 //
-	//                                                                                            //
-	// The result should in theory be minimal, but I haven't given much thought to the corners or //
-	// edges and so there may be a few extra fragments output where different triangles meet. The //
-	// above paper has further ideas on this in Section 5. For our application we don't care much //
-	// about extra fragments (and would rather have too many than too few) because we run them    //
-	// throuh the inside-outside test anyway, so it's just a little extra work but still a        //
-	// correct result.                                                                            //
-	//                                                                                            //
-	// The 'thickness' of a surface is defined by its separability which (in perhaps a very loose //
-	// sense) is conceptually the opposite of its connectivity. It is apparantly hard to define   //
-	// the connectivity of a surface and so separability is used instead. A 6-separating surface  //
-	// is one which cannot be penetrated by a 6-connected line, and it is thicker than a 26-      //
-	// separating surface (which cannot be penetrated by a 26-connected line but *can* be         //
-	// penetrated by a 6-connected line). See the sections 2 and 3 of the paper for further       //
-	// details.                                                                                   //
-	//                                                                                            //
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	float computeMinThickness(const Triangle& triangle)
-	{
-		// Note: There seems to be some errors/inconsistencies in the paper. Perhaps it is a pre-print? I'm looking at this copy:
-		//
-		//		https://pdfs.semanticscholar.org/2827/c00e687c870f84e5006b851aa038ca9f971a.pdf
-		//
-		// Looking at the 2D case (section 4) they state:
-		//
-		// "For generating a 4-separating line we use t = ..., denoted by t8. For generating 8-separating lines we define t4 = ..."
-		//
-		// So t*8* is used for *4*-seperating lines, and vice-versa?
-		//
-		// But in the 3D case (section 5) they state:
-		//
-		// "For generating a 26-separating surface we use t = ..., denoted by t26. For generating 6-separating line we define t6 = ..."
-		//
-		// So now t*26* is used for *26*-seperating surfaces, t*6* is used for *6*-seperating surfaces (note, they actually said 'line' here...)?
-		//
-		// The 2D and 3d cases seem to be opposite? It looks like there is some bad copy/paste going on.
-		//
-		// Unless I find a better copy I think I'll just do what I think is correct, ensuring that a seperabilty of 6 gives the thicker surface.
-
-		const uint seperation = 26; // Amount of seperation, must be '6' (thicker) or '26' (thinner).
-		const float L = 1.0f; // From figure 10 in the paper, our voxels have unity side length.
-
-		const Vector3f a = triangle.vertices[0];
-		const Vector3f b = triangle.vertices[1];
-		const Vector3f c = triangle.vertices[2];
-
-		// Compute threshold based on Section 4.2 of "An Accurate Method To Voxelize Polygonal Meshes" by Huang et al.
-		const Vector3f planeNormal = cross(b - a, a - c);
-
-		// For thick surfaces
-		if (seperation == 6)
-		{
-			// Compute a 'normal' vector to the appropriate corner.
-			// This roughly corresponds to 'K' in Figure 10 of the paper.
-			Vector3f cornerNormal;
-			cornerNormal[0] = planeNormal[0] >= 0.0f ? 1.0f : -1.0f;
-			cornerNormal[1] = planeNormal[1] >= 0.0f ? 1.0f : -1.0f;
-			cornerNormal[2] = planeNormal[2] >= 0.0f ? 1.0f : -1.0f;
-			cornerNormal = normalize(cornerNormal);
-
-			float cosAlpha = dot(cornerNormal, planeNormal) / (length(cornerNormal) * length(planeNormal));
-
-			return (L / 2) * sqrt(3.0f) * cosAlpha;
-		}
-
-		// For thin surfaces.
-		if (seperation == 26)
-		{
-			// Compute the normal to the face which is best
-			// aligned (most co-planar) with the input triangle;
-			Vector3f faceNormal = { 0.0f, 0.0f, 0.0f };
-			Vector3f absPlaneNormal = planeNormal;
-			float (*fabs)(float) = &std::abs; // https://stackoverflow.com/a/35638933
-			transform_in_place(absPlaneNormal, fabs);
-			auto maxIter = std::max_element(absPlaneNormal.begin(), absPlaneNormal.end());
-			auto maxIndex = std::distance(absPlaneNormal.begin(), maxIter);
-			faceNormal[maxIndex] = planeNormal[maxIndex] >= 0.0f ? 1.0f : -1.0f;
-
-			const float cosBeta = dot(faceNormal, planeNormal) / (length(faceNormal) * length(planeNormal));
-
-			// The paper says "For generating 6-separating line we define t6 = (L/2)cos[Beta]". I think
-			// they  mean 'surface' instead of 'line', to match the previous sentence in the paper?
-			return (L / 2) * cosBeta;
-		}
-
-		assert(false && "Seperation must be '6' or '26'");
-		return 0;
-	}
-
-	void drawFragment(int32 x, int32 y, int32 z, MaterialId matId, MaterialId externalMaterial, Volume& volume, uint pass)
-	{
-		const MaterialId checkerboard = ((x & 0x1) ^ (y & 0x1) ^ (z & 0x1)) + 1; // '1' or '2'.
-
-		switch (pass)
-		{
-		case 0:
-			// Write a checkerboard of values which are different from the exteriour material.
-			volume.setVoxel(x, y, z, externalMaterial + checkerboard);
-			break;
-		case 1:
-			// Draw surface only for interiour voxels.
-			if (volume.voxel(x, y, z) != externalMaterial)
-			{
-				volume.setVoxel(x, y, z, matId);
-			}
-			break;
-		default:
-			assert(false && "Invalid pass");
-		}
-	}
-
-	void scanConvert3D(const Triangle& triangle, MaterialId matId, MaterialId externalMaterial, Volume& volume, Thickness thickness, float multiplier, uint pass)
-	{
-		// Now that we have the threshold we iterate over all voxels in the
-		// triangle's bounding box and output those which are close enough to it.
-
-		const Vector3f a = triangle.vertices[0];
-		const Vector3f b = triangle.vertices[1];
-		const Vector3f c = triangle.vertices[2];
-
-		// Compute threshold based on Section 4.2 of "An Accurate Method To Voxelize Polygonal Meshes" by Huang et al.
-		Vector3f planeNormal = cross(b - a, a - c);
-
-		// Not sure if/how we should handle tiny triangles?
-		//assert(length(planeNormal) > 0.01f);
-		if (length(planeNormal) <= 0.01f)
-		{
-			return;
-		}
-
-		float distThreshold = computeMinThickness(triangle);
-
-		distThreshold *= multiplier;
-
-		distThreshold += 0.01f;
-
-
-		// Uncomment the line below to manually specify the threshold.
-		// distThreshold = sqrt(3.0f) / 2.0f; // Half the diagonal of a voxel
-
-		// FIXME - Handle rounding
-		Vector3i boundsMin = static_cast<Vector3i>(min(a, min(b, c))); // Round down
-		Vector3i boundsMax = static_cast<Vector3i>(max(a, max(b, c)) + Vector3f({ 1.0f, 1.0f, 1.0f })); // Round up
-
-		// Expand
-		Vector3i roundedDistThreshold = Vector3i::filled(static_cast<int>(distThreshold + 0.5f));
-		boundsMin -= roundedDistThreshold;
-		boundsMax += roundedDistThreshold;
-
-		for (int32_t z = boundsMin.z(); z <= boundsMax.z(); z++)
-		{
-			for (int32_t y = boundsMin.y(); y <= boundsMax.y(); y++)
-			{
-				for (int32_t x = boundsMin.x(); x <= boundsMax.x(); x++)
-				{
-					// Using the distance here is slightly incuurate. We should actually test if
-					// the point is inside the (very thin) trianglular prism formed by extending
-					// slightly along the triangle normal in both directions. The distance function
-					// is similar but also has rounded edges, meaning it generates fragments which
-					// are slightly outside the triangle. This doesn't matter for our case as later
-					// we run all fragments through our winding number test, and it may even help
-					// fix and cracks between triangles.
-					float dist = distance(Vector3f({ static_cast<float>(x), static_cast<float>(y), static_cast<float>(z) }), Triangle(a, b, c));
-
-					const float epsilon = 0.001f;
-					if (dist <= (distThreshold + epsilon))
+					// Only voxels which are within required distance of surface. 
+					if ((distance(pos, triangle) <= thickness))
 					{
-						drawFragment(x, y, z, matId, externalMaterial, volume, pass);
+						drawVoxel(x, y, z, matId);
 					}
 				}
-			}
-		}
-	}
-
-	void scanConvert3DRecursive(const Triangle& triangle, MaterialId matId, MaterialId externalMaterial, Volume& volume, Thickness thickness, float multiplier, uint pass)
-	{
-		const float splitThreshold = 20.0f;
-
-		uint32_t longestSideIndex = 0;
-		if (triangle.sideLength(1) > triangle.sideLength(0)) { longestSideIndex = 1; }
-		if (triangle.sideLength(2) > triangle.sideLength(1)) { longestSideIndex = 2; }
-
-		float alignmentThreshold = 0.9f;
-		Vector3f absNormal = triangle.computeNormal();
-		float (*fabs)(float) = &std::abs; // https://stackoverflow.com/a/35638933
-		transform_in_place(absNormal, fabs);
-		bool isAxisAligned = absNormal.x() > alignmentThreshold || absNormal.y() > alignmentThreshold || absNormal.z() > alignmentThreshold;
-
-		// If a triangle is large and not aligned to an axis then its bounding box will overlap a
-		// lot of voxels. This makes it slow to rasterize, therefore we split such triangles in half.
-		if ((!isAxisAligned) && (triangle.sideLength(longestSideIndex) > splitThreshold))
-		{
-			Vector3f longestSideMidpoint = (triangle.vertices[longestSideIndex] + triangle.vertices[(longestSideIndex + 1) % 3]) / 2.0f;
-
-			Triangle output0 = triangle;
-			Triangle output1 = triangle;
-
-			output0.vertices[longestSideIndex] = longestSideMidpoint;
-			output1.vertices[(longestSideIndex + 1) % 3] = longestSideMidpoint;
-
-			scanConvert3DRecursive(output0, matId, externalMaterial, volume, thickness, multiplier, pass);
-			scanConvert3DRecursive(output1, matId, externalMaterial, volume, thickness, multiplier, pass);
-		}
-		else
-		{
-			scanConvert3D(triangle, matId, externalMaterial, volume, thickness, multiplier, pass);
-		}
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////
-	//   _____ _   _                     _          __  __                                        //
-	//  |  _  | | | |                   | |        / _|/ _|                                       //
-	//  | | | | |_| |__   ___ _ __   ___| |_ _   _| |_| |_                                        //
-	//  | | | | __| '_ \ / _ \ '__| / __| __| | | |  _|  _|                                       //
-	//  \ \_/ / |_| | | |  __/ |    \__ \ |_| |_| | | | |                                         //
-	//   \___/ \__|_| |_|\___|_|    |___/\__|\__,_|_| |_|                                         //
-	//                                                                                            //
-	////////////////////////////////////////////////////////////////////////////////////////////////
-
-	void voxelizeShell(Volume& volume, const TriangleList& triList, const MaterialList& materialList, MaterialId externalMaterial, uint pass)
-	{
-		uint32_t triCount = triList.size();
-
-		uint32_t trianglesDrawn = 0;
-
-		assert(triList.size() == materialList.size());
-
-		//for (const auto triangle : triList)
-		for (uint i = 0; i < triList.size(); i++)
-		{
-			const Triangle& triangle = triList[i];
-			const MaterialId& matId = materialList[i];
-
-			Triangle scaled(triangle);
-			const float scaleFactor = 1.01f;
-			Vector3f centre = (scaled.vertices[0] + scaled.vertices[1] + scaled.vertices[2]) / 3.0f;
-
-			scaled.translate(centre * -1.0f);
-			scaled.scale(scaleFactor);
-			scaled.translate(centre);
-
-			// We want to draw the thinnest triangles we can (while still seperating nodes on
-			// one side from nodes on the other) in order to minimise the number of nodes we
-			// have to classify. Intuitively this should mean 26-seperating triangles. But this
-			// is not enough because some (roughly half) of the generated 'fragments' actually 
-			// fall outside of the object. Once we remove these during the subsequent inside/outside
-			// test we end up with holes in our surface. I believe this is a problem both for
-			// seperating the inside vs. outside, and also if we later colour the surface (as we
-			// need to make sure underlying voxels don't show through).
-			//
-			// Therefore we need to draw a thicker surface. It can be as thick as we like
-			// (and perhaps we should let the user configure it) but must be at least enough
-			// to avoid the aforementioned holes. I don't have a mathematical derivation for
-			// this but have simply found that scaling the thickness by the multiplier below
-			// gives visually satisfactory results. Any less and we start to see holes.
-			//
-			// We could also use 6-seperating triangles in this case a multiplier is still
-			// needed, but the slightly smaller value of 1.9 seemed to work), but overall I
-			// prefered the qualty and consistancy of the 26-seperating triangles.
-			float multiplier = pass == 0 ? 1.0f : 2.1f;
-			scanConvert3DRecursive(scaled, matId, externalMaterial, volume, Thickness::Separate26, multiplier, pass);
-			trianglesDrawn++;
-
-			reportProgress("Performing 3D scan conversion", 1, trianglesDrawn, triCount);
-		}
-	}
-
-	bool isInside(const Vector3f& queryPoint, const Surface& surface, bool useHierarchicalEval)
-	{
-		float sum = 0.0f;
-		if (useHierarchicalEval)
-		{
-			sum = computeWindingNumber(queryPoint, *(surface.closedTriangleTree));
-		}
-		else
-		{
-			sum = computeWindingNumber(queryPoint, surface.triangles);
-		}
-		return std::abs(sum) > gWindingNumberThreshold;
-	}
-
-	void doBruteForceVoxelisation(Volume& volume, Surface& surface, MaterialId internalMaterial,
-		MaterialId externalMaterial, bool useHierarchicalMeshEval)
-	{
-		Box3i voxelisationBounds = static_cast<Box3i>(surface.bounds);
-		voxelisationBounds.dilate(2); // Make sure we really cover everything
-
-		Vector3i minBound = voxelisationBounds.lower();
-		Vector3i maxBound = voxelisationBounds.upper();
-
-		// Iterate over each voxel within the bounds and classify as inside or outside
-		for (int32 volZ = minBound.z(); volZ <= maxBound.z(); volZ++)
-		{
-			for (int32 volY = minBound.y(); volY <= maxBound.y(); volY++)
-			{
-				for (int32 volX = minBound.x(); volX <= maxBound.x(); volX++)
+				else // Juse a draw a minimal (6-seperating) surface.
 				{
-					if (isInside(Vector3f({ static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) }), surface, useHierarchicalMeshEval))
+					// Test the triangle against the voxel's intersection target. See the paper
+					// 'A Topological Approach to Voxelization' (Laine) for more details (note
+					// that the slides are easier to read). Possible improvements:
+					//   * Use single (diagonal) intersection target (probably more complex).
+					//   * Each intersection target is axis-aligned, so we can flatten the triangle
+					//     along that axis and do a simpler 'point in 2D triangle' test.
+					//   * Pull normal calculation out of ray-triangle intersection test and
+					//     compute at higher level (might be more accurate too?)
+					for (int axis = 0; axis < 3; axis++)
 					{
-						volume.setVoxel(volX, volY, volZ, internalMaterial);
-					}
-					else
-					{
-						volume.setVoxel(volX, volY, volZ, externalMaterial);
-					}
-				}
-			}
-			reportProgress("Classifying voxels (Brute Force!)", minBound.z(), volZ, maxBound.z());
-		}
-	}
+						Ray3f intersectionTarget = { pos, { 0.0f, 0.0f, 0.0f } };
+						intersectionTarget.mOrigin[axis] -= 0.5f;
+						intersectionTarget.mDir[axis] = 1.0f;
 
-	struct NodeToTest
-	{
-		uint32_t index;
-		uint32_t childId;
-		Vector3f centre;
-		bool result;
-	};
-
-	class NodeFinder
-	{
-	public:
-		// Not for general boxes - only works for node bounds which are cubic,
-		// powers-of-two sizes, aligned to power-of-two boundaries, etc.
-		Box3i childBounds(Box3i nodeBounds, uint childId)
-		{
-			uint childX = (childId >> 0) & 0x01;
-			uint childY = (childId >> 1) & 0x01;
-			uint childZ = (childId >> 2) & 0x01;
-			Vector3i childOffset({ static_cast<int>(childX), static_cast<int>(childY), static_cast<int>(childZ) }); // childOffset holds zeros or ones.
-
-			// Careful ordering of operations to avoid signed integer overflow. Note that child
-			// node dimensions might max-out the signed integer type but should not exceed it.
-			const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i({ 1, 1, 1 })) / 2) - (nodeBounds.lower() / 2);
-			Vector3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
-			Vector3i childUpperBound = childLowerBound + childNodeDimsInCells;
-			return Box3i(childLowerBound, childUpperBound);
-		}
-
-		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& nodeBounds)
-		{
-			// Signal to stop traversing parts of the tree which do not overlap our voxelised object.
-			if (!overlaps(nodeBounds, mBounds)) { return false; }
-
-			// If this is a non-leaf (internal) node then check if any of its children are leaves.
-			// If so, add them to the list of nodes on which the inside/outside test will be performed.
-			// FIXME - Think about whether we really need to do it like this. This is currently the
-			// only node visitor which uses the 'nodes' input, so if we can avoid it here then maybe
-			// we can simplify the interface?
-			if (!isMaterialNode(nodeIndex))
-			{
-				for (unsigned int childId = 0; childId < 8; childId++)
-				{
-					uint32 childNodeIndex = nodes[nodeIndex][childId];
-					if (isMaterialNode(childNodeIndex))
-					{
-						Box3i childNodeBounds = childBounds(nodeBounds, childId);
-						if (overlaps(childNodeBounds, mBounds))
+						float t = 0.0f;
+						bool hit = intersect(intersectionTarget, triangle, t);
+						if (hit && t <= 1.0f)
 						{
-							NodeToTest toTest;
-							toTest.index = nodeIndex;
-							toTest.childId = childId;
-							toTest.centre = static_cast<Vector3f>((childNodeBounds.lower() + childNodeBounds.upper())) * 0.5f;
-							mNodes.push_back(toTest);
+							drawVoxel(x, y, z, matId);
+							break;
 						}
 					}
 				}
 			}
-
-			return true;
 		}
-
-		std::vector<NodeToTest> nodes()
-		{
-			return mNodes;
-		}
-
-	private:
-		std::vector<NodeToTest> mNodes;
-
-	public:
-		Box3i mBounds;
-
-	};
-
-	std::vector<NodeToTest> findNodes(Volume& volume, Box3i bounds)
-	{
-		NodeFinder nodeFinder;
-		nodeFinder.mBounds = bounds;
-		visitVolumeNodes(volume, nodeFinder);
-		return nodeFinder.nodes();
-	}
-
-	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, Surface& surface, bool useHierarchicalMeshEval)
-	{
-		int i = 0;
-		std::stringstream ss;
-		ss << "Classifying " << nodesToTest.size() << " nodes";
-		std::mutex m;
-
-#if defined (_MSC_VER) && _MSC_VER >= 1900
-		std::for_each(std::execution::par, nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
-#else
-		std::for_each(nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
-#endif
-		{
-			nodeToTest.result = isInside(nodeToTest.centre, surface, useHierarchicalMeshEval);
-			std::lock_guard<std::mutex> guard(m);
-
-			reportProgress(ss.str().c_str(), 0, i++, nodesToTest.size()-1);
-		});
-	}
-
-	uint32 prune(NodeDAG& nodes, uint32 nodeIndex)
-	{
-		Node node = nodes[nodeIndex];
-		for (int i = 0; i < 8; i++)
-		{
-			uint32 nodeChildIndex = node[i];
-			if (!isMaterialNode(nodeChildIndex))
-			{
-				node[i] = prune(nodes, nodeChildIndex);
-			}
-		}
-
-		return nodes.isPrunable(node) ? node[0] : nodes.insert(node);
-	}
-
-	void prune(Volume& volume)
-	{
-		uint32 rootNodeIndex = getRootNodeIndex(volume);
-		NodeDAG& nodes = getNodes(volume);
-		uint32 newRootNodeIndex = prune(nodes, rootNodeIndex);
-		volume.setRootNodeIndex(newRootNodeIndex);
-	}
-
-	void doHierarchicalVoxelisation(Volume& volume, Surface& surface, MaterialId internalMaterial,
-		MaterialId externalMaterial, bool useHierarchicalMeshEval)
-	{
-		Box3i voxelisationBounds = computeBounds(volume, externalMaterial);
-
-		// Find all the nodes - both the single-voxel nodes which are part of the
-		// voxelised surface and (hopefully larger) nodes which are either side of it.
-		auto nodesToTest = findNodes(volume, voxelisationBounds);
-
-		// Classify all nodes according to which side of the surface they are on.
-		NodeDAG& nodeData = Internals::getNodes(volume);
-		classifyNodes(nodesToTest, nodeData, surface, useHierarchicalMeshEval);
-
-		// Apply the results to the volume
-		for (auto& toTest : nodesToTest)
-		{
-			MaterialId resultingMaterial = toTest.result ? internalMaterial : externalMaterial;
-			nodeData.nodes().setNodeChild(toTest.index, toTest.childId, resultingMaterial);
-		}
-
-		// The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state.
-		// This might be because the shell voxelisaion is too thick, though I think we have avoided that. But even so,
-		// the mesh might represent a small box touching eight voxels, all of which are inside. These would be
-		// individually classified and would all get the same value, so they should be pruned and replaced by the parent.
-		prune(volume);
-	}
-
-	void voxelize(Volume& volume, Surface& surface, bool useSurfaceMaterials,
-		MaterialId* internalMaterialOverride, MaterialId* externalMaterialOverride)
-	{
-		const bool useHierarchicalMeshEval = true;
-		// Perform the classification per-octree-node instead of per-voxel.This is
-		// much faster and for a well formed mesh the result should be the same, but it 
-		// may have problems on scenes with open meshes, ground planes, windows, etc.
-		const bool useHierarchicalNodeEval = true;
-
-		MaterialId internalMaterial = internalMaterialOverride ? *internalMaterialOverride : surface.mainMaterial;
-		MaterialId externalMaterial = externalMaterialOverride ? *externalMaterialOverride : 0;
-
-		// A negative mean winding number indcates that the mesh is inside-out.
-		if (surface.meanWindingNumber < 0.0f) { std::swap(internalMaterial, externalMaterial); }
-
-		volume.fill(externalMaterial);
-
-		voxelizeShell(volume, surface.triangles, surface.materials, externalMaterial, 0);
-
-		if(std::abs(surface.meanWindingNumber) > 0.9f)
-		{
-			if (useHierarchicalNodeEval)
-			{
-				doHierarchicalVoxelisation(volume, surface, internalMaterial, externalMaterial, useHierarchicalMeshEval);
-			}
-			else
-			{
-				doBruteForceVoxelisation(volume, surface, internalMaterial, externalMaterial, useHierarchicalMeshEval);
-			}
-		}
-		else
-		{
-			log(WARN, "Skipping fill for badly-formed surface \'", surface.name, "\'");
-		}
-
-		if (useSurfaceMaterials)
-		{
-			// Write the surface voxels with their correct materials as specified in the mesh. 
-			voxelizeShell(volume, surface.triangles, surface.materials, externalMaterial, 1);
-		}
-	}
-
-	void fillBox(Volume& volume, std::array<int32, 3> minBounds, std::array<int32, 3> maxBounds, MaterialId material)
-	{
-		for (int32 z = minBounds[2]; z <= maxBounds[2]; z++)
-		{
-			for (int32 y = minBounds[1]; y <= maxBounds[1]; y++)
-			{
-				for (int32 x = minBounds[0]; x <= maxBounds[0]; x++)
-				{
-					drawFragment(x, y, z, 0, 0, volume, 0);
-				}
-			}
-		}
-	}
-
-	void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, HeightFunc heightFunc)
-	{
-		int i = 0;
-		std::stringstream ss;
-		ss << "Classifying " << nodesToTest.size() << " nodes";
-		std::mutex m;
-
-#if defined (_MSC_VER) && _MSC_VER >= 1900
-		std::for_each(std::execution::par, nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
-#else
-		std::for_each(nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
-#endif
-		{
-			//nodeToTest.result = isInside(nodeToTest.centre, surface, useHierarchicalMeshEval);
-
-			nodeToTest.result = nodeToTest.centre.z() <= heightFunc(nodeToTest.centre.x(), nodeToTest.centre.y());
-
-			std::lock_guard<std::mutex> guard(m);
-
-			reportProgress(ss.str().c_str(), 0, i++, nodesToTest.size() - 1);
-		});
-	}
-
-	void doHierarchicalVoxelisationHeightmap(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3], MaterialId internalMaterial,
-		MaterialId externalMaterial)
-	{
-		Box3i voxelisationBounds = computeBounds(volume, externalMaterial);
-
-		// Find all the nodes - both the single-voxel nodes which are part of the
-		// voxelised surface and (hopefully larger) nodes which are either side of it.
-		auto nodesToTest = findNodes(volume, voxelisationBounds);
-
-		// Classify all nodes according to which side of the surface they are on.
-		NodeDAG& nodeData = Internals::getNodes(volume);
-		classifyNodes(nodesToTest, nodeData, heightFunc);
-
-		// Apply the results to the volume
-		for (auto& toTest : nodesToTest)
-		{
-			MaterialId resultingMaterial = toTest.result ? internalMaterial : externalMaterial;
-			nodeData.nodes().setNodeChild(toTest.index, toTest.childId, resultingMaterial);
-		}
-
-		// The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state.
-		// This might be because the shell voxelisaion is too thick, though I think we have avoided that. But even so,
-		// the mesh might represent a small box touching eight voxels, all of which are inside. These would be
-		// individually classified and would all get the same value, so they should be pruned and replaced by the parent.
-		prune(volume);
-	}
-
-	void voxeliseSurface(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3], MaterialId surfaceMaterial, MaterialId externalMaterial, uint pass)
-	{
-		for (int32 y = minBounds[1]; y <= maxBounds[1]; y++)
-		{
-			for (int32 x = minBounds[0]; x <= maxBounds[0]; x++)
-			{
-				// Drawing just a single voxel for each (x,y) position results in gaps in the surface when the
-				// slope is more than 45 degrees. We fix this by drawing a column of voxels from the height
-				// specified for the current position down to the height specified by the smallest of its neighbours.
-				int32 columnTop = heightFunc(x, y);
-				int32 columnBotton = columnTop;
-
-				if (x > minBounds[0])
-				{
-					columnBotton = std::min(columnBotton, heightFunc(x - 1, y));
-				}
-
-				if (x < maxBounds[0])
-				{
-					columnBotton = std::min(columnBotton, heightFunc(x + 1, y));
-				}
-
-				if (y > minBounds[1])
-				{
-					columnBotton = std::min(columnBotton, heightFunc(x, y - 1));
-				}
-
-				if (y < maxBounds[1])
-				{
-					columnBotton = std::min(columnBotton, heightFunc(x, y + 1));
-				}
-
-				for (int32 z = columnTop; z >= columnBotton; z--)
-				{
-					drawFragment(x, y, z, surfaceMaterial, externalMaterial, volume, pass);
-				}
-			}
-		}
-	}
-
-	void voxelizeHeightmap(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3],
-		MaterialId undergroundMaterial, MaterialId surfaceMaterial)
-	{
-		// Draw five sides of the bounds (no need to draw the top as the heightmap represents the top.
-		fillBox(volume, { minBounds[0], minBounds[1], minBounds[2] }, { minBounds[0], maxBounds[1], maxBounds[2] }, surfaceMaterial); // Min X
-		fillBox(volume, { maxBounds[0], minBounds[1], minBounds[2] }, { maxBounds[0], maxBounds[1], maxBounds[2] }, surfaceMaterial); // Max X
-		fillBox(volume, { minBounds[0], minBounds[1], minBounds[2] }, { maxBounds[0], minBounds[1], maxBounds[2] }, surfaceMaterial); // Min Y
-		fillBox(volume, { minBounds[0], maxBounds[1], minBounds[2] }, { maxBounds[0], maxBounds[1], maxBounds[2] }, surfaceMaterial); // Max Y
-		fillBox(volume, { minBounds[0], minBounds[1], minBounds[2] }, { maxBounds[0], maxBounds[1], minBounds[2] }, surfaceMaterial); // Min Z (base)
-
-		const MaterialId externalMaterial = 0;
-		voxeliseSurface(volume, heightFunc, minBounds, maxBounds, surfaceMaterial, externalMaterial, 0);
-		
-		doHierarchicalVoxelisationHeightmap(volume, heightFunc, minBounds, maxBounds, undergroundMaterial, externalMaterial);
-
-		voxeliseSurface(volume, heightFunc, minBounds, maxBounds, surfaceMaterial, externalMaterial, 1);
 	}
 }
+
+void drawLargeTriangle(const Triangle& triangle, MaterialId matId,
+	                   float thickness, DrawVoxelFunc drawVoxel)
+{
+	// Find the longest side
+	int longestSide = 0;
+	if (triangle.sideLength(1) > triangle.sideLength(0)) { longestSide = 1; }
+	if (triangle.sideLength(2) > triangle.sideLength(1)) { longestSide = 2; }
+
+	// Split large triangle in half as bounds may overlap many redundant voxels.
+	const float maxSideLength = 16.0f;
+	if (triangle.sideLength(longestSide) > maxSideLength) {
+		Vector3f midpoint = (triangle.vertices[longestSide] +
+			triangle.vertices[(longestSide + 1) % 3]) / 2.0f;
+		// Build two small triangles from input triangle
+		for (int i = 0; i < 2; i++) {
+			Triangle halfTri = triangle; // Copy input triangle
+			halfTri.vertices[(longestSide + i) % 3] = midpoint; // Shift one vertex to midpoint
+			drawLargeTriangle(halfTri, matId, thickness, drawVoxel);
+		}
+	}
+	else {
+		// Draw small triangles directly.
+		drawSmallTriangle(triangle, matId, thickness, drawVoxel);
+	}
+}
+
+void drawTriangles(const TriangleList& triList, const MaterialList& materialList, float thickness, DrawVoxelFunc drawVoxel)
+{
+	uint32_t trianglesDrawn = 0;
+	for (uint i = 0; i < triList.size(); i++)
+	{
+		drawLargeTriangle(triList[i], materialList[i], thickness, drawVoxel);
+		reportProgress("Performing 3D scan conversion", 1, ++trianglesDrawn, triList.size());
+	}
+}
+
+/***************************************************************************************************
+*     _   _           _        _____           _             _   _                                 *
+*    | \ | |         | |      |  ___|         | |           | | (_)                                *
+*    |  \| | ___   __| | ___  | |____   ____ _| |_   _  __ _| |_ _  ___  _ __                      *
+*    | . ` |/ _ \ / _` |/ _ \ |  __\ \ / / _` | | | | |/ _` | __| |/ _ \| '_ \                     *
+*    | |\  | (_) | (_| |  __/ | |___\ V / (_| | | |_| | (_| | |_| | (_) | | | |                    *
+*    \_| \_/\___/ \__,_|\___| \____/ \_/ \__,_|_|\__,_|\__,_|\__|_|\___/|_| |_|                    *
+*                                                                                                  *
+****************************************************************************************************
+* Evaluate the winding number for each node in the octree to decide whether it is inside the mesh. *
+***************************************************************************************************/
+
+struct NodeToTest
+{
+	uint32_t index;
+	uint32_t childId;
+	Vector3f centre;
+	bool result;
+};
+
+class NodeFinder
+{
+public:
+	// Not for general boxes - only works for node bounds which are cubic,
+	// powers-of-two sizes, aligned to power-of-two boundaries, etc.
+	Box3i childBounds(Box3i nodeBounds, uint childId)
+	{
+		uint childX = (childId >> 0) & 0x01;
+		uint childY = (childId >> 1) & 0x01;
+		uint childZ = (childId >> 2) & 0x01;
+		Vector3i childOffset({ static_cast<int>(childX), static_cast<int>(childY), static_cast<int>(childZ) }); // childOffset holds zeros or ones.
+
+		// Careful ordering of operations to avoid signed integer overflow. Note that child
+		// node dimensions might max-out the signed integer type but should not exceed it.
+		const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i({ 1, 1, 1 })) / 2) - (nodeBounds.lower() / 2);
+		Vector3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
+		Vector3i childUpperBound = childLowerBound + childNodeDimsInCells;
+		return Box3i(childLowerBound, childUpperBound);
+	}
+
+	bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& nodeBounds)
+	{
+		// Signal to stop traversing parts of the tree which do not overlap our voxelised object.
+		if (!overlaps(nodeBounds, mBounds)) { return false; }
+
+		// If this is a non-leaf (internal) node then check if any of its children are leaves.
+		// If so, add them to the list of nodes on which the inside/outside test will be performed.
+		// FIXME - Think about whether we really need to do it like this. This is currently the
+		// only node visitor which uses the 'nodes' input, so if we can avoid it here then maybe
+		// we can simplify the interface?
+		if (!isMaterialNode(nodeIndex))
+		{
+			for (unsigned int childId = 0; childId < 8; childId++)
+			{
+				uint32 childNodeIndex = nodes[nodeIndex][childId];
+				if (isMaterialNode(childNodeIndex))
+				{
+					Box3i childNodeBounds = childBounds(nodeBounds, childId);
+					if (overlaps(childNodeBounds, mBounds))
+					{
+						NodeToTest toTest;
+						toTest.index = nodeIndex;
+						toTest.childId = childId;
+						toTest.centre = static_cast<Vector3f>((childNodeBounds.lower() + childNodeBounds.upper())) * 0.5f;
+						mNodes.push_back(toTest);
+					}
+				}
+			}
+		}
+
+		return true;
+	}
+
+	std::vector<NodeToTest> nodes()
+	{
+		return mNodes;
+	}
+
+private:
+	std::vector<NodeToTest> mNodes;
+
+public:
+	Box3i mBounds;
+
+};
+
+std::vector<NodeToTest> findNodes(Volume& volume, Box3i bounds)
+{
+	NodeFinder nodeFinder;
+	nodeFinder.mBounds = bounds;
+	visitVolumeNodes(volume, nodeFinder);
+	return nodeFinder.nodes();
+}
+
+void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, Mesh& mesh)
+{
+	int i = 0;
+	std::stringstream ss;
+	ss << "Classifying " << nodesToTest.size() << " nodes";
+	std::mutex m;
+
+	std::for_each(std::execution::par, nodesToTest.begin(), nodesToTest.end(), [&](auto&& nodeToTest)
+	{
+		nodeToTest.result = isInside(nodeToTest.centre, mesh);
+		std::lock_guard<std::mutex> guard(m);
+
+		reportProgress(ss.str().c_str(), 0, i++, nodesToTest.size()-1);
+	});
+}
+
+uint32 prune(NodeDAG& nodes, uint32 nodeIndex)
+{
+	Node node = nodes[nodeIndex];
+	for (int i = 0; i < 8; i++)
+	{
+		uint32 nodeChildIndex = node[i];
+		if (!isMaterialNode(nodeChildIndex))
+		{
+			node[i] = prune(nodes, nodeChildIndex);
+		}
+	}
+
+	return nodes.isPrunable(node) ? node[0] : nodes.insert(node);
+}
+
+void prune(Volume& volume)
+{
+	uint32 rootNodeIndex = getRootNodeIndex(volume);
+	NodeDAG& nodes = getNodes(volume);
+	uint32 newRootNodeIndex = prune(nodes, rootNodeIndex);
+	volume.setRootNodeIndex(newRootNodeIndex);
+}
+
+/***************************************************************************************************
+*    ___  ___          _       _   _               _ _           _   _                             *
+*    |  \/  |         | |     | | | |             | (_)         | | (_)                            *
+*    | .  . | ___  ___| |__   | | | | _____  _____| |_ ___  __ _| |_ _  ___  _ __                  *
+*    | |\/| |/ _ \/ __| '_ \  | | | |/ _ \ \/ / _ \ | / __|/ _` | __| |/ _ \| '_ \                 *
+*    | |  | |  __/\__ \ | | | \ \_/ / (_) >  <  __/ | \__ \ (_| | |_| | (_) | | | |                *
+*    \_|  |_/\___||___/_| |_|  \___/ \___/_/\_\___|_|_|___/\__,_|\__|_|\___/|_| |_|                *
+*                                                                                                  *
+***************************************************************************************************/
+
+// A fast approach to voxelisation which evaluates the winding number for each octree node
+// and uses multiple threads. This is the method which is used under normal circumstances.
+void doPerNodeVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background)
+{
+	Box3i voxelisationBounds = computeBounds(volume, background);
+
+	// Find all the nodes - both the single-voxel nodes which are part of the
+	// voxelised surface and (hopefully larger) nodes which are either side of it.
+	auto nodesToTest = findNodes(volume, voxelisationBounds);
+
+	// Classify all nodes according to which side of the surface they are on.
+	NodeDAG& nodeData = Internals::getNodes(volume);
+	classifyNodes(nodesToTest, nodeData, mesh);
+
+	// Apply the results to the volume
+	for (auto& toTest : nodesToTest)
+	{
+		MaterialId resultingMaterial = toTest.result ? fill : background;
+		nodeData.nodes().setNodeChild(toTest.index, toTest.childId, resultingMaterial);
+	}
+
+	// The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state.
+	// This might be because the shell voxelisaion is too thick, though I think we have avoided that. But even so,
+	// the mesh might represent a small box touching eight voxels, all of which are inside. These would be
+	// individually classified and would all get the same value, so they should be pruned and replaced by the parent.
+	prune(volume);
+}
+
+// A very slow approach to voxelisation which evaluates the winding number for every voxel It also
+// only runs on a single thread. It is only intended for validation of the hierarchical version.
+void doPerVoxelVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background)
+{
+	Box3i voxelisationBounds = static_cast<Box3i>(mesh.bounds);
+	voxelisationBounds.dilate(2); // Make sure we really cover everything
+
+	Vector3i minBound = voxelisationBounds.lower();
+	Vector3i maxBound = voxelisationBounds.upper();
+
+	// Iterate over each voxel within the bounds and classify as inside or outside
+	for (int32 volZ = minBound.z(); volZ <= maxBound.z(); volZ++)
+	{
+		for (int32 volY = minBound.y(); volY <= maxBound.y(); volY++)
+		{
+			for (int32 volX = minBound.x(); volX <= maxBound.x(); volX++)
+			{
+				Vector3f queryPoint = { static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) };
+				auto material = isInside(queryPoint, mesh) ? fill : background;
+				volume.setVoxel(volX, volY, volZ, material);
+			}
+		}
+		reportProgress("Classifying voxels (Brute Force!)", minBound.z(), volZ, maxBound.z());
+	}
+}
+
+void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background)
+{
+	// TODO - Need to think how triangle colours and fill colour should be used if one, 
+	// both, or neither are provided. What makes for the simplest and most useful API?
+
+	if (mesh.isInsideOut) {
+		log(INF, "Mesh is inside-out, swapping material overrides.");
+		std::swap(fill, background);
+	}
+
+	volume.fill(background);
+
+	if (mesh.isClosed && (fill != background)) { // Do a proper 'solid' (filled) voxelisation
+		if (classifyNodesNotVoxels)
+		{
+			// When drawing the mesh into the volume we can use a 'checkerboard' pattern of materials.
+			// This provides high-frequency detail which prevents the octree from being pruned. A thin
+			// surface is high-frequency anyway, but if e.g. two surfaces come close together then a set of
+			// eight voxels can all be set which would then be pruned. The checkerboard does not prevent DAG
+			// deduplication, but that does not happen automatically anyway.
+			drawTriangles(mesh.triangles, mesh.materials, -1.0,
+				[&](int32 x, int32 y, int32 z, MaterialId matId) {
+					MaterialId checkerboard = ((x & 0x1) ^ (y & 0x1) ^ (z & 0x1));
+					volume.setVoxel(x, y, z, background + checkerboard + 1);
+				});
+
+			doPerNodeVoxelisation(volume, mesh, fill, background);
+		} else {
+			// This path is for debug and validation only.
+			doPerVoxelVoxelisation(volume, mesh, fill, background);
+		}
+
+		// Write the surface voxels with their correct materials as specified in the mesh.
+		// Only write those which were found to be inside the mesh, except for meshes marked
+		// as thin (as these may pass between voxels and hence not enclose them, resulting in holes).
+		// 
+		// Note that the triangle order can matter when multiple triangles pass close to a voxel,
+		// and by drawing them in the user-supplied order we let the user control the result.
+		drawTriangles(mesh.triangles, mesh.materials, 1.0,
+			[&](int32 x, int32 y, int32 z, MaterialId matId) {
+				if (volume.voxel(x, y, z) != background || mesh.isThin) {
+					volume.setVoxel(x, y, z, matId);
+				}
+			});
+	} else { // Fall back to just drawing the shell of the object (in user-supplied order, as above)
+		auto draw = [&](int32 x, int32 y, int32 z, MaterialId matId) {
+			volume.setVoxel(x, y, z, matId);
+			};
+		drawTriangles(mesh.triangles, mesh.materials, -1.0, draw);
+	}
+}
+
+void Mesh::addTriangle(const Triangle& tri, MaterialId matId)
+{
+	triangles.push_back(tri);
+	materials.push_back(matId);
+}
+
+MaterialId findMainMaterial(const Mesh& mesh)
+{
+	// Find the main material of the surface as the material which covers the greatest area. 
+	// Attempts to use winding numbers have less obvious behaviour for open/inverted surfaces.
+	std::vector<float> areas(MaterialCount);
+	std::fill(areas.begin(), areas.end(), 0.0f);
+	for (uint i = 0; i < mesh.triangles.size(); i++)
+	{
+		areas[mesh.materials[i]] += mesh.triangles[i].area();
+	}
+	return std::distance(areas.begin(), std::max_element(areas.begin(), areas.end()));
+}
+
+void Mesh::build()
+{
+	bounds = computeBounds(triangles);
+
+	// Sample the winding number at various points in and around the object to determine how
+	// well-formed the mesh is. Note that this is not a perfect test (e.g. a doubled-up
+	// hemisphere will look like valid geometry) but it catches a lot of real-world scenarios.		
+	bool allValid = true;
+	bool anyPositive = false;
+	bool anyNegative = false;
+	const int sampleCount = 100;
+	const float tolerance = 0.1f;
+
+	Cubiquity::Box3fSampler sampler(bounds);
+	for (uint32_t i = 0; i < sampleCount; i++)
+	{
+		Vector3f point = sampler.next();
+
+		const float windingNumber = computeWindingNumber(point, triangles);
+		const float absWindingNumber = std::abs(windingNumber);
+
+		if (absWindingNumber >= tolerance) // Small winding numbers don't tell us anyting.
+		{
+			anyPositive |= windingNumber > 0.0f;
+			anyNegative |= windingNumber < 0.0f;
+
+			const bool isSufficient = absWindingNumber > (1.0f - tolerance);
+			const bool isExcessive = absWindingNumber > (1.0f + tolerance);
+
+			if (!isSufficient || isExcessive) {
+				log(INF, "Absolute winding number of ", absWindingNumber, " found at position ", point, ".");
+				if (!isSufficient) {
+					log(INF, "\t(This indicates the mesh is not closed or has inconsistant winding)");
+					allValid = false;
+					break;
+				}
+				else { // is excessive
+					log(INF, "\t(This indicates the mesh has doubled-up triangles or separate surface details)");
+				}
+			}
+		}
+	}
+
+	const bool mixedSigns = anyNegative && anyPositive;
+	isClosed = allValid && (!mixedSigns);
+	isInsideOut = isClosed && anyNegative; // Mesh can only be inside out if closed.
+
+	if (isInsideOut) {
+		log(INF, "Exclusively negative winding numbers indicate the mesh is inside-out.");
+	}
+
+	if (isClosed) {
+		patchTriangles = triangles; // Copy gets sorted during patch construction
+		rootPatch = std::make_optional<Patch>(patchTriangles);
+		//std::ofstream file("tree.txt"); writePatch(*rootPatch, file);
+		//exportCollada(std::string("collada_") + name + ".dae", *rootPatch);
+	}
+}
+
+} // namespace Cubiquity

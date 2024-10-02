@@ -21,103 +21,62 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <random>
+#include <span>
 #include <unordered_set>
 
 namespace Cubiquity
 {
-	//! Respresents a set of triangles in a way which is optimised for winding number calculation.
-	//! This class provides and implementation of the hierarchical approach to computing generalized winging numbers, as described in [REF]
-	class ClosedTriangleTree : private Internals::NonCopyable // Avoid deep vs. shallow copy ambiguity
-	{
-	public:
-		//! Constructs a ClosedTriangleTree from a TriangleList.
-		explicit ClosedTriangleTree(const TriangleList &triangles, bool tidyInput = true);
-
-	private:
-
-		Box3f mBounds;
-		TriangleList mTriangles;
-		TriangleList mClosingTriangles;
-		std::unique_ptr<ClosedTriangleTree> mChildren[2];
-
-		// Making this function a friend lets us keep this class opaque to the user.
-		friend float computeWindingNumber(const Vector3f& queryPoint, const ClosedTriangleTree& meshNode);
-	};
-
-	//! Calculates the winding number for a query point and a list of triangles
-	//! This overload uses a simple brute-force approch and is privided mostly for reference.
-	float computeWindingNumber(const Vector3f& queryPoint, const TriangleList& triangles);
-	//! Calculates the winding number for a query point and a hierarchical triangle structure.
-	//! This overload is much faster than using a triangle list and the theorectical result is
-	//! exactly the same. In practice there are some small deviations for at least two reasons:
-	//!     * Diffeent triangles are processed and in a different order, hence there is
-	//!       potential for floating-point incacuracies to creep in.
-	//!     * The triangles in the hierarchical struture are (usually) quantized slightly to 
-	//!       improve floating-point comparisons (see ClosedTriangleTree).
-	float computeWindingNumber(const Vector3f& queryPoint, const ClosedTriangleTree& meshNode);
-
-	enum class Thickness { Separate6, Separate26, Custom };
-
-	void scanConvert3D(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier, uint pass);
-	void scanConvert3DRecursive(const Triangle& triangle, MaterialId matId, Volume& volume, Thickness thickness, float multiplier, uint pass);
-
 	typedef std::vector<MaterialId> MaterialList;
 
-	class Surface
+	// Hierarchical representation of a list of triangles which is optimised
+	// for computing generalized winding numbers, as described by Jacobson et al.
+	class Patch : private Internals::NonCopyable
 	{
 	public:
-		Surface();
+		explicit Patch(TriangleSpan triSpan);
 
+		Box3f bounds;
+		TriangleSpan triangles;
+		TriangleList closingTriangles;
+		std::vector<Patch> children;
+	};
+
+	class Mesh
+	{
+	public:
+		Mesh() {}
+
+		// We should note in the API docs that the order of triangles can metter. When
+		// multiple triangles write to the same voxel the last one in the list takes effect.
 		void addTriangle(const Triangle& tri, MaterialId matId);
 		void build();
 
+		// General properties
 		std::string name;
+		Box3f bounds;
+
+		// Geometry (stored in user-submitted order)
 		TriangleList triangles;
 		MaterialList materials;
-		Box3f bounds;
-		float meanWindingNumber;
-		MaterialId mainMaterial;
-		std::unique_ptr<ClosedTriangleTree> closedTriangleTree;
+
+		// Flags describing how well-formed the geomentry is
+		bool isClosed = false;
+		bool isInsideOut = false;
+
+		// Thin meshes may pass between voxels
+		bool isThin = false;
+
+		// Hierarchical representation
+		std::optional<Patch> rootPatch; // Root of hierachical representation
+		TriangleList patchTriangles;    // Spatially-sorted copy of triangles
 	};
 
-	float findThreshold(const Surface& surface);
-	MaterialId findMainMaterial(const Surface& surface);
+	MaterialId findMainMaterial(const Mesh& mesh);
 
-	//! Perform a solid voxelisation of the given geometry into the volume.
-	//!
-	//! The provided geometry is assumed to be in 'volume space', i.e. it is correctly transformed
-	//! to be in the desired location in the the volume. The algorithm works by firstly drawing the
-	//! 'shell' of the geometry into the volume using a 3D version of scan conversion, and then 
-	//! classifying each part of the volume (either per-voxel or per-octree-node) as inside or
-	//! outside. It is generally this second part which dominates the runtime.
-	//!
-	//! The voxelisation process works best under the following conditions:
-	//!
-	//!     * All polygons in the scene have consistant winding. There should not be a mix of
-	//!       clockwise and counter-clockwise wound polygons. It can cause significant problems if
-	//!       this rule is violated.
-	//!     * The scene should consist of closed objects ideally with a single material. Single-
-	//!       sided objects represent windows or a ground plane can cause significant problem. 
-	//!       These should be given some thickness if possible.
-	//!     * There should be no hierarchy amounst the objects, as they will be treated as a flat
-	//!       list.
-	//!
-	//! \param preserveSurfaceMaterials Ensures that materials which get written to the volume
-	//!        during the scan conversion do not get overwritten during the classification. This can
-	//!        be useful when one object contains multiple different materials, as otherwise the
-	//!        material which gets chosen to fill the object might overwrite the surface. It is also
-	//!        useful in conjunction wth 'internalMaterialOveride' to create objects with a different
-	//!        material on the surface compared to the inside, or to represent hollow objects.
-	//! \param internalMaterialOveride Causes all objects to be filled with the specified material
-	//!        instead of their own. If 'preserveSurfaceMaterials' is disabled then this results in a
-	//!        binary voxelisation.
-	void voxelize(Volume& volume, Surface& surface, bool useSurfaceMaterials = true,
-		MaterialId* internalMaterialOverride = nullptr, MaterialId* externalMaterialOverride = nullptr);
-
-	typedef int32 (*HeightFunc)(int32, int32);
-	void voxelizeHeightmap(Volume& volume, HeightFunc heightFunc, int32 minBounds[3], int32 maxBounds[3],
-		MaterialId undergroundMaterial, MaterialId surfaceMaterial);
+	// Voxelise the mesh into the volume
+	void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background);
 }
 
 #endif //CUBIQUITY_VOXELIZATION_H
