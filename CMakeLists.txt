@@ -90,6 +90,7 @@ if (SDL2_FOUND)
         src/application/*
         src/application/base/*
         src/application/commands/export/*
+        src/application/commands/export/vox_writer/vox_writer.* # Skip example.cpp
         src/application/commands/generate/*
         src/application/commands/test/*
         src/application/commands/view/*

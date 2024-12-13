@@ -7,10 +7,17 @@
 #include "cubiquity.h"
 #include "storage.h"
 
+#include "volume_vox_writer.h"
+
 #include "stb_image_write.h"
 
 #include <algorithm>
 #include <fstream>
+
+// Hack for testing example code from main project
+/*#define main run_vox_writer_example
+#include "vox_writer/example.cpp"
+#undef main*/
 
 using namespace Cubiquity;
 
@@ -73,17 +80,37 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 	}
 }
 
+void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::string& fileName)
+{	
+	// Hack for testing example code from main project
+	/*run_vox_writer_example();
+	return;*/
+
+	Timer timer;
+	try {		
+		volume_vox_writer writer(volume, metadata);
+		writer.write("output.vox", false);
+		std::cout << "Exported .vox in " << timer.elapsedTimeInSeconds() << " seconds." << std::endl;
+	} catch (std::exception& e) {;
+		std::cerr << "Failed to write .vox file (" << e.what() << ")." << std::endl;
+	}
+}
+
 bool exportVolume(const flags::args& args)
 {
 	std::filesystem::path inputPath(args.positional().at(1));
 	if (!checkInputFileIsValid(inputPath)) return false;
 
-	const auto outputPath = args.get<std::string>("output_path", ".");
-	if (!checkOutputDirIsValid(outputPath)) return false;
-
 	Volume volume(inputPath.string());
 	Metadata metadata = loadMetadataForVolume(inputPath);
 
-	saveVolumeAsImages(volume, metadata, ".");
+	const auto outputPath = args.get<std::filesystem::path >("output_path", ".");
+	if(outputPath.extension() == ".vox") {
+		saveVolumeAsVox(volume, metadata, "output.vox");
+	} else {
+		if (!checkOutputDirIsValid(outputPath)) return false;
+		saveVolumeAsImages(volume, metadata, ".");
+	}
+
 	return true;
 }

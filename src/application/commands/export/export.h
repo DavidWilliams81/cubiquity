@@ -1,5 +1,5 @@
-#ifndef CUBIQUITY_VOXELIZE_EXPORT_H
-#define CUBIQUITY_VOXELIZE_EXPORT_H
+#ifndef CUBIQUITY_EXPORT_H
+#define CUBIQUITY_EXPORT_H
 
 #include "base/metadata.h"
 
@@ -10,4 +10,4 @@
 bool exportVolume(const flags::args& args);
 void saveVolumeAsImages(Cubiquity::Volume& volume, const Metadata& metadata, const std::string& filename);
 
-#endif // CUBIQUITY_VOXELIZE_EXPORT_H
+#endif // CUBIQUITY_EXPORT_H

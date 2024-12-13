@@ -36,6 +36,8 @@ The main features of Cubiquity are:
 
 * An implementation of the raycasting algorithm described in [Efficient Sparse Voxel Octrees](https://research.nvidia.com/sites/default/files/pubs/2010-02_Efficient-Sparse-Voxel/laine2010tr1_paper.pdf), demonstrated by a pathtracer and also available for other uses such as collision detection.
 
+* Export to the [MagicaVoxel](https://ephtracy.github.io/) .vox format is provided by the [vox_writer](src/application/commands/export/vox_writer) library, which can also be used completely separately from Cubiquity.
+
 ## Structure
 The engine consists of a number of modules, each [implemented in a single C++ header and corresponding source file](src/cubiquity). There are no external dependencies (beyond the C++ standard library) and each module requires only those below it in the diagram. This makes it easy to drop the source files into your project, or alternatively you can build them into a static library.
 
