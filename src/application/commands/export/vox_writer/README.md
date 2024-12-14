@@ -181,6 +181,6 @@ Note that enabling sparse mode can trigger a significant pause (perhaps a minute
 ### Avoyd
 [Avoyd](https://www.avoyd.com/) is a powerful voxel editor with a free version available. It supports very high resolution volumes (up to 256k voxels on each side) so can easily handle the files output from vox_writer.
 
-The .vox files need to be imported (rather than just opened) using 'File' -> 'Import' -> 'MagicaVoxel (.vox)'.
+The .vox files can be opened via `File > Open` or `File > Import > MagicaVoxel (.vox)`, or by dragging and dropping a .vox file into Avoyd. Further information is available [here](https://www.avoyd.com/avoyd-voxel-editor-documentation.html#ImportVox).
 
 <p align="center"><a href="https://s3.eu-west-2.amazonaws.com/dpw81.public/vox_writer/avoyd.png"><img src="https://s3.eu-west-2.amazonaws.com/dpw81.public/vox_writer/avoyd.png" alt="MagicaVoxel file imported into Avoyd"></a></p>
