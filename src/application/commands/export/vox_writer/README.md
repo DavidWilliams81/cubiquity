@@ -2,7 +2,7 @@
 
 This library provides a simple way to write high-resolution [MagicaVoxel](https://ephtracy.github.io/) files from a C++ program. You can use it to wrap your existing data structure for exporting to MagicaVoxel, or you can generate voxel scenes procedurally.
 
-Th library is part of the [Cubiquity Voxel Engine](https://github.com/DavidWilliams81/cubiquity) but can be used completely independently. The source code is released into the public domain under the [CC0 dedication](https://creativecommons.org/publicdomain/zero/1.0/).
+The library is part of the [Cubiquity Voxel Engine](https://github.com/DavidWilliams81/cubiquity) but can be used completely independently. The source code is released into the public domain under the [CC0 dedication](https://creativecommons.org/publicdomain/zero/1.0/).
 
 <p align="center">
 	<a href="https://s3.eu-west-2.amazonaws.com/dpw81.public/vox_writer/header.png"><img src="https://s3.eu-west-2.amazonaws.com/dpw81.public/vox_writer/header.png" alt="Screenshots"></a>
