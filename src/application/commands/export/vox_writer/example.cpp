@@ -65,6 +65,6 @@ int main(void)
 	std::filesystem::path filename = "example.vox";
 	example_vox_writer writer(200); // Create the writer
 	writer.write(filename);         // Write the file to disk
-	std::cout << "Finshed writing " << filename << std::endl;
+	std::cout << "Finished writing " << filename << std::endl;
 	return 0;
 }

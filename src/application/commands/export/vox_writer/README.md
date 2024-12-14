@@ -1,13 +1,19 @@
-# A C++ library for writing volume data in the MagicaVoxel format
+# vox_writer - Writing high-resolution MagicaVoxel files from C++
 
-This library provides a simple way to write high-resolution [MagicaVoxel](https://ephtracy.github.io/) files from a C++ program. You can use it to wrap you existing data structure for exporting to MagicaVoxel, or you can generate voxel scenes procedurally.
+This library provides a simple way to write high-resolution [MagicaVoxel](https://ephtracy.github.io/) files from a C++ program. You can use it to wrap your existing data structure for exporting to MagicaVoxel, or you can generate voxel scenes procedurally.
 
-The library is part of the [Cubiquity Voxel Engine](https://github.com/DavidWilliams81/cubiquity) but can be used completely independently. The source code is released into the public domain under the [CC0 dedication](https://creativecommons.org/publicdomain/zero/1.0/).
+Th library is part of the [Cubiquity Voxel Engine](https://github.com/DavidWilliams81/cubiquity) but can be used completely independently. The source code is released into the public domain under the [CC0 dedication](https://creativecommons.org/publicdomain/zero/1.0/).
 
 <p align="center">
 	<a href="https://s3.eu-west-2.amazonaws.com/dpw81.public/vox_writer/header.png"><img src="https://s3.eu-west-2.amazonaws.com/dpw81.public/vox_writer/header.png" alt="Screenshots"></a>
 	<i>This scene was modelled using assets from <a href="https://quaternius.com/">Quaternius</a>, voxelized using <a href="https://github.com/DavidWilliams81/cubiquity">Cubiquity</a>, and exported to the <a href="https://ephtracy.github.io/">MagicaVoxel</a> format using this library.</i>
 </p>
+
+## Contents
+* [Features](#features)
+* [Limitations](#limitations)
+* [Usage](#usage)
+* [Viewing high-resolution files](#viewing-high-resolution-files)
 
 ## Features
 **High-resolution:** There are no limits on the dimensions of the volume which can be written (though see [the note below](#limitations) on max *file size*). The library takes care of splitting the volume into a number of models and building a scene graph to accommodate the constraints of the .vox format.
@@ -30,7 +36,7 @@ The library only supports an indexed RGBA color per voxel. Advanced MagicaVoxel 
 Although this library has no limit on the dimensions of the volume, the .vox format has a 2 GB file size limit. Furthermore, MagicaVoxel can struggle to render large volumes. See the section ['Viewing high-resolution files'](#Viewing-high-resolution-files) below for tips on viewing large volumes.
 
 ## Usage
-It is easy to integrate this library with your application. It is provided as a single pair of .cpp/.h files which you can add directly to your project or makefile. You can then subclass vox_writer to implement a couple of functions as shown below (from [example.cpp](example.cpp)):
+It is easy to integrate this library with your application. It is provided as a single pair of .cpp/.h files which you can add directly to your project or makefile. You can then subclass `vox_writer` to implement a couple of functions as shown below (from [example.cpp](example.cpp)):
 
 ```c++
 #include "vox_writer.h"
@@ -100,7 +106,7 @@ int main(void)
 	std::filesystem::path filename = "example.vox";
 	example_vox_writer writer(200); // Create the writer
 	writer.write(filename);         // Write the file to disk
-	std::cout << "Finshed writing " << filename << std::endl;
+	std::cout << "Finished writing " << filename << std::endl;
 	return 0;
 }
 ```
