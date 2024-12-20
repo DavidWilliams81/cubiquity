@@ -53,16 +53,15 @@ bool mengerSponge(int x, int y, int z)
 
 bool generateVolume(const flags::args& args)
 {
-	const auto type{ args.positional().at(1) };
+	//const auto type{ args.positional().at(1) };
 	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
 	const auto sizeExp = args.get<uint>("size_exp", 5);
 
 	Volume volume;
 	MaterialId matId = 1;
 	Metadata metadata;
-	metadata.materials[matId].name = "Main";
-	metadata.materials[matId].diffuse = { 0.5, 0.5, 1.0 };
-
+	metadata.materials.push_back(Metadata::EmptySpace);
+	metadata.materials.push_back(Metadata::Default);
 
 	uint32 size = 1;
 	for (uint i = 0; i < sizeExp; i++)
@@ -72,7 +71,7 @@ bool generateVolume(const flags::args& args)
 
 	for (int z = 0; z < size; z++)
 	{
-		std::cout << z << "/" << size << std::endl;
+		log_info("{} of {}", z+1, size);
 		for (int y = 0; y < size; y++)
 		{
 			for (int x = 0; x < size; x++)
@@ -84,10 +83,9 @@ bool generateVolume(const flags::args& args)
 	}	
 
 	// Save the result
-	std::cout << "Saving volume as \'" << outputPath << "\'...";
+	log_info("Saving volume as '{}'", outputPath);
 	volume.save(outputPath.string());
 	saveMetadataForVolume(metadata, outputPath);
-	std::cout << "done." << std::endl;
 
 	return true;
 }

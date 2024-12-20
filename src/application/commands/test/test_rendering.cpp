@@ -10,7 +10,6 @@
 
 #include <cfloat>
 #include <functional>
-#include <iostream>
 #include <random>
 
 using namespace Cubiquity;
@@ -19,7 +18,7 @@ using namespace std;
 
 bool testRasterization()
 {
-	std::cout << "Running rasterization test..." << std::endl;
+	log_info("Running rasterization test...");
 
 	const uint32_t maskSize = 1024;
 
@@ -79,7 +78,7 @@ bool testRasterization()
 
 	float elapsedTime = timer.elapsedTimeInMilliSeconds();
 
-	cout << "\tTime elapsed = " << elapsedTime << "ms." << endl;
+	log_info("\tTime elapsed = {} ms", elapsedTime);
 
 	saveVisibilityMaskAsImage(*mask, "TestRasterizationMask.png");
 
@@ -199,12 +198,12 @@ bool testRaytracingBehaviour()
 		}
 	}
 
-	std::cout << timer.elapsedTimeInSeconds() << " seconds\n";
+	log_info("{} seconds", timer.elapsedTimeInSeconds());
 
-	std::cout << "Hit count = " << hitCount << " out of " << rayCount << std::endl;
+	log_info("Hit count = {} out of {}", hitCount, rayCount);
 	check(hitCount, hitCountRef);
 
-	std::cout << "Max error = " << maxError << std::endl;
+	log_info("Max error = {}", maxError);
 	check((maxError < 0.001f), true);
 
 	return (hitCount == hitCountRef) && ((maxError < 0.001f));
@@ -244,8 +243,8 @@ bool testRaytracingPerformance()
 		if (intersection.hit) { hitCount++; }
 	}
 
-	std::cout << "Traced " << rayCount << " rays in " << timer.elapsedTimeInSeconds() << " seconds\n";
-	std::cout << "Hit count = " << hitCount << " out of " << rayCount << std::endl;
+	log_info("Traced {} rays in {} seconds", rayCount, timer.elapsedTimeInSeconds());
+	log_info("Hit count = {} out of {}", hitCount, rayCount);
 	check(hitCount, 124084);
 
 	return true;

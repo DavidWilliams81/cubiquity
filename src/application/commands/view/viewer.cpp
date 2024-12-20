@@ -1,5 +1,7 @@
 #include "viewer.h"
 
+#include "base/logging.h"
+
 #include "cubiquity.h"
 #include "visibility.h"
 #include "raytracing.h"
@@ -7,7 +9,6 @@
 
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <vector>
 
 using namespace Cubiquity;
@@ -15,13 +16,13 @@ using namespace Cubiquity;
 Viewer::Viewer(const std::string& filename, WindowType windowType)
 	: Window(windowType)
 {
-	std::cout << "Opening volume \'" << filename << "\'... ";
+	log_info("Opening volume '{}'", filename);
 	if (!mVolume.load(filename))
 	{
-		std::cout << " failed to open volume!" << std::endl;
+		log_error("Failed to open volume!");
 		exit(EXIT_FAILURE);
 	}
-	std::cout << " done" << std::endl;
+	log_info("Done");
 
 	// FIXME - This cube doesn't pathtrace properly
 	/*for (int z = -8; z < 7; z++)
@@ -59,9 +60,9 @@ void Viewer::onInitialise()
 
 	Vector3d lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
 	Vector3d upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
-	std::cout << "Lower bound = " << lower << std::endl;
-	std::cout << "Upper bound = " << upper << std::endl;
-	std::cout << "Bounds estimation took " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
+	log_info("Lower bound = ({},{},{})", lower.x(), lower.y(), lower.z());
+	log_info("Upper bound = ({},{},{})", upper.x(), upper.y(), upper.z());
+	log_info("Bounds estimation took {} seconds", timer.elapsedTimeInSeconds());
 
 	Vector3d centre = (lower + upper) * 0.5;
 
@@ -153,8 +154,6 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 	if (event.button == SDL_BUTTON(SDL_BUTTON_LEFT))
 	//if (mouseButtonState(SDL_BUTTON_LEFT) == MouseButtonState::Down)
 	{
-		//std::cout << "x = " << event.x << ", y = " << event.y << std::endl;
-
 		Ray3f ray = static_cast<Ray3f>(mCamera.rayFromViewportPos(event.x, event.y, width(), height()));
 		SubDAGArray subDAGs = findSubDAGs(
 			Internals::getNodes(volume()).nodes(), getRootNodeIndex(volume()));

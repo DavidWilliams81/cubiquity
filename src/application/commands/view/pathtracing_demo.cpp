@@ -13,6 +13,8 @@
 
 #include "pathtracing_demo.h"
 
+#include "base/logging.h"
+
 // Cubiquity
 #include "geometry.h"
 #include "visibility.h"
@@ -31,7 +33,6 @@
 #include <cstdlib>
 #include <cmath>
 #include <functional>
-#include <iostream>
 #include <random>
 
 using namespace Cubiquity;
@@ -219,7 +220,7 @@ void PathtracingDemo::onUpdate(float deltaTime)
 	// Update the pathtraced image
 	Timer timer;
 	raytrace(camera());
-	std::cout << "Rendered frame in " << timer.elapsedTimeInMilliSeconds() << "ms" << std::endl;
+	log_info("Rendered frame in {}ms", timer.elapsedTimeInMilliSeconds());
 
 	// Copy from floating point image to 24-bit RGB SDL surface
 	float* src = &(mImage[0][0]);
@@ -257,31 +258,30 @@ void PathtracingDemo::onKeyDown(const SDL_KeyboardEvent& event)
 	{
 		if (bounces > 0) { bounces--; }
 		clear();
-		std::cout << "Bounces = " << bounces << std::endl;
+		log_info("Bounces = {}", bounces);
 	}
 	if (event.keysym.sym == SDLK_F2)
 	{
 		if (bounces < 5) { bounces++; }
 		clear();
-		std::cout << "Bounces = " << bounces << std::endl;
+		log_info("Bounces = {}", bounces);
 	}
 	if (event.keysym.sym == SDLK_F3)
 	{
 		includeSun = !includeSun;
 		clear();
-		std::cout << "includeSun = " << includeSun << std::endl;
+		log_info("includeSun = {}", includeSun);
 	}
 	if (event.keysym.sym == SDLK_F4)
 	{
 		includeSky = !includeSky;
 		clear();
-		std::cout << "includeSky = " << includeSky << std::endl;
+		log_info("includeSky = {}", includeSky);
 	}
 	if (event.keysym.sym == SDLK_F5)
 	{
 		addNoise = !addNoise;
-		
-		std::cout << "addNoise = " << addNoise << std::endl;
+		log_info("addNoise = {}", addNoise);
 	}
 }
 

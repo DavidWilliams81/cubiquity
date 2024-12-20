@@ -33,7 +33,6 @@
 #include <cstdlib>
 #include <cmath>
 #include <functional>
-#include <iostream>
 #include <random>
 
 using namespace Cubiquity;

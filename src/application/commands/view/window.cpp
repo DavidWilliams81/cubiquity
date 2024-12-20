@@ -1,11 +1,12 @@
 #include "window.h"
 
+#include "base/logging.h"
+
 // Include GLAD
 #include <glad/glad.h>
 
 // Include standard headers
 #include <cassert>
-#include <iostream>
 
 void Window::show(int width, int height)
 {
@@ -38,7 +39,7 @@ void Window::show(int width, int height)
 		context = SDL_GL_CreateContext(mSDLWindow);
 		if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress))
 		{
-			std::cerr << "Failed to initialize the OpenGL context." << std::endl;
+			log_error("Failed to initialize the OpenGL context");
 			return;
 		}
 	}

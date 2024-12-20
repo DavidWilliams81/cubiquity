@@ -701,7 +701,7 @@ void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background
 	// both, or neither are provided. What makes for the simplest and most useful API?
 
 	if (mesh.isInsideOut) {
-		log(INF, "Mesh is inside-out, swapping material overrides.");
+		log_warning("Mesh is inside-out, swapping material overrides.");
 		std::swap(fill, background);
 	}
 
@@ -796,14 +796,16 @@ void Mesh::build()
 			const bool isExcessive = absWindingNumber > (1.0f + tolerance);
 
 			if (!isSufficient || isExcessive) {
-				log(INF, "Absolute winding number of ", absWindingNumber, " found at position ", point, ".");
+				std::stringstream ss;
+				ss << "Absolute winding number of " << absWindingNumber << " found at position " << point;
+				log_warning(ss.str());
 				if (!isSufficient) {
-					log(INF, "\t(This indicates the mesh is not closed or has inconsistant winding)");
+					log_warning("\t(This indicates the mesh is not closed or has inconsistant winding)");
 					allValid = false;
 					break;
 				}
 				else { // is excessive
-					log(INF, "\t(This indicates the mesh has doubled-up triangles or separate surface details)");
+					log_warning("\t(This indicates the mesh has doubled-up triangles or separate surface details)");
 				}
 			}
 		}
@@ -814,7 +816,7 @@ void Mesh::build()
 	isInsideOut = isClosed && anyNegative; // Mesh can only be inside out if closed.
 
 	if (isInsideOut) {
-		log(INF, "Exclusively negative winding numbers indicate the mesh is inside-out.");
+		log_warning("Exclusively negative winding numbers indicate the mesh is inside-out.");
 	}
 
 	if (isClosed) {

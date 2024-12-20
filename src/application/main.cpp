@@ -14,8 +14,18 @@
 
 using namespace Cubiquity;
 
+void log_debug_func(const char* message)
+{
+    log_debug("{}", message);
+}
+
+void log_warning_func(const char* message)
+{
+    log_warning("{}", message);
+}
+
 void printUsageAndExit() {
-	log(Info, "Usage: cubiquity <command> [--quiet] [--verbose] ...");
+	print("Usage: cubiquity <command> [--quiet] [--verbose] ...\n");
 	exit(EXIT_SUCCESS);
 }
 
@@ -43,19 +53,20 @@ int main(int argc, char** argv)
 	const auto quiet = args.get<bool>("quiet", false);
 	const auto verbose = args.get<bool>("verbose", false);
 	if (quiet && verbose) {
-		log(Error, "Quiet and Verbose modes cannot be used together!");
+		log_error("Quiet and Verbose modes cannot be used together!");
 		printUsageAndExit();
 	}
 	else if (quiet) {
-		setVerbosity(Warning);
+		set_verbosity(log_level::warning);
 	}
 	else if (verbose) {
-		setVerbosity(Debug);
+		set_verbosity(log_level::debug);
 	}
-	log(Debug, "Verbose output enabled");
+	log_debug("Verbose output enabled");
 
 	// Hook up Cubiquity to the applications logging system
-	Cubiquity::setLogHandler(&cubiquityLogHandler);
+	Cubiquity::setLogDebugFunc(&log_debug_func);
+	Cubiquity::setLogWarningFunc(&log_warning_func);
 
 	Cubiquity::setProgressHandler(&cubiquityProgressHandler);
 
@@ -66,12 +77,12 @@ int main(int argc, char** argv)
 	{
 		CommandPtr commandPtr = commandIter->second;
 		if (!(*commandPtr)(args)) {
-			log(Error, "Failed to execute command \'", commandName, "\'.");
+			log_error("Failed to execute command '{}'", commandName);
 		}
 	}
 	else
 	{
-		log(Error, "Unrecognised command \'", commandName, "\'.");
+		log_error("Unrecognised command '{}'", commandName);
 	}
 
 	return EXIT_SUCCESS;

@@ -270,37 +270,30 @@ namespace Cubiquity
 		}
 	}
 
-	void defaultLogHandler(int severity, const char* message)
+	LogFuncPtr gLogDebugFunc = nullptr;
+	LogFuncPtr gLogWarningFunc = nullptr;
+
+	void setLogDebugFunc(LogFuncPtr debugLogFunc)
 	{
-		switch (severity) {
-		case TRACE:
-			printf("Trace: "); break;
-		case DBG:
-			printf("Debug: "); break;
-		case INF:
-			printf("Info: "); break;
-		case WARN:
-			printf("Warning: "); break;
-		case ERR:
-			printf("Error: "); break;
+		gLogDebugFunc = debugLogFunc;
+	}
+
+	void setLogWarningFunc(LogFuncPtr warningLogFunc)
+	{
+		gLogWarningFunc = warningLogFunc;
+	}
+
+	void Internals::log_debug(const std::string& msg)
+	{
+		if (gLogDebugFunc) {
+			(*gLogDebugFunc)(msg.c_str());
 		}
-		printf(message);
-		printf("\n");
-		fflush(stdout);
 	}
 
-	LogHandlerPtr gLogHandler = &defaultLogHandler;
-	void setLogHandler(LogHandlerPtr logHandler)
+	void Internals::log_warning(const std::string& msg)
 	{
-		gLogHandler = logHandler;
-	}
-
-	void Internals::log(Severity severity, std::ostringstream& oss)
-	{
-		if (gLogHandler)
-		{
-			// Forward the print to our log handler.
-			(*gLogHandler)(severity, oss.str().c_str());
+		if (gLogWarningFunc) {
+			(*gLogWarningFunc)(msg.c_str());
 		}
 	}
 

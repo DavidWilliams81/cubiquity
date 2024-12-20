@@ -9,7 +9,6 @@
 #include "visibility.h"
 
 #include <functional>
-#include <iostream>
 #include <random>
 
 using namespace Cubiquity;
@@ -21,7 +20,7 @@ void fillVolume(Volume* volume, const Box3i& bounds, Function function)
 
 	for (int32 z = bounds.lower().z(); z <= bounds.upper().z(); z++)
 	{
-		std::cout << "Generating slice " << z << std::endl;
+		log_info("Generating slice {}", z);
 
 		for (int32 y = bounds.lower().y(); y <= bounds.upper().y(); y++)
 		{
@@ -41,7 +40,7 @@ bool testVisibility()
 
 bool testVisibilityUnidirectional()
 {
-	std::cout << "Running unidirectional test..." << std::endl;
+	log_info("Running unidirectional test...");
 
     Volume* mVolume = nullptr;
     bool loadFromDisk = true;
@@ -51,16 +50,16 @@ bool testVisibilityUnidirectional()
     }
     else
     {
-		std::cout << "Creating volume..." << std::endl;
+		log_info("Creating volume...");
 		mVolume = new Volume;
 
 		FractalNoise fractalNoise(9);
 		Box3i filledBounds(Vector3i::filled(0), Vector3i::filled(511));
 		fillVolume(mVolume, filledBounds, fractalNoise);
 
-		std::cout << "Saving volume...";
+		log_info("Saving volume...");
 		mVolume->save("testVisibilityUnidirectional.vol");
-		std::cout << "done." << std::endl;
+		log_info("done");
     }
 
     const float fovyInDegrees = 60.0f;
@@ -79,7 +78,7 @@ bool testVisibilityUnidirectional()
 	viewMat = mul(viewMat, roty);
 	viewMat = mul(viewMat, rotz);
 
-	std::cout << viewMat << std::endl;
+	log_info(viewMat);
 
 	CameraData cameraData(viewMat, projMat);*/
 
@@ -106,7 +105,7 @@ bool testVisibilityUnidirectional()
 		m.drawPixel(vertices[i][0], vertices[i][1]);
 	}
 
-	std::cout << "Hash = " << m.hash();
+	log_info("Hash = {}", m.hash());
 	saveVisibilityMaskAsImage(m, "mask.png");
 	exit(1);*/
 
@@ -121,16 +120,16 @@ bool testVisibilityUnidirectional()
 	}
 	
 	float elapsedTime = timer.elapsedTimeInMilliSeconds();
-	cout << "\tTime elapsed = " << elapsedTime << "ms." << endl;
+	log_info("\tTime elapsed = {} ms", elapsedTime);
 
-	std::cout << "\tFound " << glyphCount << " glyphs." << std::endl;
+	log_info("\tFound {} glyphs", glyphCount);
 
 	saveVisibilityMaskAsImage(*(visCalc.mVisMask), "PerspectiveMask.png");
 
 	delete mVolume;
 
 	uint32_t hash = visCalc.mVisMask->hash();
-	std::cout << "\tHash = " << hash << std::endl;
+	log_info("\tHash = {}", hash);
 
 	const size_t expectedGlyphCount = 62117;
 	// Tile size affects memory layout and hence hash.

@@ -27,15 +27,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
-#include <sstream>
 #include <limits>
-#include <list>
 #include <cmath>
-#include <queue>
-#include <thread>
-#include <mutex>
-#include <unordered_set>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -58,7 +51,7 @@ void voxeliseSurface(Mesh& mesh, Volume& volume)
 	voxelize(temp, mesh, mainMaterial, 0);
 	volume.addVolume(temp);
 	volume.bake();
-	std::cout << std::endl;
+	log_info("");
 }
 
 bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metadata& metadata, float scaleFactor)
@@ -75,14 +68,14 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	tinyobj::ObjReader objReader;
 	if (!objReader.ParseFromFile(inputPath.string(), objReaderConfig)) {
 		if (!objReader.Error().empty()) {
-			std::cerr << std::endl << "Parser errors: " <<
-				std::endl << objReader.Error() << std::endl; // Can hold multiple errors
+			log_error("\nParser errors:");
+			log_error("{}", objReader.Error()); // Can hold multiple errors
 		}
 	}
 
 	if (!objReader.Warning().empty()) {
-		std::cout << std::endl << "Parser warnings: " <<
-			std::endl << objReader.Warning() << std::endl; // Can hold multiple warnings
+		log_warning("\nParser warnings:");
+		log_warning("{}", objReader.Warning()); // Can hold multiple warnings
 	}
 
 
@@ -93,12 +86,12 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	// Lack of materials isn't necessarily an problem (there may have been no 'mtllib' directive).
 	// In other cases (missing file or materials) the parser will already have flagged a warning.
 	if (obj_materials.empty()) {
-		std::cout << "No materials found so a default material will be used." << std::endl;
+		log_warning("No materials found so a default material will be used");
 	}
 
 	if (obj_materials.size() > max_obj_materials) {
-		std::cerr << "Too many materials found in .mtl file (found " << obj_materials.size()
-			<< " but only " << max_obj_materials << " are supported)." << std::endl;
+		log_warning("Too many materials found in .mtl file (found {} but only "
+					"{} are supported)", obj_materials.size(), max_obj_materials);
 	}
 
 	// The first material is always empty space, and is not used by any objects.
@@ -125,8 +118,7 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	auto& shapes = objReader.GetShapes();
 	for (size_t s = 0; s < shapes.size(); s++) {
 
-		std::cout << "Processing '" << shapes[s].name << "' ("
-			<< s + 1 << " of " << shapes.size() << ")..." << std::endl;
+		log_info("Processing '{}' ({} of {})...", shapes[s].name, s + 1, shapes.size());
 		bool log_material_warnings = true; // Used to supress (near) duplicate warnings.
 
 		// If a shape contains multiple materials then we don't know which one to fill the interior
@@ -136,14 +128,14 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 		// provides a convenient alternative to splitting an object in a content creation package.
 		const bool split_by_material = shapes[s].name.find("_split") != std::string::npos;
 		if (split_by_material) {
-			std::cout << "Note: The text '_split' in name '" << shapes[s].name <<
-				"' causes the object to be split by material." << std::endl;
+			log_note("The text '_split' in name '{}' causes the "
+			         "object to be split by material.", shapes[s].name);
 		}
 
 		const bool is_thin = shapes[s].name.find("_thin") != std::string::npos;
 		if (is_thin) {
-			std::cout << "Note: The text '_thin' in name '" << shapes[s].name <<
-				"' triggers special handling for thin objects." << std::endl;
+			log_note("The text '_thin' in name '{}' triggers special "
+			         "handling for thin objects.", shapes[s].name);
 		}
 
 		Mesh mesh;
@@ -208,15 +200,15 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 
 			// Not all .obj files even include materials, so only warn if this one did.
 			if ((faceMaterial < 0) && (obj_materials.size() > 0) && (log_material_warnings)) {
-				std::cout << "Warning: Face " << f << " (and possibly others) of " << shapes[s].name << 
-					" has no material assigned" << std::endl;
+				log_warning("Face {} (and possibly others) of {} has "
+				            "no material assigned", f, shapes[s].name);
 				log_material_warnings = false; // Supress similar warning for remaining faces.
 			}
 
 
 			if ((faceMaterial >= max_obj_materials) && (log_material_warnings)) {
-				std::cout << "Warning: Face " << f << " (and possibly others) of " << shapes[s].name <<
-					" has out-of-range material" << std::endl;
+				log_warning("Face {} (and possibly others) of {} has "
+				            "out-of-range material",f, shapes[s].name);
 				log_material_warnings = false; // Supress similar warning for remaining faces.
 			}
 
@@ -242,7 +234,7 @@ bool voxelise(const flags::args& args)
 
 	if (!std::filesystem::exists(inputPath))
 	{
-		cerr << "Path \'" << inputPath << "\' does not exist!" << endl;
+		log_error("Path '{}' does not exist!", inputPath);
 		return false;
 	}
 
@@ -259,17 +251,17 @@ bool voxelise(const flags::args& args)
 	}
 	else
 	{
-		log(Error, "Unrecognised extension \'", extension, "\'");
+		log_error("Unrecognised extension '{}'", extension);
 	}
 
-	std::cout << "Voxelised in " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
-	std::cout << "Node count before merging = " << volume.countNodes() << std::endl;
+	log_info("Voxelised in {} seconds", timer.elapsedTimeInSeconds());
+	log_info("Node count before merging = {}", volume.countNodes());
 
 	// Save the result
-	std::cout << "Saving volume as \'" << outputPath << "\'...";
+	log_info("Saving volume as '{}'...", outputPath);
 	volume.save(outputPath.string());
 	saveMetadataForVolume(metadata, outputPath);
-	std::cout << "done." << std::endl;
+	log_info("Done");
 
 	// FIXME - Temporary hack to automatically do image export after voxelisation.
 	// In general the user should run cubiquity a second time to do the export.
@@ -278,7 +270,7 @@ bool voxelise(const flags::args& args)
 	uint8 outside_material;
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
-	std::cout << Vector3i({ lower_x, lower_y, lower_z }) << " " << Vector3i({ upper_x, upper_y, upper_z }) << std::endl;
+	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
 
 	int64_t histogram[256];
 	cubiquity_compute_histogram(&volume, histogram);
@@ -287,7 +279,7 @@ bool voxelise(const flags::args& args)
 	{
 		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow
 		{
-			log(INF, "Material ", static_cast<uint16_t>(i), ": ", histogram[i], " voxels");
+			log_info("Material {}: {} voxels", static_cast<uint16_t>(i), histogram[i]);
 		}
 
 		if (histogram[i] != -1) // FIXME - Handle overflow better
@@ -295,7 +287,7 @@ bool voxelise(const flags::args& args)
 			total += histogram[i];
 		}
 	}
-	log(INF, "Total (non-overflowing): ", total, " voxels");
+	log_info("Total (non-overflowing): {} voxels", total);
 
 	return true;
 }

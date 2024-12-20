@@ -92,11 +92,13 @@ namespace Cubiquity
 
 		if (mostNegativeVoxel != mostPositiveVoxel)
 		{
-			log(WARN, "Unable to accurately determine outside voxel");
+			log_warning("Unable to accurately determine outside voxel");
 		}
 		uint16_t outsideMaterialId = mostPositiveVoxel;
 
-		log(DBG, "Outside material = ", outsideMaterialId);
+		std::stringstream ss;
+		ss << "Outside material = " << outsideMaterialId;
+		log_debug(ss.str());
 
 		Box3i bounds = computeBounds(volume, outsideMaterialId);
 
@@ -104,12 +106,12 @@ namespace Cubiquity
 		// FIXME - Also check for Invalid here (max < min). A volume could be *all* empty or *not at all* empty.
 		if (bounds == Box3i::invalid())
 		{
-			log(WARN, "Bounds are invalid, volume filled with outside material (i.e. it is empty).");
+			log_warning("Bounds are invalid, volume filled with outside material (i.e. it is empty).");
 		}
 
 		if (bounds == Box3i::max())
 		{
-			log(WARN, "Bounds are maxed out, did something go wrong?");
+			log_warning("Bounds are maxed out, did something go wrong?");
 		}
 
 		return std::make_pair(outsideMaterialId, bounds);
@@ -178,12 +180,16 @@ namespace Cubiquity
 		{
 			if (entry.second.overflow)
 			{
-				log(INF, "Material ", static_cast<uint16_t>(entry.first), ": Too many to count! (64-bit overflow)");
+				std::stringstream ss;
+				ss << "Material " << static_cast<uint16_t>(entry.first) << ": Too many to count! (64-bit overflow)";
+				log_debug(ss.str());
 			}
 			else
 			{
+				std::stringstream ss;
 				// Static cast to avoid 8-bit matId being treated as ASCII char.
-				log(INF, "Material ", static_cast<uint16_t>(entry.first), ": ", entry.second.count, " voxels");
+				ss << "Material " << static_cast<uint16_t>(entry.first) << ": " << entry.second.count << " voxels";
+				log_debug(ss.str());
 			}
 		}
 	}

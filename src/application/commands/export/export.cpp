@@ -72,7 +72,7 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 		int result = stbi_write_png(filepath, width, height, 4, imageData.data(), width * 4);
 		if (result == 0)
 		{
-			log(Error, "Failed to write PNG image.");
+			log_error("Failed to write PNG image");
 		}
 
 		// A bit cheeky, but we can directly call our Cubiquity progress handling code for progress bar. 
@@ -90,9 +90,9 @@ void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::string
 	try {		
 		volume_vox_writer writer(volume, metadata);
 		writer.write("output.vox", false);
-		std::cout << "Exported .vox in " << timer.elapsedTimeInSeconds() << " seconds." << std::endl;
+		log_info("Exported .vox in {} seconds", timer.elapsedTimeInSeconds());
 	} catch (std::exception& e) {;
-		std::cerr << "Failed to write .vox file (" << e.what() << ")." << std::endl;
+		log_error("Failed to write .vox file ({}).", e.what());
 	}
 }
 

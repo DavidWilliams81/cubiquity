@@ -3,6 +3,7 @@
 #include "instancing_demo.h"
 #include "pathtracing_demo.h"
 
+#include "base/logging.h"
 #include "base/paths.h"
 
 bool viewVolume(const flags::args& args)
@@ -28,7 +29,7 @@ bool viewVolume(const flags::args& args)
 	}
 	else
 	{
-		std::cerr << "Unrecognised value \'" << mode << "'for --mode" << std::endl;
+		log_error("Unrecognised value '{}' for --mode", mode);
 	}
 	return true;
 }

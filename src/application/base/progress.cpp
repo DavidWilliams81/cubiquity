@@ -1,11 +1,11 @@
 #include "progress.h"
 
+#include "base/logging.h"
+
 #include "base.h"
 #include "utility.h"
 
 #include <cassert>
-#include <stdarg.h>
-#include <stdio.h>
 
 class MyProgressBar
 {
@@ -36,16 +36,18 @@ public:
             long markerCount = lroundf(progress * BarLength);
 
             // Draw progress bar ().		
-            printf("% -30s[", mTaskName.c_str()); // Fixed length simplifies layout
-            for (long i = 0; i < BarLength; i++) { printf("%c", i < markerCount ? '=' : ' '); }
-            printf("] ");
+            log_info_no_newline("{:<30}[",mTaskName.c_str()); // Fixed length simplifies layout
+            for (long i = 0; i < BarLength; i++) {
+                log_info_no_newline("{}", i < markerCount ? '=' : ' ');
+            }
+            log_info_no_newline("] ");
 
             // Write the time with fixed precision to make sure it overwrites the previous value.
-            printf("%.3fs", mTimer.elapsedTimeInSeconds());
+            log_info_no_newline("{:.3f}s", mTimer.elapsedTimeInSeconds());
 
             // '\r' without '\n' goes back to start of the line
-            printf("\r");
-            fflush(stdout);
+            log_info_no_newline("\r");
+            fflush(stderr);
 
             lastElapsedTime = elapsedTime;
         }
@@ -54,7 +56,7 @@ public:
     void finishTask()
     {
         setProgress(0, 1, 1, false); // Max progress
-        printf("\n");
+        log_info_no_newline("\n");
 
         assert(!mTaskName.empty() && "finishTask() called with no task active");
         mTaskName.clear(); // Indicate no task now active

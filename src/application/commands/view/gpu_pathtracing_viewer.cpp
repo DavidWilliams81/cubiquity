@@ -1,8 +1,8 @@
 #include "gpu_pathtracing_viewer.h"
 
-#include "utility.h"
+#include "base/logging.h"
 
-#include <iostream>
+#include "utility.h"
 
 #include "visibility.h"
 #include "raytracing.h"
@@ -14,7 +14,7 @@ void GPUPathtracingViewer::onInitialise()
 	OpenGLViewer::onInitialise();
 
 	// Create and compile our GLSL program from the shaders
-	std::cout << "Warning - Using hard-coded paths to shaders in ../src/application/commands/view" << std::endl;
+	log_warning("Using hard-coded paths to shaders in ../src/application/commands/view");
 	progressiveProgram = loadProgram(
 		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
 		"../src/application/commands/view/glsl/pathtracing.frag",
@@ -223,7 +223,7 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	const int groupSize = 100;
 	if (frameNumber() % groupSize == 0)
 	{
-		std::cout << "Frame time = " << mTimer.elapsedTimeInMilliSeconds() / groupSize << "ms" << std::endl;
+		log_info("Frame time = {} ms", mTimer.elapsedTimeInMilliSeconds() / groupSize);
 		mTimer.start(); // Reset
 	}
 }

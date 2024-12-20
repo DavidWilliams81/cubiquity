@@ -201,7 +201,7 @@ namespace Cubiquity
 		}
 
 		assert(false && "Out of space for unshared edits!");
-		log(ERR, "Out of space for unshared edits!");
+		log_warning("Out of space for unshared edits!");
 		exit(1);
 		return 0; // Indicates error (we don't use this function to allocate the zeroth node).
 	}

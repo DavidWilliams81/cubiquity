@@ -1,5 +1,7 @@
 #include "volume_vox_writer.h"
 
+#include "base/logging.h"
+
 #include "base.h"
 
 #include "cubiquity.h"
@@ -12,8 +14,8 @@ volume_vox_writer::volume_vox_writer(Volume& vol, const Metadata& metadata)
 	// MagicaVoxel assumes that palette index 0 is empty space, so we
 	// can only write a valid .vox file if our volume does the same.
 	if (metadata.materials[0].name != Metadata::EmptySpace.name) {
-		std::cerr << "Warning: Material '" << metadata.materials[0].name << "' found in slot zero "
-			<< "(it should be empty space and will be treated as such)." << std::endl;
+		log_warning("Material '{}' found in slot zero (it should be empty space "
+		            "and will be treated as such)", metadata.materials[0].name);
 	}
 
 	for (int i = 1; i < 256; i++)
@@ -61,5 +63,5 @@ uint8_t volume_vox_writer::voxel(const vec3i& position)
 
 void volume_vox_writer::on_progress(int done, int total)
 {
-	std::cout << "Done " << done << " of " << total << std::endl;
+	log_info("Done {} of {}", done, total);
 }

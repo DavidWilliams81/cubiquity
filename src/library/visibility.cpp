@@ -54,7 +54,9 @@ namespace Cubiquity
 		// dimensions which are not a multiple of the tile size.
 		if (width % TileSize || height % TileSize)
 		{
-			log(WARN, "Visibility mask dimensions should be a multiple of tile size (", TileSize, ")");
+			std::stringstream ss;
+			ss << "Visibility mask dimensions should be a multiple of tile size (" << TileSize << ")";
+			log_warning(ss.str());
 		}
 
 		mWidth = width;

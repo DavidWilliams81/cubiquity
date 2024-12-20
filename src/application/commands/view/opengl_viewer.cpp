@@ -1,7 +1,8 @@
 #include "opengl_viewer.h"
 
+#include "base/logging.h"
+
 #include <fstream>
-#include <iostream>
 
 float quadVertices[] = { // vertex attributes for a quad that fills the entire screen in Normalized Device Coordinates.
 	// positions   // texCoords
@@ -31,7 +32,7 @@ GLenum glCheckError_(const char* file, int line)
 		case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
 		case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
 		}
-		std::cout << error << " | " << file << "(" << line << ")" << std::endl;
+		log_error("{} | {} (line {})", error, file, line);
 	}
 	return errorCode;
 }
@@ -67,14 +68,14 @@ void OpenGLViewer::drawScreenAlignedQuad()
 GLuint OpenGLViewer::loadShader(GLenum shaderType, const std::string& preamble, const char* filePath)
 {
 	// Create shader
-	std::cout << "Loading " << filePath << "..." << std::endl;
+	log_info("Loading '{}' ...", filePath);
 	GLuint shader = glCreateShader(shaderType);
 
 	// Load contents of file
 	std::ifstream fileStream(filePath);
 	if (!fileStream.is_open())
 	{
-		std::cerr << "Failed to open \"" << filePath << "\"" << std::endl;
+		log_error("Failed to open '{}'", filePath);
 	}
 	std::string shaderCode(
 		(std::istreambuf_iterator<char>(fileStream)),
@@ -107,7 +108,7 @@ GLuint OpenGLViewer::loadShader(GLenum shaderType, const std::string& preamble, 
 	{
 		std::vector<char> infoLog(infoLogLength);
 		glGetShaderInfoLog(shader, infoLogLength, NULL, infoLog.data());
-		std::cerr << infoLog.data() << std::endl;
+		log_error("{}", infoLog.data());
 	}
 
 	return shader;
@@ -120,7 +121,7 @@ GLuint OpenGLViewer::loadProgram(const char* vertex_file_path, const char* fragm
 	GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, preamble, fragment_file_path);
 
 	// Link the program
-	std::cout << "Linking program" << std::endl;
+	log_info("Linking program");
 	GLuint program = glCreateProgram();
 	glAttachShader(program, vertexShader);
 	glAttachShader(program, fragmentShader);
@@ -133,7 +134,7 @@ GLuint OpenGLViewer::loadProgram(const char* vertex_file_path, const char* fragm
 	{
 		std::vector<char> infoLog(infoLogLength);
 		glGetProgramInfoLog(program, infoLogLength, NULL, infoLog.data());
-		std::cerr << infoLog.data() << std::endl;
+		log_error("{}", infoLog.data());
 	}
 
 	glDetachShader(program, vertexShader);

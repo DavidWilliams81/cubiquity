@@ -1,7 +1,8 @@
 #include "metadata.h"
 
+#include "logging.h"
+
 #include <fstream>
-#include <iostream>
 
 using namespace nlohmann; // For JSON
 
@@ -21,7 +22,7 @@ Metadata loadMetadataForVolume(const std::filesystem::path& volumePath)
 	std::ifstream metadataFile(getMetadataPath(volumePath));
 	if (!metadataFile)
 	{
-		std::cout << "Error: Failed to open metadata '" << getMetadataPath(volumePath) << "'" << std::endl;
+		log_error("Error: Failed to open metadata '{}'", getMetadataPath(volumePath));
 		return metadata;
 	}
 
@@ -29,7 +30,7 @@ Metadata loadMetadataForVolume(const std::filesystem::path& volumePath)
 	try {
 		metadataAsJSON = json::parse(metadataFile);
 	} catch (json::parse_error& ex) {
-		std::cerr << "Error: JSON parse error at byte " << ex.byte << std::endl;
+		log_error("Error: JSON parse error at byte {}", ex.byte);
 		return metadata;
 	}
 

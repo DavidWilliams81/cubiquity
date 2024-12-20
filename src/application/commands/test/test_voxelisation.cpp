@@ -7,15 +7,14 @@
 
 #include <math.h>
 #include <random>
-#include <sstream>
 
 using namespace Cubiquity;
 using namespace std;
 
 bool testWindingNumberBehaviour(const TriangleList& triangles, const Box3f& bounds)
 {
-	/*std::cout << "Testing winding number behaviour" << std::endl;
-	std::cout << "--------------------------------" << std::endl;
+	/*log_info("Testing winding number behaviour");
+	log_info("--------------------------------");
 
 	uint32 internalSamplesBruteForce = 0;
 	uint32 internalSamplesHierarchical = 0;
@@ -44,13 +43,10 @@ bool testWindingNumberBehaviour(const TriangleList& triangles, const Box3f& boun
 	assert(internalSamplesBruteForce         == 4157);
 	assert(internalSamplesHierarchicalNormal == 4157);
 
-	std::cout << "Internal samples count (brute force) =          "
-		      << internalSamplesBruteForce << std::endl;
-	std::cout << "Internal samples count (hierarchical) = "
-		      << internalSamplesHierarchical << std::endl;
-	std::cout << std::endl;
-	std::cout << "Brute-force vs. hierarchical average error = "
-			  << bruteForceVsHierarchicalError << std::endl;
+	log_info("Internal samples count (brute force)  = {}", internalSamplesBruteForce);
+	log_info("Internal samples count (hierarchical) = {}", internalSamplesHierarchical);
+	log_info("");
+	log_info("Brute-force vs. hierarchical average error = {}", bruteForceVsHierarchicalError);
 
 			  */
 	return true;
@@ -59,8 +55,8 @@ bool testWindingNumberBehaviour(const TriangleList& triangles, const Box3f& boun
 bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bounds)
 {
 	/*
-	std::cout << "Testing winding number performance" << std::endl;
-	std::cout << "----------------------------------" << std::endl;
+	log_info("Testing winding number performance");
+	log_info("----------------------------------");
 
 	Patch patchNode(triangles);
 
@@ -78,9 +74,9 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 		computeWindingNumber(v, patchNode) > 0.5f ? insideCount++ : outsideCount++;
 	}
 
-	std::cout << "Interior voxels = " << insideCount  << " / " << samples << std::endl;
-	std::cout << "Exterior voxels = " << outsideCount << " / " << samples << std::endl;
-	std::cout << "Time elapsed    = " << timer.elapsedTimeInSeconds() << " seconds" << std::endl;
+	log_info("Interior voxels = {} / {}", insideCount, samples);
+	log_info("Exterior voxels = {} / {}", outsideCount, samples);
+	log_info("Time elapsed    = {} seconds", timer.elapsedTimeInSeconds());
 
 	check(insideCount,  41679);
 	check(outsideCount, 58321);
@@ -92,17 +88,17 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 /*bool testVoxelize(Geometry& geometry, bool preserveSurfaceMaterials = false,
 	uint16 internalMaterialOveride = 0, bool useBruteForce = false)
 {
-	std::cout << "Testing voxelisation" << std::endl;
-	std::cout << "--------------------" << std::endl;
+	log_info("Testing voxelisation");
+	log_info("--------------------");
 
 	Volume volume;
 	TerminalProgressBar progressBar;
 
 	for (auto& object : geometry)
 	{
-		std::cout << "Voxelising " << object.name << "..." << std::endl;
+		log_info("Voxelising {} ...", object.name);
 		voxelize(volume, object, preserveSurfaceMaterials, internalMaterialOveride, &progressBar, useBruteForce);
-		std::cout << std::endl;
+		log_info("");
 	}
 
 	auto result = estimateBounds(volume);
@@ -110,8 +106,8 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	Histogram histogram = computeHistogram(volume, bounds);
 
 	// Print details
-	std::cout << "Lower bound = (" << bounds.lower().x() << ", " << bounds.lower().y() << ", " << bounds.lower().z() << ")" << std::endl;
-	std::cout << "Upper bound = (" << bounds.upper().x() << ", " << bounds.upper().y() << ", " << bounds.upper().z() << ")" << std::endl;
+	log_info("Lower bound = ({},{},{})", bounds.lower().x(), bounds.lower().y(), bounds.lower().z());
+	log_info("Upper bound = ({},{},{})", bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
 	printHistogram(histogram);
 
 	// Validate details
@@ -135,7 +131,7 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	}
 	else
 	{
-		std::cout << "No reference results for configuration" << std::endl;
+		log_info("No reference results for configuration");
 	}
 
 	// Save in case we need to inspect the results
@@ -162,15 +158,15 @@ bool testVoxelization()
 	Box3f bounds = computeBounds(triangles);
 
 	//testWindingNumberBehaviour(triangles, bounds);
-	std::cout << std::endl;
+	log_info("");
 	//testWindingNumberPerformance(triangles, bounds);
-	std::cout << std::endl;
+	log_info("");
 
 	//testVoxelize(geometry);
 	testVoxelize(geometry, false, 0);
-	std::cout << std::endl;
+	log_info("");
 	testVoxelize(geometry, true, 0x0777);
-	std::cout << std::endl;
+	log_info("");
 	testVoxelize(geometry, false, 0, true); // Brute force, slow.
 	//testVoxelizeWithPreserveSurface(geometry);
 	*/

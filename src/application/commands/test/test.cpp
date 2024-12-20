@@ -7,7 +7,7 @@
 #include "test_volume.h"
 #include "test_voxelisation.h"
 
-#include <iostream>
+#include "base/logging.h"
 
 bool test(const flags::args& args)
 {
@@ -18,22 +18,22 @@ bool test(const flags::args& args)
 
 	/*if (!testRasterization())
 	{
-		std::cout << "TEST FAILED!" << std::endl;
+		log_error("TEST FAILED!");
 	}*/
 
 	if (!testRaytracingBehaviour())
 	{
-		std::cout << "TEST FAILED!" << std::endl;
+		log_error("TEST FAILED!");
 	}
 
 	if (!testRaytracingPerformance())
 	{
-		std::cout << "TEST FAILED!" << std::endl;
+		log_error("TEST FAILED!");
 	}
 
 	if (!testVisibility())
 	{
-		std::cout << "TEST FAILED!" << std::endl;
+		log_error("TEST FAILED!");
 	}
 
 	//testVoxelization();

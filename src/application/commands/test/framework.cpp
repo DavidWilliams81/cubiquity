@@ -21,6 +21,6 @@ void saveVisibilityMaskAsImage(VisibilityMask& visMask, const std::string& filen
 	int result = stbi_write_png(filename.c_str(), visMask.width(), visMask.height(), 1, imageData.data(), visMask.width());
 	if (result == 0)
 	{
-		log(Error, "Failed to write PNG image.");
+		log_error("Failed to write PNG image");
 	}
 }

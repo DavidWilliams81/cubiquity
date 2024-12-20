@@ -2,6 +2,8 @@
 
 #include "position_enumerator.h"
 
+#include "base/logging.h"
+
 #include "cubiquity.h"
 #include "utility.h"
 #include "storage.h"
@@ -12,7 +14,6 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <memory>
 #include <numeric>
 #include <thread>
@@ -241,11 +242,11 @@ bool testBounds()
 	const MaterialId externalMaterial = 0;
 	Box3i bounds = computeBounds(*volume, externalMaterial);
 
-	std::cout << "Lower     = (" << bounds.lower().x() << "," << bounds.lower().y() << "," << bounds.lower().z() << ")" << std::endl;
-	std::cout << "Ref Lower = (" << refResult.lower().x() << "," << refResult.lower().y() << "," << refResult.lower().z() << ")" << std::endl;
+	log_info("Lower     = ({},{},{})", bounds.lower().x(), bounds.lower().y(), bounds.lower().z());
+	log_info("Ref Lower = ({},{},{})", refResult.lower().x(), refResult.lower().y(), refResult.lower().z());
 
-	std::cout << "Upper     = (" << bounds.upper().x() << "," << bounds.upper().y() << "," << bounds.upper().z() << ")" << std::endl;
-	std::cout << "Ref Upper = (" << refResult.upper().x() << "," << refResult.upper().y() << "," << refResult.upper().z() << ")" << std::endl;
+	log_info("Upper     = ({},{},{})", bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
+	log_info("Ref Upper = ({},{},{})", refResult.upper().x(), refResult.upper().y(), refResult.upper().z());
 
 	return true;
 }
@@ -254,9 +255,10 @@ bool testBasics()
 {
 	std::pair<uint32_t, uint32_t> result;
 
-	std::cout << std::endl;
-	std::cout << "Basic tests:" << std::endl;
-	std::cout << "------------" << std::endl;
+	log_info("");
+	log_info("Basic tests:");
+	log_info("------------");
+
 
 	// Create a volume for some simple tests
 	int sideLength = 64;
@@ -265,34 +267,34 @@ bool testBasics()
 
 	// Volume should start empty
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
-	std::cout << "Empty volume node count = " << volume->countNodes() << std::endl;
-	std::cout << "Empty volume has " << result.first << " matches and " << result.second << " mismatches" << std::endl << std::endl;
+	log_info("Empty volume node count = {}", volume->countNodes());
+	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
 	// Fill it
 	applyFunction<RandomPositionEnumerator>(volume.get(), bounds,  [](uint32_t, uint32_t, uint32_t) { return 5; });
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 5; });
-	std::cout << "Full volume node count = " << volume->countNodes() << std::endl;
-	std::cout << "Full volume has " << result.first << " matches and " << result.second << " mismatches" << std::endl << std::endl;
+	log_info("\nFull volume node count = {}", volume->countNodes());
+	log_info("Full volume has {} matches and {} mismatches", result.first, result.second);
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
 	// Empty it again
 	applyFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
-	std::cout << "Empty volume node count = " << volume->countNodes() << std::endl;
-	std::cout << "Empty volume has " << result.first << " matches and " << result.second << " mismatches" << std::endl << std::endl;
+	log_info("\nEmpty volume node count = {}", volume->countNodes());
+	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
 	return true;
@@ -304,9 +306,9 @@ bool testCheckerboard()
 {
 	std::pair<uint32_t, uint32_t> result;
 
-	std::cout << std::endl;
-	std::cout << "Checkerboard tests:" << std::endl;
-	std::cout << "------------------" << std::endl;
+	log_info("");
+	log_info("Checkerboard tests:");
+	log_info("-------------------");
 
 	// Create a volume for some simple tests
 	int sideLength = 64;
@@ -317,13 +319,13 @@ bool testCheckerboard()
 	applyFunction<RandomPositionEnumerator>(volume.get(), bounds,  checkerboard);
 	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, checkerboard);
 
-	std::cout << "Node count before bake = " << volume->countNodes() << std::endl;
+	log_info("Node count before bake = {}", volume->countNodes());
 	volume->bake();
-	std::cout << "Node count after bake = " << volume->countNodes() << std::endl;
+	log_info("Node count after bake = {}", volume->countNodes());
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
 	return true;
@@ -331,9 +333,9 @@ bool testCheckerboard()
 
 bool testRandomAccess()
 {
-	std::cout << std::endl;
-	std::cout << "Random access tests:" << std::endl;
-	std::cout << "--------------------" << std::endl;
+	log_info("");
+	log_info("Random access tests:");
+	log_info("--------------------");
 
 	// Create a volume for some simple tests
 	int sideLength = 64;
@@ -348,21 +350,21 @@ bool testRandomAccess()
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
-	std::cout << "Node count = " << volume->countNodes() << std::endl;
+	log_info("Node count = {}", volume->countNodes());
 
-	std::cout << "Completed test in " << timer.elapsedTimeInSeconds() << " seconds." << std::endl;
+	log_info("Completed test in {} seconds", timer.elapsedTimeInSeconds());
 
 	return true;
 }
 
 bool testSerialization()
 {
-    std::cout << std::endl;
-	std::cout << "Serialization test:" << std::endl;
-	std::cout << "-------------------" << std::endl;
+	log_info("");
+	log_info("Serialization test:");
+	log_info("-------------------");
 
 	// Create a volume for some simple tests
 	int sideLength = 128;
@@ -380,12 +382,11 @@ bool testSerialization()
 	auto validationResult = validateFunction<RandomPositionEnumerator>(volume, bounds, fractalNoise);
 
 	// Test the result
-	std::cout << "Serialization noise test gave " << validationResult.first << " matches and "
-		<< validationResult.second << " mismatches" << std::endl;
+	log_info("Serialization test gave {} matches and {} mismatches", validationResult.first, validationResult.second);
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
 	delete volume;
@@ -395,9 +396,9 @@ bool testSerialization()
 
 bool testFractalNoise()
 {
-	std::cout << std::endl;
-	std::cout << "Simplex noise tests:" << std::endl;
-	std::cout << "--------------------" << std::endl;
+	log_info("");
+	log_info("Simplex noise tests:");
+	log_info("--------------------");
 
 	// Create a volume for some simple tests
 	int sideLength = 128;
@@ -425,8 +426,8 @@ bool testFractalNoise()
 		auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise);
 
 		// Test the result
-		std::cout << "Simplex noise test gave " << validationResult.first << " matches and "
-			<< validationResult.second << " mismatches, node count = " << volume->countNodes()  << std::endl;
+		log_info("Simplex noise test gave {} matches and {} mismatches, node count = {}",
+				 validationResult.first, validationResult.second, volume->countNodes());
 
 		// Just another check that the node count is as expected
 		if (i == 0) { assert(volume->countNodes() == 22817); }
@@ -434,19 +435,19 @@ bool testFractalNoise()
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
-	std::cout << "Completed test in " << timer.elapsedTimeInSeconds() << " seconds." << std::endl;
+	log_info("Completed test in {} seconds", timer.elapsedTimeInSeconds());
 
 	return true;
 }
 
 bool testMerging()
 {
-	std::cout << std::endl;
-	std::cout << "Merge test:" << std::endl;
-	std::cout << "-----------" << std::endl;
+	log_info("");
+	log_info("Merge test:");
+	log_info("-----------");
 
 	// Create a volume for some simple tests
 	int sideLength = 256;
@@ -471,26 +472,26 @@ bool testMerging()
 
 	//applyFunction<MortonPositionEnumerator>(volume.get(), bounds, fractalNoise);
 
-	std::cout << timer.elapsedTimeInSeconds() << " : Wrote data" << std::endl;
+	log_info("{} : Wrote data", timer.elapsedTimeInSeconds());
 
 	volume->bake();
-	std::cout << timer.elapsedTimeInSeconds() << " : Baked" << std::endl;
+	log_info("{} : Baked", timer.elapsedTimeInSeconds());
 
 	auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise, 1000000);
 
 	// Test the result
-	std::cout << "Simplex noise test gave " << validationResult.first << " matches and "
-		<< validationResult.second << " mismatches, node count = " << volume->countNodes() << std::endl;
+	log_info("Merge test gave {} matches and {} mismatches, node count = {}",
+			 validationResult.first, validationResult.second, volume->countNodes());
 
 	// Just another check that the node count is as expected
 	assert(volume->countNodes() == 67065);
 
 	if(!checkIntegrity(*volume))
 	{
-		std::cerr << "Integrity check failed!!!" << std::endl;
+		log_error("Integrity check failed!!!");
 	}
 
-	std::cout << timer.elapsedTimeInSeconds() << " : Completed" << std::endl;
+	log_info("{} : Completed", timer.elapsedTimeInSeconds());
 
 	return true;
 }
@@ -514,7 +515,7 @@ bool testCSG()
 	uint8 outside_material;
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&building, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
-	std::cout << Vector3i({ lower_x, lower_y, lower_z }) << " " << Vector3i({ upper_x, upper_y, upper_z }) << std::endl;
+	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
 
 	int64_t histogram[256];
 	cubiquity_compute_histogram(&building, histogram);
@@ -522,7 +523,7 @@ bool testCSG()
 	{
 		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow
 		{
-			log(INF, "Material ", static_cast<uint16_t>(i), ": ", histogram[i], " voxels");
+			log_info("Material {}: {} voxels", static_cast<uint16_t>(i), histogram[i]);
 		}
 	}
 
@@ -536,7 +537,7 @@ bool testVolume()
 	// Slow test, so not usually run.
 	/*if(!PositionEnumerator::test())
 	{
-		std::cout << "PositionEnumerator::test() failed!" << std::endl;
+		log_error("PositionEnumerator::test() failed!");(
 	}*/
 
 	testBounds();

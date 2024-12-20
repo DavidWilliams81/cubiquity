@@ -5,24 +5,17 @@
 
 #include "visibility.h"
 
-#include <sstream>
-#include <iostream>
-
 #define check(actual, expected) \
 do \
 { \
 	if (!(actual == expected)) \
 	{ \
-		std::stringstream ss; \
-		ss << std::endl << \
-			"********************************************************************************" \
-			<< std::endl << "CHECK FAILED!" << std::endl << \
-			"\tActual result   : " << actual << std::endl << \
-			"\tExpected result : " << expected << std::endl << \
-			"\tLocation        : Line " << __LINE__ << " of " << __FILE__ << std::endl << \
-			"********************************************************************************" \
-			<< std::endl; \
-		log(Error, ss.str().c_str()); \
+		log_error("\n********************************************************************************"); \
+		log_error("CHECK FAILED!"); \
+		log_error("\tActual result   : {}", actual); \
+		log_error("\tExpected result : {}", expected); \
+		log_error("\tLocation        : Line {} of {}", __LINE__, __FILE__); \
+		log_error("********************************************************************************\n"); \
 	} \
 } while (0)
 

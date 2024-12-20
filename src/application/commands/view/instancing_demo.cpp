@@ -1,8 +1,8 @@
 #include "instancing_demo.h"
 
-#include "utility.h"
+#include "base/logging.h"
 
-#include <iostream>
+#include "utility.h"
 
 #include "visibility.h"
 
@@ -33,7 +33,7 @@ void InstancingDemo::onInitialise()
 	mVisibilityCalculator = new VisibilityCalculator;
 
 	// Create and compile our GLSL program from the shaders
-	std::cout << "Warning - Using hard-coded paths to shaders in ../src/application/commands/view" << std::endl;
+	log_warning("Using hard-coded paths to shaders in ../src/application/commands/view");
 	glyphProgram = loadProgram(
 		"../src/application/commands/view/glsl/glyph.vert", 
 		"../src/application/commands/view/glsl/glyph.frag");
@@ -101,7 +101,7 @@ void InstancingDemo::onUpdate(float deltaTime)
 	if (mDoGlyphUpdates)
 	{
 		mGlyphCount = mVisibilityCalculator->findVisibleOctreeNodes(&(volume()), &(cameraData), normalEstimation, subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
-		std::cout << "Found " << mGlyphCount << " glyphs in " << timer.elapsedTimeInMilliSeconds() << "ms" << std::endl;
+		log_info("Found {} glyphs in {}ms", mGlyphCount, timer.elapsedTimeInMilliSeconds());
 		assert(mGlyphCount <= MaxGlyphCount);
 
 		// Update the buffers that OpenGL uses for rendering.
