@@ -10,7 +10,8 @@
 # You should have received a copy of the CC0 Public Domain Dedication along with this software.    #
 # If not, see http://creativecommons.org/publicdomain/zero/1.0/.                                   #
 ####################################################################################################
-cmake_minimum_required(VERSION 2.8.0 FATAL_ERROR)
+
+cmake_minimum_required(VERSION 3.12)
 
 project (Cubiquity)
 
@@ -20,7 +21,6 @@ project (Cubiquity)
 #
 ################################################################################
 
-# C++17 required for flags.h library.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -31,14 +31,6 @@ if (MSVC)
 else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
-
-# SDL 2 is needed for the demos. See https://stackoverflow.com/a/44347594
-# and https://trenki2.github.io/blog/2017/06/02/using-sdl2-with-cmake/
-find_package(SDL2)
-
-# I'm not quite clear on why we need this for a standard library feature but it
-# seems that we do (at least on GCC?). See https://stackoverflow.com/a/39547577
-find_package(Threads REQUIRED)
 
 # Temporary solution to get C++ filesystem support through CMake:
 # See https://gitlab.kitware.com/cmake/cmake/-/issues/17834
@@ -55,14 +47,26 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 #
 ################################################################################
 
+# Eventually we may want to allow the user to build shared or static version of Cubiquity?
+# See https://cmake.org/cmake/help/latest/variable/BUILD_SHARED_LIBS.html
 file(GLOB LIBRARY_SRCS src/library/*)
 add_library(Library ${LIBRARY_SRCS})
 
-if(MSVC)
-    target_link_libraries(Library Threads::Threads)
-else()
-    # GCC parallel algorithms depend on Intel TBB.
-    target_link_libraries(Library Threads::Threads tbb)
+# I'm not quite clear on why we need this for a standard library feature but it
+# seems that we do (at least on GCC?). See https://stackoverflow.com/a/39547577
+find_package(Threads REQUIRED)
+target_link_libraries(Library Threads::Threads)
+
+if(NOT MSVC AND NOT MINGW)
+    # GCC parallel algorithms depend on Intel TBB on Linux.
+    target_link_libraries(Library tbb)
+endif()
+
+if(MINGW)
+    # Windows users are unlikely to have runtime installed, so statically link.
+    # https://stackoverflow.com/questions/38694058/cmake-linking-
+    #     statically-against-libgcc-and-libstdc-into-a-shared-library
+    target_link_libraries(Library -static-libgcc -static-libstdc++)
 endif()
 
 # Required to profile release bulds.
@@ -73,7 +77,8 @@ endif()
 
 # Note: I would like to uncomment the line below, but doing so seems to break the  
 # expected dependancy between the library being updated and a relink being required. 
-# At least withing Visual Studio. More investigation required. 
+# At least withing Visual Studio. More investigation required.
+# This indicates it should work: https://discourse.cmake.org/t/how-to-use-the-same-name-for-a-target-and-a-library/5044
 #set_target_properties(Library PROPERTIES OUTPUT_NAME cubiquity)
 
 # For tidier folder layout in Visual Studio (mimics application target below)
@@ -85,24 +90,43 @@ source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/library PREFIX "Source Code" F
 #
 ################################################################################
 
-if (SDL2_FOUND)
-    file(GLOB APPLICATION_SRCS
-        src/application/*
-        src/application/base/*
-        src/application/commands/export/*
-        src/application/commands/export/vox_writer/vox_writer.* # Skip example.cpp
-        src/application/commands/generate/*
-        src/application/commands/test/*
-        src/application/commands/view/*
-        src/application/commands/view/framework/*
-        src/application/commands/voxelise/*
-        src/application/external/*)
-    add_executable(Application ${APPLICATION_SRCS})
-    include_directories(src/library src/application ${SDL2_INCLUDE_DIRS})
-    include_directories(src/application/external) # Needed so external deps can find own headers
-    target_link_libraries(Application Library ${SDL2_LIBRARIES} ${CMAKE_DL_LIBS})
-    set_target_properties(Application PROPERTIES OUTPUT_NAME cubiquity)
+# SDL 2 is needed for the view subcommand. Info on using SDL via CMake is here:
+#   https://wiki.libsdl.org/SDL2/README/cmake
+find_package(SDL2 CONFIG)
 
-    # For tidier folder layout in Visual Studio
-    source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/application PREFIX "Source Code" FILES ${APPLICATION_SRCS})
+# Source code for most of the application
+file(GLOB APPLICATION_SRCS
+    src/application/*
+    src/application/base/*
+    src/application/commands/export/*
+    src/application/commands/export/vox_writer/vox_writer.* # Skip example.cpp
+    src/application/commands/generate/*
+    src/application/commands/test/*
+    src/application/commands/voxelise/*
+    src/application/external/*)
+
+# Source files for optional 'view' subcommand (requires SDL)
+if (SDL2_FOUND)
+    file(GLOB APPLICATION_VIEW_SRCS
+        src/application/commands/view/*
+        src/application/commands/view/framework/*)
 endif()
+
+# Configuration of base application
+add_executable(Application ${APPLICATION_SRCS} ${APPLICATION_VIEW_SRCS})
+include_directories(src/library src/application)
+include_directories(src/application/external) # Needed so external deps can find own headers
+target_link_libraries(Application Library ${CMAKE_DL_LIBS})
+set_target_properties(Application PROPERTIES OUTPUT_NAME cubiquity)
+
+# Extra config if we are building the 'view' subcommand.
+if (SDL2_FOUND)
+    add_compile_definitions(CUBIQUITY_APP_ENABLE_VIEW)
+    include_directories(${SDL2_INCLUDE_DIRS})
+    target_link_libraries(Application SDL2::SDL2main SDL2::SDL2-static)
+endif()
+
+# For tidier folder layout in Visual Studio
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/application PREFIX "Source Code" FILES ${APPLICATION_SRCS})
+
+

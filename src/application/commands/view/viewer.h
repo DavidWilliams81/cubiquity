@@ -1,6 +1,8 @@
 #ifndef CUBIQUITY_DEMO_H_E38EB3A1
 #define CUBIQUITY_DEMO_H_E38EB3A1
 
+#include <algorithm>
+
 #include "window.h"
 #include "camera.h"
 #include "storage.h"

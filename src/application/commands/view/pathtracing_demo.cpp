@@ -25,10 +25,6 @@
 // Utility
 #include "camera.h"
 
-// SDL
-#define SDL_MAIN_HANDLED
-#include <SDL.h>
-
 // Standard library
 #include <cstdlib>
 #include <cmath>

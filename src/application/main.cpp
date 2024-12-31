@@ -1,15 +1,33 @@
+// Cubiquity application includes
 #include "base/logging.h"
 #include "base/progress.h"
 #include "commands/export/export.h"
 #include "commands/generate/generate.h"
 #include "commands/test/test.h"
-#include "commands/view/view.h"
 #include "commands/voxelise/voxelize.h"
 
-#include "flags.h"
+// We can only support the 'view' command if SDL is available.
+#ifdef CUBIQUITY_APP_ENABLE_VIEW
+	#include "commands/view/view.h"
+	// SDL should be included from the file defining main() so that it can
+	// rename it to SDL_main, which is the preferred SDL model of operation.
+	#include "SDL.h"
+#else
+	// Fallback implentation.
+	bool viewVolume(const flags::args& args)
+	{
+		log_error("Subcommand 'view' not available (built without SDL support)");
+		return true;
+	}
+#endif // CUBIQUITY_APP_ENABLE_VIEW
 
+// Cubiquity library
 #include "base.h"
 
+// External libraries
+#include "flags.h"
+
+// System libraries
 #include <map>
 
 using namespace Cubiquity;
