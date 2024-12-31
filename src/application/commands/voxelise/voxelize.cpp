@@ -41,7 +41,7 @@ using namespace Internals;
 
 using namespace std;
 
-void voxeliseSurface(Mesh& mesh, Volume& volume)
+void voxelizeSurface(Mesh& mesh, Volume& volume)
 {
 	mesh.build();
 
@@ -187,10 +187,10 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 
 			const int faceMaterial = shapes[s].mesh.material_ids[f];
 
-			// If the material has changed then voxelise the last mesh and start a new one.
+			// If the material has changed then voxelize the last mesh and start a new one.
 			if (split_by_material && (faceMaterial != currentMaterialId))
 			{
-				voxeliseSurface(mesh, volume);
+				voxelizeSurface(mesh, volume);
 				mesh = Mesh();
 				mesh.name = shapes[s].name;
 				mesh.isThin = is_thin;
@@ -220,13 +220,13 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 			mesh.addTriangle(triangle, static_cast<MaterialId>(matId));
 		}
 
-		voxeliseSurface(mesh, volume);
+		voxelizeSurface(mesh, volume);
 	}
 
 	return true;
 }
 
-bool voxelise(const flags::args& args)
+bool voxelize(const flags::args& args)
 {
 	const std::filesystem::path inputPath(args.positional().at(1));
 	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
@@ -254,7 +254,7 @@ bool voxelise(const flags::args& args)
 		log_error("Unrecognised extension '{}'", extension);
 	}
 
-	log_info("Voxelised in {} seconds", timer.elapsedTimeInSeconds());
+	log_info("Voxelized in {} seconds", timer.elapsedTimeInSeconds());
 	log_info("Node count before merging = {}", volume.countNodes());
 
 	// Save the result

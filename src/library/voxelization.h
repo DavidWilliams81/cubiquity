@@ -75,7 +75,7 @@ namespace Cubiquity
 
 	MaterialId findMainMaterial(const Mesh& mesh);
 
-	// Voxelise the mesh into the volume
+	// Voxelize the mesh into the volume
 	void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background);
 }
 

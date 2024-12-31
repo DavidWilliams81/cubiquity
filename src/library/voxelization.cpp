@@ -540,7 +540,7 @@ public:
 
 	bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& nodeBounds)
 	{
-		// Signal to stop traversing parts of the tree which do not overlap our voxelised object.
+		// Signal to stop traversing parts of the tree which do not overlap our voxelized object.
 		if (!overlaps(nodeBounds, mBounds)) { return false; }
 
 		// If this is a non-leaf (internal) node then check if any of its children are leaves.
@@ -648,7 +648,7 @@ void doPerNodeVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, Material
 	Box3i voxelisationBounds = computeBounds(volume, background);
 
 	// Find all the nodes - both the single-voxel nodes which are part of the
-	// voxelised surface and (hopefully larger) nodes which are either side of it.
+	// voxelized surface and (hopefully larger) nodes which are either side of it.
 	auto nodesToTest = findNodes(volume, voxelisationBounds);
 
 	// Classify all nodes according to which side of the surface they are on.

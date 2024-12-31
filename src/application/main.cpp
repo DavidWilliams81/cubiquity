@@ -57,7 +57,7 @@ int main(int argc, char** argv)
 		{ "generate",   &generateVolume },
 		{ "test",       &test },
 		{ "view",       &viewVolume },
-		{ "voxelise",   &voxelise },
+		{ "voxelize",   &voxelize },
 	};
 
 	const flags::args args(argc, argv);
