@@ -102,7 +102,7 @@ file(GLOB APPLICATION_SRCS
     src/application/commands/export/vox_writer/vox_writer.* # Skip example.cpp
     src/application/commands/generate/*
     src/application/commands/test/*
-    src/application/commands/voxelise/*
+    src/application/commands/voxelize/*
     src/application/external/*)
 
 # Source files for optional 'view' subcommand (requires SDL)

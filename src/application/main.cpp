@@ -4,7 +4,7 @@
 #include "commands/export/export.h"
 #include "commands/generate/generate.h"
 #include "commands/test/test.h"
-#include "commands/voxelise/voxelize.h"
+#include "commands/voxelize/voxelize.h"
 
 // We can only support the 'view' command if SDL is available.
 #ifdef CUBIQUITY_APP_ENABLE_VIEW
