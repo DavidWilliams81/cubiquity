@@ -375,9 +375,9 @@ bool testSerialization()
 	FractalNoise fractalNoise(7, 0, 0, 0);
 	applyFunction<RandomPositionEnumerator>(volume, bounds, fractalNoise);
 
-	volume->save("testSerialization.vol");
+	volume->save("testSerialization.dag");
 	delete volume;
-	volume = new Volume("testSerialization.vol");
+	volume = new Volume("testSerialization.dag");
 
 	auto validationResult = validateFunction<RandomPositionEnumerator>(volume, bounds, fractalNoise);
 
@@ -504,13 +504,13 @@ bool testSphere()
 bool testCSG()
 {
 	Volume building;
-	building.load("../data/voxelized.vol");
+	building.load("../data/voxelized.dag");
 	Volume shapes;
-	shapes.load("../data/shapes.vol");
+	shapes.load("../data/shapes.dag");
 
 	building.addVolume(shapes);
 
-	building.save("../data/csg.vol");
+	building.save("../data/csg.dag");
 
 	uint8 outside_material;
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;

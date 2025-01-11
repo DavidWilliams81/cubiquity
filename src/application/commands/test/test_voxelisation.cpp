@@ -137,7 +137,7 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	// Save in case we need to inspect the results
 	std::stringstream ss;
 	ss << "../test-voxelize-" << preserveSurfaceMaterials <<
-		"-" << internalMaterialOveride << "-" << useBruteForce << ".vol";
+		"-" << internalMaterialOveride << "-" << useBruteForce << ".dag";
 	volume.save(ss.str());
 	saveVolumeAsImages(volume, "..", &progressBar);
 

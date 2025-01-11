@@ -17,13 +17,15 @@ make
 Windows with Visual Studio
 --------------------------
 * Download and install CMake
-* Download and unpack prebuilt SDL
+* Download and build SDL
 * Run CMake Gui, run configure, point it at SDL install folder, generate.
 * Build in Visual Studio.
 
+Note: Cubiquity defaults to using static SDL which is not actually present in the SDL prebuilts on GitHub. Hence is is necessary to build our own version. It must also be installed (via the INSTALL target in Visual Studio) in order to be useable from the Cubiquity CMake scripts.
+
 Cross-compile to Windows from Ubuntu with GCC
 --------------------------------------------
-Tested on Ubuntu 24.04.
+Tested on Ubuntu 24.04. Note that there are significant performance problem with this build which appear to be at least partly due to Intel Threaded Building Blocks for MinGW not being installed. This needs a review.
 
 Run:
 

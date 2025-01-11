@@ -54,14 +54,14 @@ void voxelizeSurface(Mesh& mesh, Volume& volume)
 	log_info("");
 }
 
-bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metadata& metadata, float scaleFactor)
+bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metadata& metadata, std::optional<float> scale, std::optional<int> size)
 {
 	/* ==== Configuration ==== */
 	tinyobj::ObjReaderConfig objReaderConfig;
 	objReaderConfig.triangulate = true;
 	objReaderConfig.triangulation_method = "simple";
 	objReaderConfig.vertex_color = false; // No default vertex colour.
-	objReaderConfig.mtl_search_path = ""; // Same directory of .obj file
+	objReaderConfig.mtl_search_path = ""; // Same directory as .obj file
 
 
 	/* ==== Parsing ==== */
@@ -76,6 +76,40 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	if (!objReader.Warning().empty()) {
 		log_warning("\nParser warnings:");
 		log_warning("{}", objReader.Warning()); // Can hold multiple warnings
+	}
+
+	/* ==== Compute mesh bounds and determine required size/scale ==== */
+	Cubiquity::Box3f bounds;
+	const auto& vertices = objReader.GetAttrib().vertices;
+	const int vertex_count = vertices.size() / 3; // Safe if not multiple of 3.
+
+	// For simplicity we include all vertices, even if not referenced by faces.
+	for(int vertex_index = 0; vertex_index < vertex_count; vertex_index++) {
+		auto vx = vertices[3 * vertex_index + 0];
+		auto vy = vertices[3 * vertex_index + 1];
+		auto vz = vertices[3 * vertex_index + 2];
+		bounds.accumulate(Vector3f({ vx, vy, vz }));
+	}
+
+	log_debug("Computed object file bounds as = ({},{},{}) to ({},{},{})",
+			 bounds.lower().x(), bounds.lower().y(), bounds.lower().z(),
+			 bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
+
+	Vector3f dims = bounds.upper() - bounds.lower();
+	int longestAxis = std::max_element(dims.begin(), dims.end()) - dims.begin();
+
+	// If scale is not specified then compute it from desired size
+	log_warning_if(scale && size, "Ignoring --size as --scale also specified");
+	if(!scale) {
+		// If size is also not specified then use a default
+		if(!size) {
+			*size = 500; // Default size if not specified
+			log_debug("Using default size of {}", size);
+
+		}
+		*scale = static_cast<float>(*size) / dims[longestAxis];
+		log_debug("Using scale factor to {} to achieve size of {} voxels",
+		          *scale, *size);
 	}
 
 
@@ -216,7 +250,7 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 			MaterialId matId = (faceMaterial >= 0) && (faceMaterial < max_obj_materials) ?
 				static_cast<MaterialId>(matBegin + faceMaterial) : default_material;
 
-			triangle.scale(scaleFactor);
+			triangle.scale(*scale);
 			mesh.addTriangle(triangle, static_cast<MaterialId>(matId));
 		}
 
@@ -229,8 +263,7 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 bool voxelize(const flags::args& args)
 {
 	const std::filesystem::path inputPath(args.positional().at(1));
-	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
-	const auto scaleFactor = args.get<float>("scale", 32.0);
+	const auto outputPath = args.get<std::filesystem::path>("output", "output.dag");
 
 	if (!std::filesystem::exists(inputPath))
 	{
@@ -247,7 +280,7 @@ bool voxelize(const flags::args& args)
 
 	if(extension == ".obj")
 	{ 
-		voxelizeMesh(inputPath, volume, metadata, scaleFactor);
+		voxelizeMesh(inputPath, volume, metadata, args.get<float>("scale"), args.get<int>("size"));
 	}
 	else
 	{

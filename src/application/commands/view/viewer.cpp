@@ -39,9 +39,9 @@ Viewer::Viewer(const std::string& filename, WindowType windowType)
 	Metadata metadata = loadMetadataForVolume(filename);
 
 	// Build an array of colours from the material data for uploading to the GPU.
-	std::fill(begin(mColours), end(mColours), Metadata::Warning.diffuse);
+	std::fill(begin(mColours), end(mColours), Metadata::Warning.base_color);
 	for (int i = 0; i < metadata.materials.size(); i++) {
-		mColours[i] = metadata.materials[i].diffuse;
+		mColours[i] = metadata.materials[i].base_color;
 	}
 }
 

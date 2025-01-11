@@ -49,16 +49,16 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 			{
 				MaterialId matId = volume.voxel(x, y, z);
 
-				Col diffuse = metadata.materials.at(matId).diffuse;
+				Col base_color = metadata.materials.at(matId).base_color;
 
 				float gamma = 1.0f / 2.2f;
-				diffuse[0] = pow(diffuse[0], gamma);
-				diffuse[1] = pow(diffuse[1], gamma);
-				diffuse[2] = pow(diffuse[2], gamma);
+				base_color[0] = pow(base_color[0], gamma);
+				base_color[1] = pow(base_color[1], gamma);
+				base_color[2] = pow(base_color[2], gamma);
 
-				uint8 r = std::clamp(std::lround(diffuse[0] * 255.0f), 0L, 255L);
-				uint8 g = std::clamp(std::lround(diffuse[1] * 255.0f), 0L, 255L);
-				uint8 b = std::clamp(std::lround(diffuse[2] * 255.0f), 0L, 255L);
+				uint8 r = std::clamp(std::lround(base_color[0] * 255.0f), 0L, 255L);
+				uint8 g = std::clamp(std::lround(base_color[1] * 255.0f), 0L, 255L);
+				uint8 b = std::clamp(std::lround(base_color[2] * 255.0f), 0L, 255L);
 
 				imageData.push_back(r);
 				imageData.push_back(g);
@@ -80,7 +80,7 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 	}
 }
 
-void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::string& fileName)
+void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::filesystem::path& output_path)
 {	
 	// Hack for testing example code from main project
 	/*run_vox_writer_example();
@@ -89,7 +89,7 @@ void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::string
 	Timer timer;
 	try {		
 		volume_vox_writer writer(volume, metadata);
-		writer.write("output.vox", false);
+		writer.write(output_path.string(), false);
 		log_info("Exported .vox in {} seconds", timer.elapsedTimeInSeconds());
 	} catch (std::exception& e) {;
 		log_error("Failed to write .vox file ({}).", e.what());
@@ -98,18 +98,24 @@ void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::string
 
 bool exportVolume(const flags::args& args)
 {
-	std::filesystem::path inputPath(args.positional().at(1));
+	std::string format(args.positional().at(1));
+
+	std::filesystem::path inputPath(args.positional().at(2));
 	if (!checkInputFileIsValid(inputPath)) return false;
 
 	Volume volume(inputPath.string());
 	Metadata metadata = loadMetadataForVolume(inputPath);
 
-	const auto outputPath = args.get<std::filesystem::path >("output_path", ".");
-	if(outputPath.extension() == ".vox") {
-		saveVolumeAsVox(volume, metadata, "output.vox");
-	} else {
-		if (!checkOutputDirIsValid(outputPath)) return false;
+	if(format == "vox") {
+		std::filesystem::path defOutputPath = inputPath.filename().replace_extension(".vox");
+		const auto outputPath = args.get<std::filesystem::path >("output", defOutputPath.string());
+		saveVolumeAsVox(volume, metadata, outputPath);
+	} else if(format == "pngs") { // PNG slices
+		// Note - Output path ignored for now.
+		//if (!checkOutputDirIsValid(outputPath)) return false;
 		saveVolumeAsImages(volume, metadata, ".");
+	} else {
+		log_error("Unknown export format");
 	}
 
 	return true;

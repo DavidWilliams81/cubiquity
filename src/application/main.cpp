@@ -1,4 +1,18 @@
+/*******************************************************************************
+Cubiquity - A micro-voxel engine for games and other interactive applications
+
+Written by David Williams
+
+To the extent possible under law, the author(s) have dedicated all copyright
+and related and neighboring rights to this software to the public domain
+worldwide. This software is distributed without any warranty.
+
+You should have received a copy of the CC0 Public Domain Dedication along with
+this software. If not, see http://creativecommons.org/publicdomain/zero/1.0/.
+*******************************************************************************/
+
 // Cubiquity application includes
+#include "license.h"
 #include "base/logging.h"
 #include "base/progress.h"
 #include "commands/export/export.h"
@@ -43,7 +57,26 @@ void log_warning_func(const char* message)
 }
 
 void printUsageAndExit() {
-	print("Usage: cubiquity <command> [--quiet] [--verbose] ...\n");
+	std::string usage = R"(
+Cubiquity Voxel Engine by David Williams
+
+Usage:
+
+    cubiquity <command> input_file [--output=output_file] [--quiet] [--verbose]
+
+Examples:
+
+    cubiquity voxelize shapes.obj --output=shapes.dag
+    cubiquity view shapes.dag
+    cubiquity export shapes.dag --output=shapes.vox
+
+Cubiquity is public domain software with some open-source dependencies. For
+details run:
+
+    cubiquity --license
+
+)";
+	print("{}", usage);
 	exit(EXIT_SUCCESS);
 }
 
@@ -61,7 +94,13 @@ int main(int argc, char** argv)
 	};
 
 	const flags::args args(argc, argv);
-	// Note that flags library does not seem to set exe name as zeroth 'parameter'
+
+	if(args.get<bool>("license", false)) {
+		printLicense();
+		exit(EXIT_SUCCESS);
+	}
+
+	// Note that flags library does not seem to count the exe name as a positional parameter.
 	if (args.positional().empty())
 	{
 		printUsageAndExit();

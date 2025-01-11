@@ -31,3 +31,14 @@ void vlog_with_newline_and_style(log_level severity,
         fmt::print(stderr, ts, "{}\n", fmt::vformat(fmt, args));
     }
 }
+
+// Conditional log using user-provided color/style.
+void vlog_with_newline_and_style_if(bool condition,
+                                    log_level severity,
+                                    const fmt::text_style& ts,
+                                    fmt::string_view fmt,
+                                    fmt::format_args args) {
+    if(condition && (severity >= g_threshold)) {
+        fmt::print(stderr, ts, "{}\n", fmt::vformat(fmt, args));
+    }
+}

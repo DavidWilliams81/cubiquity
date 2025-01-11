@@ -124,6 +124,11 @@ if (SDL2_FOUND)
     add_compile_definitions(CUBIQUITY_APP_ENABLE_VIEW)
     include_directories(${SDL2_INCLUDE_DIRS})
     target_link_libraries(Application SDL2::SDL2main SDL2::SDL2-static)
+    if (WIN32)
+        # '-mconsole' is needed to get stdout/stderr output on Windows
+        # See https://stackoverflow.com/a/54079540
+        target_link_libraries(Application -mconsole)
+    endif()
 endif()
 
 # For tidier folder layout in Visual Studio

@@ -46,7 +46,7 @@ bool testVisibilityUnidirectional()
     bool loadFromDisk = true;
     if (loadFromDisk)
     {
-		mVolume = new Volume("testVisibilityUnidirectional.vol");
+		mVolume = new Volume("testVisibilityUnidirectional.dag");
     }
     else
     {
@@ -58,7 +58,7 @@ bool testVisibilityUnidirectional()
 		fillVolume(mVolume, filledBounds, fractalNoise);
 
 		log_info("Saving volume...");
-		mVolume->save("testVisibilityUnidirectional.vol");
+		mVolume->save("testVisibilityUnidirectional.dag");
 		log_info("done");
     }
 

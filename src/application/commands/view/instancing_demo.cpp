@@ -101,7 +101,7 @@ void InstancingDemo::onUpdate(float deltaTime)
 	if (mDoGlyphUpdates)
 	{
 		mGlyphCount = mVisibilityCalculator->findVisibleOctreeNodes(&(volume()), &(cameraData), normalEstimation, subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
-		log_info("Found {} glyphs in {}ms", mGlyphCount, timer.elapsedTimeInMilliSeconds());
+		log_debug("Found {} glyphs in {}ms", mGlyphCount, timer.elapsedTimeInMilliSeconds());
 		assert(mGlyphCount <= MaxGlyphCount);
 
 		// Update the buffers that OpenGL uses for rendering.

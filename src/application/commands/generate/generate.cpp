@@ -54,7 +54,7 @@ bool mengerSponge(int x, int y, int z)
 bool generateVolume(const flags::args& args)
 {
 	//const auto type{ args.positional().at(1) };
-	const auto outputPath = args.get<std::filesystem::path>("output", "output.vol");
+	const auto outputPath = args.get<std::filesystem::path>("output", "output.dag");
 	const auto sizeExp = args.get<uint>("size_exp", 5);
 
 	Volume volume;

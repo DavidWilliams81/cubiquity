@@ -12,7 +12,7 @@ typedef std::array<float, 3> Col; // To be renamed when we can avoid conflicts.;
 struct Material
 {
 	std::string name;
-	Col diffuse = { 1.0f, 1.0f, 1.0f };
+	Col base_color = { 1.0f, 1.0f, 1.0f };
 };
 
 struct Metadata
