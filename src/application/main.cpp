@@ -68,7 +68,7 @@ Examples:
 
     cubiquity voxelize shapes.obj --output=shapes.dag
     cubiquity view shapes.dag
-    cubiquity export shapes.dag --output=shapes.vox
+    cubiquity export vox shapes.dag --output=shapes.vox
 
 Cubiquity is public domain software with some open-source dependencies. For
 details run:

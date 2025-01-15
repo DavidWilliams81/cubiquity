@@ -263,13 +263,15 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 bool voxelize(const flags::args& args)
 {
 	const std::filesystem::path inputPath(args.positional().at(1));
-	const auto outputPath = args.get<std::filesystem::path>("output", "output.dag");
 
 	if (!std::filesystem::exists(inputPath))
 	{
 		log_error("Path '{}' does not exist!", inputPath);
 		return false;
 	}
+
+	std::filesystem::path defOutputPath = inputPath.filename().replace_extension(".dag");
+	const auto outputPath = args.get<std::filesystem::path >("output", defOutputPath.string());
 
 	// Perform the voxelization
 	Timer timer;

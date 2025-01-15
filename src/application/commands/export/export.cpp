@@ -98,6 +98,20 @@ void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::filesy
 
 bool exportVolume(const flags::args& args)
 {
+	if(args.positional().size() < 3) {
+		log_error("Not enough positional parameters");
+		std::string usage = R"(
+Export usage:
+
+	cubiquity export vox input_file [--output=output_file] [--quiet] [--verbose]
+
+Examples:
+
+	cubiquity export vox shapes.dag --output=shapes.vox
+)";
+		print("{}", usage);
+		exit(EXIT_SUCCESS);
+	}
 	std::string format(args.positional().at(1));
 
 	std::filesystem::path inputPath(args.positional().at(2));
