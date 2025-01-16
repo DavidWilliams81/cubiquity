@@ -11,7 +11,7 @@
 # If not, see http://creativecommons.org/publicdomain/zero/1.0/.                                   #
 ####################################################################################################
 
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 
 project (Cubiquity)
 
