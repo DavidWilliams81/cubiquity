@@ -13,24 +13,26 @@ void GPUPathtracingViewer::onInitialise()
 {
 	OpenGLViewer::onInitialise();
 
+	std::string shader_path = getShaderPath();
+	log_debug("Using shader path'{}", shader_path);
+
 	// Create and compile our GLSL program from the shaders
-	log_warning("Using hard-coded paths to shaders in ../src/application/commands/view");
 	progressiveProgram = loadProgram(
-		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
-		"../src/application/commands/view/glsl/pathtracing.frag",
+		shader_path + std::string("screen_aligned_quad.vert"),
+		shader_path + std::string("pathtracing.frag"),
 		"#define PROGRESSIVE");
 	previewProgram = loadProgram(
-		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
-		"../src/application/commands/view/glsl/pathtracing.frag");
+		shader_path + std::string("screen_aligned_quad.vert"),
+		shader_path + std::string("pathtracing.frag"));
 	copyProgram = loadProgram(
-		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
-		"../src/application/commands/view/glsl/normalise.frag");
+		shader_path + std::string("screen_aligned_quad.vert"),
+		shader_path + std::string("normalise.frag"));
 	hBlurProgram = loadProgram(
-		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
-		"../src/application/commands/view/glsl/horz_blur.frag");
+		shader_path + std::string("screen_aligned_quad.vert"),
+		shader_path + std::string("horz_blur.frag"));
 	vBlurProgram = loadProgram(
-		"../src/application/commands/view/glsl/screen_aligned_quad.vert",
-		"../src/application/commands/view/glsl/vert_blur.frag");
+		shader_path + std::string("screen_aligned_quad.vert"),
+		shader_path + std::string("vert_blur.frag"));
 
 	// Black background
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);

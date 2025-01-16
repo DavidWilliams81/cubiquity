@@ -11,7 +11,7 @@ bool viewVolume(const flags::args& args)
 	std::filesystem::path inputPath(args.positional().at(1));
 	if (!checkInputFileIsValid(inputPath)) return false;
 
-	const auto mode = args.get<std::string>("mode", "instancing");
+	const auto mode = args.get<std::string>("mode", "gpu-pathtracing");
 	if (mode == "instancing")
 	{
 		InstancingDemo app(inputPath.string());
@@ -20,7 +20,7 @@ bool viewVolume(const flags::args& args)
 	else if (mode == "gpu-pathtracing")
 	{
 		GPUPathtracingViewer gpuPathtracingViewer(inputPath.string());
-		gpuPathtracingViewer.show(1600, 1200);
+		gpuPathtracingViewer.show(1200, 900);
 	}
 	else if (mode == "pathtracing")
 	{

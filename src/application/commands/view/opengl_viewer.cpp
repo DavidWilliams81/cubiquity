@@ -65,6 +65,33 @@ void OpenGLViewer::drawScreenAlignedQuad()
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+std::string OpenGLViewer::getShaderPath()
+{
+	// Dirty hack to find path to shaders, needs reviewing.
+	std::string installed_path = "glsl/"; // For precompiled releases
+	std::string repo_path = "../src/application/commands/view/glsl/"; // When building from source
+
+	// Sanity check
+	if(std::filesystem::exists(installed_path) && std::filesystem::exists(repo_path))
+	{
+		throw std::runtime_error("Both shader paths should not be valid!");
+	}
+
+	// Otherwise pick the right one.
+	if(std::filesystem::exists(installed_path))
+	{
+		return installed_path;
+	}
+	else if(std::filesystem::exists(repo_path))
+	{
+		return repo_path;
+	}
+	else
+	{
+		throw std::runtime_error("Failed to determine path to shaders");
+	}
+}
+
 GLuint OpenGLViewer::loadShader(GLenum shaderType, const std::string& preamble, const char* filePath)
 {
 	// Create shader
@@ -114,11 +141,11 @@ GLuint OpenGLViewer::loadShader(GLenum shaderType, const std::string& preamble, 
 	return shader;
 }
 
-GLuint OpenGLViewer::loadProgram(const char* vertex_file_path, const char* fragment_file_path, std::string preamble)
+GLuint OpenGLViewer::loadProgram(const std::string& vertex_file_path, const std::string& fragment_file_path, std::string preamble)
 {
 	// Create the shaders
-	GLuint vertexShader = loadShader(GL_VERTEX_SHADER, preamble, vertex_file_path);
-	GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, preamble, fragment_file_path);
+	GLuint vertexShader = loadShader(GL_VERTEX_SHADER, preamble, vertex_file_path.c_str());
+	GLuint fragmentShader = loadShader(GL_FRAGMENT_SHADER, preamble, fragment_file_path.c_str());
 
 	// Link the program
 	log_info("Linking program");

@@ -32,11 +32,13 @@ void InstancingDemo::onInitialise()
 
 	mVisibilityCalculator = new VisibilityCalculator;
 
+	std::string shader_path = getShaderPath();
+	log_debug("Using shader path'{}", shader_path);
+
 	// Create and compile our GLSL program from the shaders
-	log_warning("Using hard-coded paths to shaders in ../src/application/commands/view");
 	glyphProgram = loadProgram(
-		"../src/application/commands/view/glsl/glyph.vert", 
-		"../src/application/commands/view/glsl/glyph.frag");
+		shader_path + std::string("glyph.vert"),
+		shader_path + std::string("glyph.frag"));
 
 	// Set up access to uniforms
 	modelMatrixID = glGetUniformLocation(glyphProgram, "modelMatrix");
