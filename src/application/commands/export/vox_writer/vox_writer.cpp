@@ -35,7 +35,16 @@
 #include "vox_writer.h"
 
 #include <algorithm>
-#include <execution>
+
+// Work around missing std::execution support.
+#ifdef CUBIQUITY_USE_POOLSTL
+	#define POOLSTL_STD_SUPPLEMENT
+	#define POOLSTL_STD_SUPPLEMENT_FORCE
+	#include "poolstl.hpp"
+#else
+	#include <execution>
+#endif // CUBIQUITY_USE_POOLSTL
+
 #include <mutex>
 #include <sstream>
 #include <unordered_map>

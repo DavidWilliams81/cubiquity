@@ -28,6 +28,12 @@ Cubiquity uses the following open source libraries:
     - MIT license
     - https://github.com/nlohmann/json
 
+* PoolSTL
+    - Light, self-contained, thread pool-based implementation of C++17 parallel
+      standard library algorithms.
+    - MIT license
+    - https://github.com/alugowski/poolSTL
+
 * SDL
     - Simple DirectMedia Layer
     - zlib license

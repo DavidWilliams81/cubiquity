@@ -18,7 +18,19 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <execution>
+
+// Work around missing std::execution support.
+// Note that this involves including a header from the application folder.
+// This is messy (lib shouldn't depend on app) but it lets us keep all the
+// external dependencies in one folder. It's a temporary solution anyway
+// (until std::execution is better supported) and is only used for MinGW.
+#ifdef CUBIQUITY_USE_POOLSTL
+	#define POOLSTL_STD_SUPPLEMENT
+	#define POOLSTL_STD_SUPPLEMENT_FORCE
+	#include "../application/external/poolstl.hpp"
+#else
+	#include <execution>
+#endif // CUBIQUITY_USE_POOLSTL
 
 #ifdef _MSC_VER // Not supported on Debian 12 GCC
 #include <format>

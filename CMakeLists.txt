@@ -32,6 +32,12 @@ else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
 
+if(MINGW)
+    # MinGW does not properly support std::execution::par (it does compile, but
+    # does not actually parallelise. Using PoolSTL is a temporary workaround.
+    add_compile_definitions(CUBIQUITY_USE_POOLSTL)
+endif()
+
 # Temporary solution to get C++ filesystem support through CMake:
 # See https://gitlab.kitware.com/cmake/cmake/-/issues/17834
 if (NOT MSVC)
@@ -58,7 +64,8 @@ find_package(Threads REQUIRED)
 target_link_libraries(Library Threads::Threads)
 
 if(NOT MSVC AND NOT MINGW)
-    # GCC parallel algorithms depend on Intel TBB on Linux.
+    # GCC parallel algorithms depend on Intel TBB on Linux. This is not easily
+    # available on MinGW, but we use PoolSTL as a substitute for that.
     target_link_libraries(Library tbb)
 endif()
 
@@ -69,14 +76,14 @@ if(MINGW)
     target_link_libraries(Library -static-libgcc -static-libstdc++)
 endif()
 
-# Required to profile release bulds.
+# Required to profile release builds.
 if(MSVC)
     target_link_options(Library PUBLIC /PROFILE)
     target_compile_options(Library PUBLIC /Zi)
 endif()
 
 # Note: I would like to uncomment the line below, but doing so seems to break the  
-# expected dependancy between the library being updated and a relink being required. 
+# expected dependency between the library being updated and a relink being required.
 # At least withing Visual Studio. More investigation required.
 # This indicates it should work: https://discourse.cmake.org/t/how-to-use-the-same-name-for-a-target-and-a-library/5044
 #set_target_properties(Library PROPERTIES OUTPUT_NAME cubiquity)
