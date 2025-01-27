@@ -72,6 +72,17 @@ Run:
 
     sudo apt install mingw-w64*
 
+On Debian 12 I found the various std::thread packages appeared to be missing, but actually MinGW was set to use win32 threads rather than posix threads, and it seems the former are not actually included? It was fixed as follows (see https://unix.stackexchange.com/q/410003):
+
+    sudo update-alternatives --config x86_64-w64-mingw32-g++
+
+I then selected the entry for posix.
+
+More relevent information here:
+
+    https://stackoverflow.com/questions/17242516/mingw-w64-threads-posix-vs-win32
+    https://stackoverflow.com/questions/5644912/posix-threads-vs-win32-threads
+
 Save the following snippet as 'mingw-w64-x86_64.cmake' (taken from [here](https://gist.github.com/peterspackman/8cf73f7f12ba270aa8192d6911972fe8#file-mingw-w64-x86_64-cmake))
 
 ```

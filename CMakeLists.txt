@@ -70,10 +70,8 @@ if(NOT MSVC AND NOT MINGW)
 endif()
 
 if(MINGW)
-    # Windows users are unlikely to have runtime installed, so statically link.
-    # https://stackoverflow.com/questions/38694058/cmake-linking-
-    #     statically-against-libgcc-and-libstdc-into-a-shared-library
-    target_link_libraries(Library -static-libgcc -static-libstdc++)
+    # Statically link (as Windows users are unlikely to have MinGW runtimes?).
+    target_link_libraries(Library -static)
 endif()
 
 # Required to profile release builds.

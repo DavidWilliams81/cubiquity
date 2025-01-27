@@ -8,10 +8,10 @@ working_dir=$(mktemp -d)
 cmake -S ..  \
       -B $build_dir \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_TOOLCHAIN_FILE=~/Downloads/mingw-w64-x86_64.cmake \
-      -DSDL2_DIR=/home/davidw/Downloads/SDL2-2.31.0/cmake/
+      -DCMAKE_TOOLCHAIN_FILE=utils/mingw-w64-x86_64.cmake \
+      -DSDL2_DIR=~/SDL2-2.30.11/cmake/
 
-# Make
+# Make (in subshell, to preserve current directory)
 (cd $build_dir && make -j8)
 
 # Assemble folder with files to be packaged
@@ -23,8 +23,9 @@ wget -P $working_dir https://cubiquity.s3.eu-west-2.amazonaws.com/release_templa
 wget -P $working_dir https://cubiquity.s3.eu-west-2.amazonaws.com/release_template/shapes.mtl
 
 # Zip files up in a filename based on current date
+# https://askubuntu.com/questions/521011/zip-an-archive-without-including-parent-directory
 release_name=cubiquity-win64-$(date +%Y-%m-%d)
-zip $release_name.zip $working_dir/*
+(cd $working_dir && zip -r - .) > $release_name.zip
 sha256sum $release_name.zip > $release_name.sha256
 
 # Upload to S3 release folder
