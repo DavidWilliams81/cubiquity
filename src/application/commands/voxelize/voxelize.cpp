@@ -103,11 +103,11 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	if(!scale) {
 		// If size is also not specified then use a default
 		if(!size) {
-			*size = 500; // Default size if not specified
+			size = 500; // Default size if not specified
 			log_debug("Using default size of {}", size);
 
 		}
-		*scale = static_cast<float>(*size) / dims[longestAxis];
+		scale = static_cast<float>(*size) / dims[longestAxis];
 		log_debug("Using scale factor to {} to achieve size of {} voxels",
 		          *scale, *size);
 	}
