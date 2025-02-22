@@ -40,7 +40,7 @@ endif()
 
 # Temporary solution to get C++ filesystem support through CMake:
 # See https://gitlab.kitware.com/cmake/cmake/-/issues/17834
-if (NOT MSVC)
+if (NOT MSVC AND NOT APPLE)
     link_libraries(stdc++fs)
 endif()
 
