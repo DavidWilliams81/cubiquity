@@ -824,7 +824,7 @@ namespace Cubiquity
 			, randZ(bounds.lower().z(), bounds.upper().z()) {}
 
 		Vector3f next() {
-			Vector3f result = { randX(eng), randY(eng), randZ(eng) };
+			Vector3f result = { (float)randX(eng), (float)randY(eng), (float)randZ(eng) };
 			return result;
 		}
 

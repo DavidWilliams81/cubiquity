@@ -434,7 +434,7 @@ void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
 		{
 			for (int32_t x = triBoundsAsInt.lower().x(); x <= triBoundsAsInt.upper().x(); x++)
 			{
-				const Vector3f pos = { x,y,z };
+				const Vector3f pos = { (float)x,(float)y,(float)z };
 
 				if (thickness >= 0.0f) // Draw surface with user-provided thickness.
 				{

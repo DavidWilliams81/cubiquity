@@ -51,7 +51,7 @@ bool testRasterization()
 
 		for (int ct = 0; ct < 5000; ct++)
 		{
-			Vector2i centre({ simple_rand() % maskSize, simple_rand() % maskSize });
+			Vector2i centre{ (int)(simple_rand() % maskSize), (int)(simple_rand() % maskSize) };
 
 			// Note that the base polygon has size of approx two (-1.0 to + 1.0)
 			// FIXME - It would be nice to test with zero-size (or very timy) polygons, but
