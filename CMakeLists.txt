@@ -32,7 +32,7 @@ else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
 
-if(MINGW)
+if(APPLE OR MINGW)
     # MinGW does not properly support std::execution::par (it does compile, but
     # does not actually parallelise. Using PoolSTL is a temporary workaround.
     add_compile_definitions(CUBIQUITY_USE_POOLSTL)
