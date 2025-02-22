@@ -63,10 +63,11 @@ add_library(Library ${LIBRARY_SRCS})
 find_package(Threads REQUIRED)
 target_link_libraries(Library Threads::Threads)
 
-if(NOT MSVC AND NOT MINGW)
+if(UNIX)
+    find_package(TBB REQUIRED)
     # GCC parallel algorithms depend on Intel TBB on Linux. This is not easily
     # available on MinGW, but we use PoolSTL as a substitute for that.
-    target_link_libraries(Library tbb)
+    target_link_libraries(Library TBB::tbb)
 endif()
 
 if(MINGW)
