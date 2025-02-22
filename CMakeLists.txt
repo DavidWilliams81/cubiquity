@@ -141,3 +141,4 @@ endif()
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/application PREFIX "Source Code" FILES ${APPLICATION_SRCS} ${APPLICATION_VIEW_SRCS})
 
 install(TARGETS Application DESTINATION .)
+install(FILES COPYING.txt DESTINATION .)
