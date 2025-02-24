@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - master
+
+jobs:
+    build:
+        runs-on: ${{ matrix.platform.os }}
+        name: ${{ matrix.platform.name }}
+
+        steps:
+        - uses: actions/checkout@v4
+
+        - name: Install dependencies
+          if: ${{ matrix.platform.name == 'Ubuntu' }}
+          run: |
+            sudo apt-get install -y libsdl2-dev libtbb-dev ninja-build
+
+        - name: Install dependencies
+          if: ${{ matrix.platform.name == 'MacOS' }}
+          run: |
+            brew install sdl2 tbb ninja
+
+        - name: Install dependencies
+          if: ${{ matrix.platform.name == 'Windows' }}
+          run: |
+            choco install ninja --yes
+
+        - name: Build
+          run: |
+            cmake . -G Ninja
+            cmake --build . --config Release
+            cmake --install .  --prefix cubiquity-install
+
+        - name: Upload the build artifacts
+          uses: actions/upload-artifact@v4
+          with:
+            name: cubiquity-${{ matrix.platform.name }}
+            path: cubiquity-install
+
+        strategy:
+          fail-fast: false
+          matrix:
+            platform:
+            - { name: Windows,  os: windows-2022 }
+            - { name: Ubuntu,   os: ubuntu-latest }
+            - { name: MacOS,    os: macos-latest }

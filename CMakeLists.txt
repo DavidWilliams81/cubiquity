@@ -32,7 +32,7 @@ else()
     add_compile_options(-Wall -Wextra -pedantic)
 endif()
 
-if(MINGW)
+if(APPLE OR MINGW)
     # MinGW does not properly support std::execution::par (it does compile, but
     # does not actually parallelise. Using PoolSTL is a temporary workaround.
     add_compile_definitions(CUBIQUITY_USE_POOLSTL)
@@ -40,7 +40,7 @@ endif()
 
 # Temporary solution to get C++ filesystem support through CMake:
 # See https://gitlab.kitware.com/cmake/cmake/-/issues/17834
-if (NOT MSVC)
+if (NOT MSVC AND NOT APPLE)
     link_libraries(stdc++fs)
 endif()
 
@@ -63,10 +63,11 @@ add_library(Library ${LIBRARY_SRCS})
 find_package(Threads REQUIRED)
 target_link_libraries(Library Threads::Threads)
 
-if(NOT MSVC AND NOT MINGW)
+if(UNIX)
+    find_package(TBB REQUIRED)
     # GCC parallel algorithms depend on Intel TBB on Linux. This is not easily
     # available on MinGW, but we use PoolSTL as a substitute for that.
-    target_link_libraries(Library tbb)
+    target_link_libraries(Library TBB::tbb)
 endif()
 
 if(MINGW)
@@ -139,4 +140,5 @@ endif()
 # For tidier folder layout in Visual Studio
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/src/application PREFIX "Source Code" FILES ${APPLICATION_SRCS} ${APPLICATION_VIEW_SRCS})
 
-
+install(TARGETS Application DESTINATION .)
+install(FILES COPYING.txt DESTINATION .)
