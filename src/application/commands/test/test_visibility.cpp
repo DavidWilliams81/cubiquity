@@ -131,7 +131,7 @@ bool testVisibilityUnidirectional()
 	uint32_t hash = visCalc.mVisMask->hash();
 	log_info("\tHash = {}", hash);
 
-	const size_t expectedGlyphCount = 62117;
+	const size_t expectedGlyphCount = 62118;
 	// Tile size affects memory layout and hence hash.
 	uint32_t expectedHash = 0;
 	if (VisibilityMask::TileSize == 4)

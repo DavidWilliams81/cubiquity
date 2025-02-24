@@ -399,7 +399,7 @@ namespace Cubiquity
 		Ray3f reflectedRay = ray;
 		reflectedRay.mOrigin += vec3({ 0.5f, 0.5f, 0.5f });
 		reflectedRay.mOrigin = reflectedRay.mOrigin * rayDirSign;
-		reflectedRay.mDir = abs3(reflectedRay.mDir);
+		reflectedRay.mDir = abs(reflectedRay.mDir);
 
 		// Work out our starting octant by determining which of the axes we are already in front of.
 		// If we are in front of a given axis, the set the corresponding distance to a large value

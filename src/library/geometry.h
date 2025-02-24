@@ -42,15 +42,12 @@ namespace Cubiquity
 	//									Vector
 	////////////////////////////////////////////////////////////////////////////////
 
-	// Vector is a simple C++ aggregate. Could publicly inherit from std::array to
-	// eliminate some boilerplate code (see https://stackoverflow.com/a/24281360),
-	// but this only seems to works on  GCC 11 onwards (not Clang or MSVC).
 	template <class Type, int Size>
-	struct Vector
+	struct Vector : std::array<Type, Size>
 	{
 		// Initialise array to single value (aggregates don't have constructors).
 		static constexpr Vector<Type, Size> filled(const Type& value) {
-			Vector<Type, Size> ret = { 0, 0, 0 };
+			Vector<Type, Size> ret;
 			ret.fill(value);
 			return ret;
 		}
@@ -59,8 +56,35 @@ namespace Cubiquity
 		template <typename CastType>
 		explicit operator Vector<CastType, Size>() const {
 			Vector<CastType, Size> result;
-			for (uint32_t ct = 0; ct < Size; ++ct) { result[ct] = static_cast<CastType>(mData[ct]); }
+			for (uint32_t ct = 0; ct < Size; ++ct) { result[ct] = static_cast<CastType>((*this)[ct]); }
 			return result;
+		}
+
+		// Apply a function to each element of this vector, potentially modifying it in-place.
+		// The explicit unrolling seems to help performance, at least on Visual C++ 2022.
+		template<class UnaryFunc>
+		constexpr Vector<Type, Size>& apply(UnaryFunc f)
+		{
+			static_assert(Size <= 4);
+			if constexpr (Size > 0) { f((*this)[0]); }
+			if constexpr (Size > 1) { f((*this)[1]); }
+			if constexpr (Size > 2) { f((*this)[2]); }
+			if constexpr (Size > 3) { f((*this)[3]); }
+			return *this;
+		}
+
+		// Apply a function to each element of this vector and the corresponding
+		// element of the supplied vector. This vector may be modifed, while the
+		// supplied vector may not. I think 'zip' is the correct term for this?
+		template<class BinaryFunc>
+		constexpr Vector<Type, Size>& zip(const Vector<Type, Size>& r, BinaryFunc f)
+		{
+			static_assert(Size <= 4);
+			if constexpr (Size > 0) { f((*this)[0], r[0]); }
+			if constexpr (Size > 1) { f((*this)[1], r[1]); }
+			if constexpr (Size > 2) { f((*this)[2], r[2]); }
+			if constexpr (Size > 3) { f((*this)[3], r[3]); }
+			return *this;
 		}
 
 		// Nullary  arithmetic operators
@@ -70,77 +94,61 @@ namespace Cubiquity
 			Vector<Type, Size> result; for (int i = 0; i < Size; ++i) { result[i] = ~(*this)[i]; } return result;
 		}
 
-		// Unary arithmetic operators
-		void operator+=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] += rhs; } }
-		void operator+=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] += rhs[i]; } }
-		void operator-=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] -= rhs; } }
-		void operator-=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] -= rhs[i]; } }
-		void operator*=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] *= rhs; } }
-		void operator*=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] *= rhs[i]; } }
-		void operator/=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] /= rhs; } }
-		void operator/=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] /= rhs[i]; } }
-		void operator%=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] %= rhs; } }
-		void operator%=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] %= rhs[i]; } }
+		// Compound assignment operators
+		Vector<Type, Size>& operator+=(const Type& rhs)  { return apply([rhs](Type& t) {t += rhs; }); }
+		Vector<Type, Size>& operator-=(const Type& rhs)  { return apply([rhs](Type& t) {t -= rhs; }); }
+		Vector<Type, Size>& operator*=(const Type& rhs)  { return apply([rhs](Type& t) {t *= rhs; }); }
+		Vector<Type, Size>& operator/=(const Type& rhs)  { return apply([rhs](Type& t) {t /= rhs; }); }
+		Vector<Type, Size>& operator%=(const Type& rhs)  { return apply([rhs](Type& t) {t %= rhs; }); }
 
-		void operator>>=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] >>= rhs; } }
-		void operator>>=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] >>= rhs[i]; } }
-		void operator<<=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] <<= rhs; } }
-		void operator<<=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] <<= rhs[i]; } }
+		Vector<Type, Size>& operator&=(const Type& rhs)  { return apply([rhs](Type& t) {t &= rhs; }); }
+		Vector<Type, Size>& operator|=(const Type& rhs)  { return apply([rhs](Type& t) {t |= rhs; }); }
+		Vector<Type, Size>& operator^=(const Type& rhs)  { return apply([rhs](Type& t) {t ^= rhs; }); }
+		Vector<Type, Size>& operator>>=(const Type& rhs) { return apply([rhs](Type& t) {t >>= rhs;}); }
+		Vector<Type, Size>& operator<<=(const Type& rhs) { return apply([rhs](Type& t) {t <<= rhs;}); }
 
-		void operator&=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] &= rhs; } }
-		void operator&=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] &= rhs[i]; } }
-		void operator|=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] |= rhs; } }
-		void operator|=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] |= rhs[i]; } }
-		void operator^=(Type const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] ^= rhs; } }
-		void operator^=(Vector<Type, Size> const& rhs) { for (int i = 0; i < Size; ++i) { (*this)[i] ^= rhs[i]; } }
+		Vector<Type, Size>& operator+=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l += r; }); }
+		Vector<Type, Size>& operator-=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l -= r; }); }
+		Vector<Type, Size>& operator*=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l *= r; }); }
+		Vector<Type, Size>& operator/=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l /= r; }); }
+		Vector<Type, Size>& operator%=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l %= r; }); }
 
-		// Binary arithmetic operators as friends (non-members)
-		friend Vector<Type, Size> operator+(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result += rhs; return result; }
-		friend Vector<Type, Size> operator+(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result += rhs; return result; }
-		friend Vector<Type, Size> operator-(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result -= rhs; return result; }
-		friend Vector<Type, Size> operator-(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result -= rhs; return result; }
-		friend Vector<Type, Size> operator*(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result *= rhs; return result; }
-		friend Vector<Type, Size> operator*(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result *= rhs; return result; }
-		friend Vector<Type, Size> operator/(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result /= rhs; return result; }
-		friend Vector<Type, Size> operator/(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result /= rhs; return result; }
-		friend Vector<Type, Size> operator%(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result %= rhs; return result; }
-		friend Vector<Type, Size> operator%(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result %= rhs; return result; }
+		Vector<Type, Size>& operator&=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l &= r; }); }
+		Vector<Type, Size>& operator|=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l |= r; }); }
+		Vector<Type, Size>& operator^=(const Vector<Type, Size>& rhs)  { return zip(rhs, [](Type& l, const Type& r) {l ^= r; }); }
+		Vector<Type, Size>& operator>>=(const Vector<Type, Size>& rhs) { return zip(rhs, [](Type& l, const Type& r) {l >>= r;}); }
+		Vector<Type, Size>& operator<<=(const Vector<Type, Size>& rhs) { return zip(rhs, [](Type& l, const Type& r) {l <<= r;}); }
 
-		friend Vector<Type, Size> operator>>(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result >>= rhs; return result; }
-		friend Vector<Type, Size> operator>>(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result >>= rhs; return result; }
-		friend Vector<Type, Size> operator<<(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result <<= rhs; return result; }
-		friend Vector<Type, Size> operator<<(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result <<= rhs; return result; }
+		// Binary arithmetic operators as non-members. Friends defined
+		// inside class body are inline and are hidden from non-ADL lookup.
+		// See https://en.cppreference.com/w/cpp/language/operators
+		friend Vector<Type, Size> operator+(Vector<Type, Size> lhs, const Type& rhs) { return lhs += rhs; }
+		friend Vector<Type, Size> operator-(Vector<Type, Size> lhs, const Type& rhs) { return lhs -= rhs; }
+		friend Vector<Type, Size> operator*(Vector<Type, Size> lhs, const Type& rhs) { return lhs *= rhs; }
+		friend Vector<Type, Size> operator/(Vector<Type, Size> lhs, const Type& rhs) { return lhs /= rhs; }
+		friend Vector<Type, Size> operator%(Vector<Type, Size> lhs, const Type& rhs) { return lhs %= rhs; }
 
-		friend Vector<Type, Size> operator&(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result &= rhs; return result; }
-		friend Vector<Type, Size> operator&(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result &= rhs; return result; }
-		friend Vector<Type, Size> operator|(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result |= rhs; return result; }
-		friend Vector<Type, Size> operator|(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result |= rhs; return result; }
-		friend Vector<Type, Size> operator^(Vector<Type, Size> const& lhs, Type const& rhs) {
-			Vector<Type, Size> result(lhs); result ^= rhs; return result; }
-		friend Vector<Type, Size> operator^(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs) {
-			Vector<Type, Size> result(lhs); result ^= rhs; return result; }
+		friend Vector<Type, Size> operator&(Vector<Type, Size> lhs, const Type& rhs) { return lhs &= rhs; }
+		friend Vector<Type, Size> operator|(Vector<Type, Size> lhs, const Type& rhs) { return lhs |= rhs; }
+		friend Vector<Type, Size> operator^(Vector<Type, Size> lhs, const Type& rhs) { return lhs ^= rhs; }
+		friend Vector<Type, Size> operator>>(Vector<Type, Size> lhs, const Type& rhs) { return lhs >>= rhs; }
+		friend Vector<Type, Size> operator<<(Vector<Type, Size> lhs, const Type& rhs) { return lhs <<= rhs; }
+
+		friend Vector<Type, Size> operator+(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs += rhs; }
+		friend Vector<Type, Size> operator-(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs -= rhs; }
+		friend Vector<Type, Size> operator*(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs *= rhs; }
+		friend Vector<Type, Size> operator/(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs /= rhs; }
+		friend Vector<Type, Size> operator%(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs %= rhs; }
+
+		friend Vector<Type, Size> operator&(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs &= rhs; }
+		friend Vector<Type, Size> operator|(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs |= rhs; }
+		friend Vector<Type, Size> operator^(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs ^= rhs; }
+		friend Vector<Type, Size> operator>>(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs >>= rhs; }
+		friend Vector<Type, Size> operator<<(Vector<Type, Size> lhs, const Vector<Type, Size>& rhs) { return lhs <<= rhs; }
 
 		// Comparison operators as friends (https://stackoverflow.com/a/1145635)
-		friend bool operator==(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData == rhs.mData; }
-		friend bool operator<(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData < rhs.mData; }
+		//friend bool operator==(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData == rhs.mData; }
+		//friend bool operator<(const Vector<Type, Size>& lhs, const Vector<Type, Size>& rhs) { return lhs.mData < rhs.mData; }
 
 		// Stream insertion operator.
 		friend std::ostream& operator<<(std::ostream& os, const Vector<Type, Size>& vector) {
@@ -149,10 +157,6 @@ namespace Cubiquity
 			os << "\b]"; // Backspace to remove last comma.
 			return os;
 		}
-
-		// Indexed element access
-		Type& operator[](int index) { assert(index < Size && "Index out of range"); return mData[index]; }
-		const Type& operator[](int index) const { assert(index < Size && "Index out of range"); return mData[index]; }
 
 		// Named element access
 		const Type& x() const { static_assert(Size > 0, "Vector too small to call x()"); return (*this)[0]; }
@@ -163,23 +167,10 @@ namespace Cubiquity
 		// FIXME - Would be nice if we could avoid the copy here, and just return the curent vector cast to the correct type.
 		Vector<Type, 3> xyz() const { static_assert(Size > 2, "Vector too small to call xyz()"); return Vector<Type, 3> { (*this)[0], (*this)[1], (*this)[2] }; }
 
-		// Forwards for std::array interface.
-		auto begin() noexcept { return mData.begin(); }
-		auto begin() const noexcept { return mData.begin(); }
-		auto cbegin() const noexcept { return mData.cbegin(); }
-
-		auto end() noexcept { return mData.end(); }
-		auto end() const noexcept { return mData.end(); }
-		auto cend() const noexcept { return mData.cend(); }
-
-		void fill(const Type& value) { mData.fill(value); }
-
-		// Public (requirement for aggregate), but shouldn't be accessed directly.
-		std::array<Type, Size> mData;
 	};
 
 	// Typedefs for commonly-used sizes
-	template <typename Type> using Vector2 = Vector<Type, 4>;
+	template <typename Type> using Vector2 = Vector<Type, 2>;
 	template <typename Type> using Vector3 = Vector<Type, 3>;
 	template <typename Type> using Vector4 = Vector<Type, 4>;
 
@@ -189,12 +180,12 @@ namespace Cubiquity
 	typedef Vector<float, 2> Vector2f;
 	typedef Vector<double, 2> Vector2d;
 
-	typedef Vector<int32, 3> Vector3i32;
-	typedef Vector<uint32, 3> Vector3u32;
-	typedef Vector<int64, 3> Vector3i64;
-	typedef Vector<float, 3> Vector3f;
-	typedef Vector<double, 3> Vector3d;
-	typedef Vector<bool, 3> Vector3b;
+	typedef Vector3<int32> Vector3i32;
+	typedef Vector3<uint32> Vector3u32;
+	typedef Vector3<int64> Vector3i64;
+	typedef Vector3<float> Vector3f;
+	typedef Vector3<double> Vector3d;
+	typedef Vector3<bool> Vector3b;
 
 	typedef Vector<int32, 4> Vector4i32;
 	typedef Vector<uint32, 4> Vector4u32;
@@ -223,62 +214,52 @@ namespace Cubiquity
 
 	// Component-wise minimum and maximum (output is a Vector rather than a scaler).
 	template <class Type, int Size>
-	Vector<Type, Size> min(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs)
+	Vector<Type, Size> min(Vector<Type, Size> lhs, Vector<Type, Size> const& rhs)
 	{
-		Vector<Type, Size> result;
-		for(int i = 0; i < Size; ++i) { result[i] = std::min(lhs[i], rhs[i]); }
-		return result;
+		return lhs.zip(rhs, [](Type& l, const Type& r) {l = std::min(l, r); });
 	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> max(Vector<Type, Size> const& lhs, Vector<Type, Size> const& rhs)
+	Vector<Type, Size> max(Vector<Type, Size> lhs, Vector<Type, Size> const& rhs)
 	{
-		Vector<Type, Size> result;
-		for(int i = 0; i < Size; ++i) { result[i] = std::max(lhs[i], rhs[i]); }
-		return result;
+		return lhs.zip(rhs, [](Type& l, const Type& r) {l = std::max(l, r); });
 	}
 
-	template <class Type, int Size>
+	/*template <class Type, int Size>
 	Vector<Type, Size> clamp(Vector<Type, Size> const& vec, Type minVal, Type maxVal)
 	{
+		//fast_for_each(*this, [rhs](Type& t) {t += rhs; }
 		Vector<Type, Size> result;
 		for (int i = 0; i < Size; ++i)
 		{
-			result[i] = std::max(minVal, std::min(vec[i], maxVal));
+			//result[i] = std::max(minVal, std::min(vec[i], maxVal));
 		}
 		return result;
+	}*/	
+
+	template <class Type, int Size>
+	Vector<Type, Size> abs(Vector<Type, Size> vec)
+	{
+		return vec.apply([](Type& t) {t = std::abs(t); });
 	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> abs3(Vector<Type, Size> const& vec)
+	Vector<Type, Size> ceil(Vector<Type, Size> vec)
 	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::abs(vec[i]); }
-		return result;
+		return vec.apply([](Type& t) {t = std::ceil(t); });
 	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> ceil(Vector<Type, Size> const& vec)
+	Vector<Type, Size> floor(Vector<Type, Size> vec)
 	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::ceil(vec[i]); }
-		return result;
+		return vec.apply([](Type& t) {t = std::floor(t); });
 	}
 
-	template <class Type, int Size>
-	Vector<Type, Size> floor(Vector<Type, Size> const& vec)
-	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i) { result[i] = std::floor(vec[i]); }
-		return result;
-	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> fract(Vector<Type, Size> const& vec)
+	Vector<Type, Size> fract(Vector<Type, Size> vec)
 	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i) { result[i] = vec[i] - std::floor(vec[i]); }
-		return result;
+		return apply(vec, [](Type& t) {t = t - std::floor(t); });
 	}
 
 	// Rounding in C++ is suprisingly complex (e.g. lround() vs lrint()) and built-in functions can
@@ -286,26 +267,23 @@ namespace Cubiquity
 	template <class Type, int Size>
 	Vector<long int, Size> round_to_int(Vector<Type, Size> const& vec)
 	{
-		Vector<long int, Size> result;
-		for (int i = 0; i < Size; ++i)
-		{
-			result[i] = std::floor(vec[i] + Type(0.5));
-		}
-		return result;
+		return static_cast<Vector<long int, Size>>(floor(vec + Vector<Type, Size>::filled(0.5)));
 	}
 
 	// Common vector operations
-	template <class Type, int Size>
-	Type dot(const Vector<Type, Size>& a, const Vector<Type, Size>& b)
-	{
-		Type result(0);
-		for(int i = 0; i < Size; ++i) { result += a[i] * b[i]; }
-		return result;
-	}
+	template <class Type>
+	Type dot(const Vector<Type, 2>& a, const Vector<Type, 2>& b)
+	{ return a[0] * b[0] + a[1] * b[1]; }
+	template <class Type>
+	Type dot(const Vector<Type, 3>& a, const Vector<Type, 3>& b)
+	{ return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+	template <class Type>
+	Type dot(const Vector<Type, 4>& a, const Vector<Type, 4>& b)
+	{ return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]; }
 
 	// Should only be valid for 3D vectors. Also, what should the return type be?
-	template <class Type, int Size>
-	Vector<Type, Size> cross(const Vector<Type, Size>& a, const Vector<Type, Size>& b)
+	template <class Type>
+	Vector<Type, 3> cross(const Vector<Type, 3>& a, const Vector<Type, 3>& b)
 	{
 		return { a.y()*b.z() - a.z()*b.y(), a.z()*b.x() - a.x()*b.z(), a.x()*b.y() - a.y()*b.x() };
 	}
@@ -313,22 +291,17 @@ namespace Cubiquity
 	template <class Type, int Size>
 	Type length(const Vector<Type, Size>& vec)
 	{
-		static_assert(std::is_floating_point<Type>::value);
+		static_assert(std::is_floating_point<Type>::value); // Due to sqrt()
 		return sqrt(dot(vec, vec));
 	}
 
 	template <class Type, int Size>
 	Vector<Type, Size> normalize(const Vector<Type, Size>& vec)
 	{
-		Vector<Type, Size> result;
-		float len = length(vec);
-
-		// Could do better error handling here but it's hard to define a correct
-		// behaviour. I think I prefer to just not pass in invalid vectors?
-		//assert(len >= 0.001f);
-
-		result = vec * (Type(1.0) / len);
-		return result;
+		static_assert(std::is_floating_point<Type>::value);
+		Type len = length(vec);
+		assert(len >= 0.001f);
+		return vec * (Type(1) / len);
 	}
 
 	template <class Type, int Size>
@@ -339,36 +312,21 @@ namespace Cubiquity
 	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> sign(Vector<Type, Size> x)
+	Vector<Type, Size> sign(Vector<Type, Size> vec)
 	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i)
-		{
-			result[i] = std::copysign(1.0f, x[i]);
-		}
-		return result;
+		return vec.apply( [](Type& t) {t = std::copysign(1.0f, t); });
 	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> step(float edge, Vector<Type, Size> x)
+	Vector<Type, Size> step(float edge, Vector<Type, Size> vec)
 	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i)
-		{
-			result[i] = x[i] < edge ? 0 : 1;
-		}
-		return result;
+		return vec.apply( [edge](Type& t) {t = t < edge ? 0 : 1; });
 	}
 
 	template <class Type, int Size>
-	Vector<Type, Size> pow(Vector<Type, Size> const& x, Vector<Type, Size> const& y)
+	Vector<Type, Size> pow(Vector<Type, Size> x, Vector<Type, Size> const& y)
 	{
-		Vector<Type, Size> result;
-		for (int i = 0; i < Size; ++i)
-		{
-			result[i] = std::pow(x[i], y[i]);
-		}
-		return result;
+		return x.zip(y, [](Type& l, const Type& r) {l = std::pow(l, r); });
 	}
 
 	template <class Type, int Size>
@@ -660,8 +618,6 @@ namespace Cubiquity
 		Vector<Type, Size> mDir; // FIXME - Would float always be sufficient for the direction?
 	};
 
-	typedef Ray<float, 2> Ray2f;
-	typedef Ray<double, 2> Ray2d;
 	typedef Ray<float, 3> Ray3f;
 	typedef Ray<double, 3> Ray3d;
 
