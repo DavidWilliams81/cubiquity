@@ -39,13 +39,13 @@ namespace Cubiquity
 
 	struct Bounds
 	{
-		Vector2i lower;
-		Vector2i upper;
+		vec2i lower;
+		vec2i upper;
 	};
 
-	typedef std::array<Vector2i, 8> PolygonVertexArray;
+	typedef std::array<vec2i, 8> PolygonVertexArray;
 
-	typedef std::array<Vector2i, 4> QuadVertexArray;
+	typedef std::array<vec2i, 4> QuadVertexArray;
 
 	typedef std::array<bool, 6> FrontFaces;
 
@@ -68,8 +68,8 @@ namespace Cubiquity
 
 		uint32_t hash();
 
-		bool pointInRect(const Vector2i& c, const Vector2i& clippedLowerLeft, const Vector2i& clippedUpperRight);
-		bool pointInQuad(const Vector2i& pointToTest, const QuadVertexArray& vertices);
+		bool pointInRect(const vec2i& c, const vec2i& clippedLowerLeft, const vec2i& clippedUpperRight);
+		bool pointInQuad(const vec2i& pointToTest, const QuadVertexArray& vertices);
 
 		bool getPixel(uint x, uint y, const Tile& tile);
 		void setPixel(uint x, uint y, Tile& tile);
@@ -77,11 +77,11 @@ namespace Cubiquity
 		bool drawPixel(uint32_t x, uint32_t y, bool writeEnabled);
 		bool testPixel(uint32_t x, uint32_t y);
 
-		void setupQuad(const QuadVertexArray& vertices, const Vector2i& lowerCorner, Vector4i& w, Vector4i& A, Vector4i& B);
-		Tile rasteriseTile(const Vector4i& w_tile, const Vector4i& A, const Vector4i& B, const Bounds& boundsTileSpace);
+		void setupQuad(const QuadVertexArray& vertices, const vec2i& lowerCorner, vec4i& w, vec4i& A, vec4i& B);
+		Tile rasteriseTile(const vec4i& w_tile, const vec4i& A, const vec4i& B, const Bounds& boundsTileSpace);
 
-		bool blitTileRef(const Tile& tile, const Vector2i& position, bool writeEnabled);
-		bool blitTile(const Tile& tile, const Vector2i& position, bool writeEnabled);
+		bool blitTileRef(const Tile& tile, const vec2i& position, bool writeEnabled);
+		bool blitTile(const Tile& tile, const vec2i& position, bool writeEnabled);
 
 		bool drawNodeRef(const PolygonVertexArray& vertices, const FrontFaces& frontFaces, bool writeEnabled);
 		bool drawQuadRef(const QuadVertexArray& vertices, bool writeEnabled);
@@ -125,7 +125,7 @@ namespace Cubiquity
 			:mPos({ 0.0, 0.0, 0.0 })
 			, mViewMat()
 			, mProjMat() {}
-		CameraData(const Vector3d& position, const Vector3d& centre, const Vector3d& up, double fovy, double aspect)
+		CameraData(const vec3d& position, const vec3d& centre, const vec3d& up, double fovy, double aspect)
 		{
 			mPos = position;
 			mProjMat = perspective_matrix(fovy, aspect, 0.1, 100.0);
@@ -138,9 +138,9 @@ namespace Cubiquity
 			double yScale = tan(fovy / 2);
 			double xScale = yScale * aspect;
 
-			const Vector3d upViewSpace = { 0.0, 1.0, 0.0 };
-			const Vector3d rightViewSpace = { 1.0, 0.0, 0.0 };
-			const Vector3d forwardViewSpace = { 0.0, 0.0, -1.0 };
+			const vec3d upViewSpace = { 0.0, 1.0, 0.0 };
+			const vec3d rightViewSpace = { 1.0, 0.0, 0.0 };
+			const vec3d forwardViewSpace = { 0.0, 0.0, -1.0 };
 
 			mLeftNormalViewSpace = cross(-upViewSpace,
 				normalize(forwardViewSpace - rightViewSpace * xScale));
@@ -161,10 +161,10 @@ namespace Cubiquity
 		const Matrix4x4d& invViewMatrix() const { return mInvViewMat; }
 		const Matrix4x4d& projMatrix() const { return mProjMat; }
 		const Matrix4x4d& viewProjMatrix() const { return mViewProjMat; }
-		const Vector3d& position() const { return mPos; }
+		const vec3d& position() const { return mPos; }
 
 	private:
-		Vector3d mPos;
+		vec3d mPos;
 		Matrix4x4d mViewMat;
 		Matrix4x4d mInvViewMat;
 		Matrix4x4d mProjMat;
@@ -172,11 +172,11 @@ namespace Cubiquity
 
 	public:
 		// Normals point to interior of frustum
-		std::array<Vector3d, 4> mNormalsViewSpace;
-		Vector3d mLeftNormalViewSpace;
-		Vector3d mRightNormalViewSpace;
-		Vector3d mBottomNormalViewSpace;
-		Vector3d mTopNormalViewSpace;
+		std::array<vec3d, 4> mNormalsViewSpace;
+		vec3d mLeftNormalViewSpace;
+		vec3d mRightNormalViewSpace;
+		vec3d mBottomNormalViewSpace;
+		vec3d mTopNormalViewSpace;
 	};
 
 	// Was in Glyph.h
@@ -213,7 +213,7 @@ namespace Cubiquity
 
 	// Was in VisibiltyCalculator.h
 
-	typedef std::pair<Vector3i, Vector4f> CachedVertex;
+	typedef std::pair<vec3i, vec4f> CachedVertex;
 
 	// Alternative name ideas: Vis(ibility)Query/Test(er)/Finder
 	class VisibilityCalculator
@@ -226,7 +226,7 @@ namespace Cubiquity
 
 		uint32_t findVisibleOctreeNodes(const Volume* volume, CameraData* cameraData, NormalEstimation normalEstimation,
 			                            bool subdivideMaterialNodes, Glyph* glyphs, uint32_t maxGlyphCount);
-		void processNode(uint32 nodeIndex, const Vector3d& nodeCentre, const Vector3d& nodeCentreViewSpace, uint32 nodeHeight, const Vector3f& nodeNormal,
+		void processNode(uint32 nodeIndex, const vec3d& nodeCentre, const vec3d& nodeCentreViewSpace, uint32 nodeHeight, const vec3f& nodeNormal,
 						 const Volume* volume, CameraData* cameraData, Glyph* glyphs, uint32_t maxGlyphCount, uint32_t& glyphCount);
 
 		float mMaxFootprintSize;
@@ -234,8 +234,8 @@ namespace Cubiquity
 		VisibilityMask* mVisMask;
 		double mVisMaskHalfFaceSize;
 
-		std::array<std::array<Vector3d, 8>, 32> mCubeVertices;
-		std::array<std::array<Vector3d, 8>, 32> mCubeVerticesViewSpace;
+		std::array<std::array<vec3d, 8>, 32> mCubeVertices;
+		std::array<std::array<vec3d, 8>, 32> mCubeVerticesViewSpace;
 
 	private:
 		NormalEstimation mNormalEstimation;
@@ -245,9 +245,9 @@ namespace Cubiquity
 		bool mSubdivideMaterialNodes = false;
 	};
 
-	uint32_t getMaterialForNode(float centreX, float centreY, float centreZ, uint32_t nodeIndex, Volume* volume, const Vector3d& cameraPos);
-	Vector3f estimateNormalFromChildren(Node node);
-	Vector3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, Volume* volume);
+	uint32_t getMaterialForNode(float centreX, float centreY, float centreZ, uint32_t nodeIndex, Volume* volume, const vec3d& cameraPos);
+	vec3f estimateNormalFromChildren(Node node);
+	vec3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, Volume* volume);
 
 	void computeBounds(const PolygonVertexArray& vertices, int32_t& min_x, int32_t& min_y, int32_t& max_x, int32_t& max_y, uint32_t width);
 }

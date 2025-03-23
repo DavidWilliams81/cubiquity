@@ -95,24 +95,24 @@ namespace Cubiquity
 	class Brush
 	{
 	public:
-		virtual bool contains(const Vector3f& point) const = 0;
+		virtual bool contains(const vec3f& point) const = 0;
 		virtual Box3f bounds() const = 0;
 
-		Vector3f mCentre;
+		vec3f mCentre;
 	};
 
 	class SphereBrush : public Brush
 	{
 	public:
-		SphereBrush(const Vector3f& centre, float radius)
+		SphereBrush(const vec3f& centre, float radius)
 			:mRadiusSquared(radius * radius)
 		{
 			mCentre = centre;
-			Vector3f radiusAsVec = Vector3f::filled(radius);
+			vec3f radiusAsVec = vec3f(radius);
 			mBounds = Box3f(centre - radiusAsVec, centre + radiusAsVec);
 		}
 
-		bool contains(const Vector3f& point) const
+		bool contains(const vec3f& point) const
 		{
 			// WARNING - Dubious precision here - these values can be huge!
 			float distX = point.x() - mCentre.x();

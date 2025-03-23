@@ -13,10 +13,10 @@ Camera::Camera()
 
 Ray3d Camera::rayFromViewportPos(int x, int y, int width, int height) const
 {
-	Vector3d camPos = static_cast<Vector3d>(position);
-	Vector3d camDir = static_cast<Vector3d>(forward());
-	Vector3d camUp = static_cast<Vector3d>(up());
-	Vector3d camRight = static_cast<Vector3d>(right());
+	vec3d camPos = static_cast<vec3d>(position);
+	vec3d camDir = static_cast<vec3d>(forward());
+	vec3d camUp = static_cast<vec3d>(up());
+	vec3d camRight = static_cast<vec3d>(right());
 
 	double invWidth = 1.0f / width;
 	double invHeight = 1.0f / height;
@@ -28,21 +28,21 @@ Ray3d Camera::rayFromViewportPos(int x, int y, int width, int height) const
 	float xOffset = x - (width / 2.0f) + 0.5f;
 	float yOffset = y - (height / 2.0f) + 0.5f;
 
-	Vector3d camTarget = camPos + camDir;
+	vec3d camTarget = camPos + camDir;
 	camTarget += camRight * (invWidth * xOffset * aspectRatio * scale);
 	camTarget -= camUp * (invHeight * yOffset * scale); // Inverts Y
 
-	Vector3d rayDir = camTarget - camPos;
+	vec3d rayDir = camTarget - camPos;
 	rayDir = normalize(rayDir);
 	Ray3d ray(camPos, rayDir);
 
 	return ray;
 }
 
-Vector3d Camera::forward() const
+vec3d Camera::forward() const
 {
 	// Direction : Spherical coordinates to Cartesian coordinates conversion
-	return Vector3d
+	return vec3d
 	({
 		// Looking along (0,1,0) when pitch and yaw are both zero.
 		cos(pitch) * sin(yaw),
@@ -51,17 +51,17 @@ Vector3d Camera::forward() const
 	});
 }
 
-Vector3d Camera::right() const
+vec3d Camera::right() const
 {
 	// Looking along (1,0,0) when pitch and yaw are both zero.
-	return Vector3d({
+	return vec3d({
 		sin(yaw + (Pi / 2)),
 		cos(yaw + (Pi / 2)),
 		0
 	});
 }
 
-Vector3d Camera::up() const
+vec3d Camera::up() const
 {
 	// Up vector
 	return cross(right(), forward());

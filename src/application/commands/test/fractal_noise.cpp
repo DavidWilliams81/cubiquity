@@ -63,8 +63,8 @@ float FractalNoise::fractalNoise(int x, int y, int z)
 
 MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 {
-	Vector3i pos({ x, y, z });
-	const Vector3i cell = pos / mCellSize;
+	vec3i pos({ x, y, z });
+	const vec3i cell = pos / mCellSize;
 
 	MaterialId closestMaterial = 0;
 	int closestCellDistanceSquared = 1000000000;
@@ -75,10 +75,10 @@ MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 		{
 			for (int nx = -1; nx <= 1; nx++)
 			{
-				Vector3i neighbourCellOffset({ nx, ny, nz });
-				Vector3i neighbourCell = cell + neighbourCellOffset;
-				Vector3i neighbourCentre = chooseCentre(neighbourCell);
-				Vector3i toNeighbour = neighbourCentre - pos;
+				vec3i neighbourCellOffset({ nx, ny, nz });
+				vec3i neighbourCell = cell + neighbourCellOffset;
+				vec3i neighbourCentre = chooseCentre(neighbourCell);
+				vec3i toNeighbour = neighbourCentre - pos;
 				int neighbourDistSquared = dot(toNeighbour, toNeighbour);
 
 				if (neighbourDistSquared < closestCellDistanceSquared)
@@ -93,7 +93,7 @@ MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 	return closestMaterial;
 }
 
-Vector3i FractalNoise::chooseCentre(Vector3i cell)
+vec3i FractalNoise::chooseCentre(vec3i cell)
 {
 	// When hashing for centre we use a differnt seed than when hashing for material.
 	uint32_t cellHash = Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
@@ -104,10 +104,10 @@ Vector3i FractalNoise::chooseCentre(Vector3i cell)
 	cellHash = Internals::mixBits(cellHash);
 	int32_t z = cellHash % mCellSize;
 
-	return cell * mCellSize + Vector3i({ x, y, z });
+	return cell * mCellSize + vec3i({ x, y, z });
 }
 
-MaterialId FractalNoise::chooseMaterial(Vector3i cell)
+MaterialId FractalNoise::chooseMaterial(vec3i cell)
 {
 	// When hashing for material we use a differnt seed than when hashing for centre.
 	uint32_t cellHash = Internals::murmurHash3(&(cell[0]), sizeof(cell), 65);

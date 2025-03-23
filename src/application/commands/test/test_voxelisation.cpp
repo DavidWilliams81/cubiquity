@@ -111,8 +111,8 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	printHistogram(histogram);
 
 	// Validate details
-	check(bounds.lower(),  Vector3i(-99, -154, -99));
-	check(bounds.upper(),  Vector3i(99, 161, 108));
+	check(bounds.lower(),  vec3i(-99, -154, -99));
+	check(bounds.upper(),  vec3i(99, 161, 108));
 	check(histogram[0],    7640947);
 	if (!preserveSurfaceMaterials && !internalMaterialOveride)
 	{

@@ -90,7 +90,7 @@ void InstancingDemo::onUpdate(float deltaTime)
 
 	CameraData cameraData(camera().position, camera().position + camera().forward(), camera().up(), camera().fovInDegrees / 57.2958f, camera().aspect);
 
-	const Vector3f volumeCentre = Vector3f({ 0.0f, 0.0f, 0.0f });
+	const vec3f volumeCentre = vec3f({ 0.0f, 0.0f, 0.0f });
 
 	mVisibilityCalculator->mMaxFootprintSize = 0.007f;
 	Timer timer;

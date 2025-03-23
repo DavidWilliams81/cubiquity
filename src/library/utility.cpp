@@ -57,8 +57,8 @@ namespace Cubiquity
 				MaterialId matId = static_cast<MaterialId>(nodeIndex);
 				if (matId != mExternalMaterial)
 				{
-					mBounds.lower() = Cubiquity::min(mBounds.lower(), bounds.lower());
-					mBounds.upper() = Cubiquity::max(mBounds.upper(), bounds.upper());
+					mBounds.lower() = min(mBounds.lower(), bounds.lower());
+					mBounds.upper() = max(mBounds.upper(), bounds.upper());
 				}
 			}
 
@@ -86,7 +86,7 @@ namespace Cubiquity
 	std::pair<uint16_t, Box3i> estimateBounds(Volume& volume)
 	{
 		// Take a guess at what the outside material is by looking at the most extreme voxels
-		// Note: This line could be shorter if we had a version of setVoxel which took a Vector3i, should add that.
+		// Note: This line could be shorter if we had a version of setVoxel which took a vec3i, should add that.
 		uint16_t mostNegativeVoxel = volume.voxel(std::numeric_limits<int32_t>::lowest(), std::numeric_limits<int32_t>::lowest(), std::numeric_limits<int32_t>::lowest());
 		uint16_t mostPositiveVoxel = volume.voxel(std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
 

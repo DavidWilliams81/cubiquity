@@ -7,24 +7,24 @@ using namespace std;
 
 bool testLinearAlgebra()
 {
-	Vector2i a({ 1,2 });
-	Vector2i b({ 3,4 });
+	vec2i a({ 1,2 });
+	vec2i b({ 3,4 });
 
 	a += 1;
 	a = a + 1;
 
 	a += b;
-	Vector2i c = a + b;
+	vec2i c = a + b;
 
-	Vector2f f = static_cast<Vector2f>(c);
+	vec2f f = static_cast<vec2f>(c);
 
-	/*Vector3f vf(1.5f, 2.5f, 3.5f);
-	Vector3i vi = static_cast<Vector3i>(vf);
+	/*vec3f vf(1.5f, 2.5f, 3.5f);
+	vec3i vi = static_cast<vec3i>(vf);
 	log_info(vi)*/
 
-	/*Matrix4x4f translation = translationMatrix(Vector3f(0.0, 0.0, -10));
-	Matrix4x4f rotation = rotationMatrix(Vector4f(0.3f, 1.0f, 0.0f, 0.0f));
-	Matrix4x4f scale = scalingMatrix(Vector3f(1.0f, 2.0f, 3.0f));
+	/*Matrix4x4f translation = translationMatrix(vec3f(0.0, 0.0, -10));
+	Matrix4x4f rotation = rotationMatrix(vec4f(0.3f, 1.0f, 0.0f, 0.0f));
+	Matrix4x4f scale = scalingMatrix(vec3f(1.0f, 2.0f, 3.0f));
 
 	auto result = mul(mul(translation, rotation), scale);
 

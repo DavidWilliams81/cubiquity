@@ -54,7 +54,7 @@ bool testVisibilityUnidirectional()
 		mVolume = new Volume;
 
 		FractalNoise fractalNoise(9);
-		Box3i filledBounds(Vector3i::filled(0), Vector3i::filled(511));
+		Box3i filledBounds(vec3i(0), vec3i(511));
 		fillVolume(mVolume, filledBounds, fractalNoise);
 
 		log_info("Saving volume...");
@@ -82,20 +82,20 @@ bool testVisibilityUnidirectional()
 
 	CameraData cameraData(viewMat, projMat);*/
 
-	CameraData cameraData(Vector3d({ -110, -100, -90 }), Vector3d({ 0, 0, 0 }), Vector3d({ 0.1, 0.2, 0.8 }), fovyInRadians, 1.0);
+	CameraData cameraData(vec3d({ -110, -100, -90 }), vec3d({ 0, 0, 0 }), vec3d({ 0.1, 0.2, 0.8 }), fovyInRadians, 1.0);
 
     VisibilityCalculator visCalc;
 	visCalc.mMaxFootprintSize = 0.0055f;
 
 	/*PolygonVertexArray vertices{
-		Vector2i(888, 216),
-		Vector2i(889, 215),
-		Vector2i(885, 216),
-		Vector2i(886, 215),
-		Vector2i(888, 219),
-		Vector2i(888, 218),
-		Vector2i(885, 219),
-		Vector2i(886, 218) };
+		vec2i(888, 216),
+		vec2i(889, 215),
+		vec2i(885, 216),
+		vec2i(886, 215),
+		vec2i(888, 219),
+		vec2i(888, 218),
+		vec2i(885, 219),
+		vec2i(886, 218) };
 
 	VisibilityMask m(1024, 1024);
 	//m.drawQuads(vertices);

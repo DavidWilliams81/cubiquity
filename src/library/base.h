@@ -18,7 +18,7 @@
 //#define CUBIQUITY_USE_AVX
 
 #include <cstdint>
-#include <sstream>
+#include <string>
 
 namespace Cubiquity
 {

@@ -195,7 +195,7 @@ void exportCollada(const std::string& filename, const Patch& patch)
 * "Robust Inside-Outside Segmentation using Generalized Winding Numbers" by Jacobson et al (2013)  *
 ***************************************************************************************************/
 
-float computeWindingNumber(const Vector3f& queryPoint, ConstTriangleSpan triangles)
+float computeWindingNumber(const vec3f& queryPoint, ConstTriangleSpan triangles)
 {
 	float windingNumber = 0.0f;
 
@@ -205,9 +205,9 @@ float computeWindingNumber(const Vector3f& queryPoint, ConstTriangleSpan triangl
 		const auto& b = triangle.vertices[1];
 		const auto& c = triangle.vertices[2];
 
-		Vector3f qa = a - queryPoint;
-		Vector3f qb = b - queryPoint;
-		Vector3f qc = c - queryPoint;
+		vec3f qa = a - queryPoint;
+		vec3f qb = b - queryPoint;
+		vec3f qc = c - queryPoint;
 
 		const float alength = length(qa);
 		const float blength = length(qb);
@@ -246,7 +246,7 @@ float computeWindingNumber(const Vector3f& queryPoint, ConstTriangleSpan triangl
 	return windingNumber;
 }
 
-float computeWindingNumber(const Vector3f& queryPoint, const Patch& patch)
+float computeWindingNumber(const vec3f& queryPoint, const Patch& patch)
 {
 	// Implementation of Algorithm 2 from Jacobson et al.
 	if (patch.children.empty()) // Leaf node
@@ -269,7 +269,7 @@ float computeWindingNumber(const Vector3f& queryPoint, const Patch& patch)
 
 TriangleList computeClosingTriangles(TriangleSpan triangles)
 {
-	typedef std::pair<Vector3f, Vector3f> TriangleEdge;
+	typedef std::pair<vec3f, vec3f> TriangleEdge;
 	std::unordered_map<TriangleEdge, int32_t, Internals::MurmurHash3<TriangleEdge> > edgeCounts;
 
 	edgeCounts.max_load_factor(1.0); // Default anyway, changing it doesn't seem to help?
@@ -281,8 +281,8 @@ TriangleList computeClosingTriangles(TriangleSpan triangles)
 	{
 		for (int i = 0; i < 3; i++)
 		{
-			const Vector3f& v0 = triangle.vertices[i];
-			const Vector3f& v1 = triangle.vertices[(i + 1) % 3];
+			const vec3f& v0 = triangle.vertices[i];
+			const vec3f& v1 = triangle.vertices[(i + 1) % 3];
 
 			// Curiously, this condition seems arbitrary (same overall resuilt if we change
 			// 'true'  to 'false') and just serves to order vertices so we can find pairs of
@@ -314,7 +314,7 @@ TriangleList computeClosingTriangles(TriangleSpan triangles)
 
 		// Insert 'count' copies of the closing triangle, where count can be zero
 		// (the most common case) or greater than one (as noted in the paper).
-		const Vector3f& arbitraryVertex = triangles[0].vertices[0]; // Inside bounds
+		const vec3f& arbitraryVertex = triangles[0].vertices[0]; // Inside bounds
 		// Jacobson et al state:
 		//     "Finally all edges with count(i, j) != 0 are declared exterior and 
 		//     triangulated with some arbitrary vertex k with orientation { i, j, k }
@@ -342,7 +342,7 @@ TriangleList computeClosingTriangles(TriangleSpan triangles)
 //    but I rarely use it."
 //
 // We use thresholding here as it is a simple and local operation which has so far been sufficient.
-bool isInside(const Vector3f& queryPoint, const Mesh& mesh)
+bool isInside(const vec3f& queryPoint, const Mesh& mesh)
 {
 	float winding_number = evalWindingNumberHierarchy ?
 		computeWindingNumber(queryPoint, *mesh.rootPatch) :
@@ -373,7 +373,7 @@ Patch::Patch(TriangleSpan triSpan)
 		// additional code complexity and increase in tree construction time. There are
 		// still more things I could try (more than two groups, non-axis-aligned split
 		// planes, clustering algorithms, etc), but I'm not convinced they're worthwhile.
-		Vector3f dims = bounds.upper() - bounds.lower();
+		vec3f dims = bounds.upper() - bounds.lower();
 		int longestAxis = std::max_element(dims.begin(), dims.end()) - dims.begin();
 
 		// Sort all triangles in this patch (other triangles in the mesh are unchanged).
@@ -425,8 +425,8 @@ void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
 	// Shrink to fit integer bounds (captures all integer positions within float bounds).
 	// Note: We could probably make a Box member function for this.
 	Box3i triBoundsAsInt = {
-		static_cast<Vector3i>(ceil(triBounds.mExtents[0])),
-		static_cast<Vector3i>(floor(triBounds.mExtents[1])) };
+		static_cast<vec3i>(ceil(triBounds.mExtents[0])),
+		static_cast<vec3i>(floor(triBounds.mExtents[1])) };
 
 	for (int32_t z = triBoundsAsInt.lower().z(); z <= triBoundsAsInt.upper().z(); z++)
 	{
@@ -434,7 +434,7 @@ void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
 		{
 			for (int32_t x = triBoundsAsInt.lower().x(); x <= triBoundsAsInt.upper().x(); x++)
 			{
-				const Vector3f pos = { (float)x,(float)y,(float)z };
+				const vec3f pos = { (float)x,(float)y,(float)z };
 
 				if (thickness >= 0.0f) // Draw surface with user-provided thickness.
 				{
@@ -485,7 +485,7 @@ void drawLargeTriangle(const Triangle& triangle, MaterialId matId,
 	// Split large triangle in half as bounds may overlap many redundant voxels.
 	const float maxSideLength = 16.0f;
 	if (triangle.sideLength(longestSide) > maxSideLength) {
-		Vector3f midpoint = (triangle.vertices[longestSide] +
+		vec3f midpoint = (triangle.vertices[longestSide] +
 			triangle.vertices[(longestSide + 1) % 3]) / 2.0f;
 		// Build two small triangles from input triangle
 		for (int i = 0; i < 2; i++) {
@@ -526,7 +526,7 @@ struct NodeToTest
 {
 	uint32_t index;
 	uint32_t childId;
-	Vector3f centre;
+	vec3f centre;
 	bool result;
 };
 
@@ -540,13 +540,13 @@ public:
 		uint childX = (childId >> 0) & 0x01;
 		uint childY = (childId >> 1) & 0x01;
 		uint childZ = (childId >> 2) & 0x01;
-		Vector3i childOffset({ static_cast<int>(childX), static_cast<int>(childY), static_cast<int>(childZ) }); // childOffset holds zeros or ones.
+		vec3i childOffset({ static_cast<int>(childX), static_cast<int>(childY), static_cast<int>(childZ) }); // childOffset holds zeros or ones.
 
 		// Careful ordering of operations to avoid signed integer overflow. Note that child
 		// node dimensions might max-out the signed integer type but should not exceed it.
-		const Vector3i childNodeDimsInCells = ((nodeBounds.upper() - Vector3i({ 1, 1, 1 })) / 2) - (nodeBounds.lower() / 2);
-		Vector3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
-		Vector3i childUpperBound = childLowerBound + childNodeDimsInCells;
+		const vec3i childNodeDimsInCells = ((nodeBounds.upper() - vec3i({ 1, 1, 1 })) / 2) - (nodeBounds.lower() / 2);
+		vec3i childLowerBound = nodeBounds.lower() + (childNodeDimsInCells * childOffset) + childOffset;
+		vec3i childUpperBound = childLowerBound + childNodeDimsInCells;
 		return Box3i(childLowerBound, childUpperBound);
 	}
 
@@ -573,7 +573,7 @@ public:
 						NodeToTest toTest;
 						toTest.index = nodeIndex;
 						toTest.childId = childId;
-						toTest.centre = static_cast<Vector3f>((childNodeBounds.lower() + childNodeBounds.upper())) * 0.5f;
+						toTest.centre = static_cast<vec3f>((childNodeBounds.lower() + childNodeBounds.upper())) * 0.5f;
 						mNodes.push_back(toTest);
 					}
 				}
@@ -688,8 +688,8 @@ void doPerVoxelVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, Materia
 	Box3i voxelisationBounds = static_cast<Box3i>(mesh.bounds);
 	voxelisationBounds.dilate(2); // Make sure we really cover everything
 
-	Vector3i minBound = voxelisationBounds.lower();
-	Vector3i maxBound = voxelisationBounds.upper();
+	vec3i minBound = voxelisationBounds.lower();
+	vec3i maxBound = voxelisationBounds.upper();
 
 	// Iterate over each voxel within the bounds and classify as inside or outside
 	for (int32 volZ = minBound.z(); volZ <= maxBound.z(); volZ++)
@@ -698,7 +698,7 @@ void doPerVoxelVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, Materia
 		{
 			for (int32 volX = minBound.x(); volX <= maxBound.x(); volX++)
 			{
-				Vector3f queryPoint = { static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) };
+				vec3f queryPoint = { static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) };
 				auto material = isInside(queryPoint, mesh) ? fill : background;
 				volume.setVoxel(volX, volY, volZ, material);
 			}
@@ -794,7 +794,7 @@ void Mesh::build()
 	Cubiquity::Box3fSampler sampler(bounds);
 	for (uint32_t i = 0; i < sampleCount; i++)
 	{
-		Vector3f point = sampler.next();
+		vec3f point = sampler.next();
 
 		const float windingNumber = computeWindingNumber(point, triangles);
 		const float absWindingNumber = std::abs(windingNumber);

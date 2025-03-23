@@ -88,14 +88,14 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 		auto vx = vertices[3 * vertex_index + 0];
 		auto vy = vertices[3 * vertex_index + 1];
 		auto vz = vertices[3 * vertex_index + 2];
-		bounds.accumulate(Vector3f({ vx, vy, vz }));
+		bounds.accumulate(vec3f({ vx, vy, vz }));
 	}
 
 	log_debug("Computed object file bounds as = ({},{},{}) to ({},{},{})",
 			 bounds.lower().x(), bounds.lower().y(), bounds.lower().z(),
 			 bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
 
-	Vector3f dims = bounds.upper() - bounds.lower();
+	vec3f dims = bounds.upper() - bounds.lower();
 	int longestAxis = std::max_element(dims.begin(), dims.end()) - dims.begin();
 
 	// If scale is not specified then compute it from desired size
@@ -186,7 +186,7 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
 			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 
-			Vector3f temp = { 0.0f, 0.0f, 0.0f };
+			vec3f temp = { 0.0f, 0.0f, 0.0f };
 			Triangle triangle(temp, temp, temp);
 
 			// Loop over vertices in the face.
@@ -197,7 +197,7 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 				tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
 				tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
 
-				triangle.vertices[v] = Vector3f({ vx, vy, vz });
+				triangle.vertices[v] = vec3f({ vx, vy, vz });
 
 				// Check if `normal_index` is zero or positive. negative = no normal data
 				if (idx.normal_index >= 0) {

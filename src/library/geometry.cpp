@@ -22,18 +22,18 @@ namespace Cubiquity
 	}
 
 	// Explanation: http://www.iquilezles.org/www/articles/triangledistance/triangledistance.htm
-	float distance(const Vector3f& point, const Triangle& triangle)
+	float distance(const vec3f& point, const Triangle& triangle)
 	{
-		auto dotWithSelf = [](const Vector3f& vector) { return dot(vector, vector); };
+		auto dotWithSelf = [](const vec3f& vector) { return dot(vector, vector); };
 
 		// Precompute vectors
-		Vector3f edges[3], verticesToPoint[3];
+		vec3f edges[3], verticesToPoint[3];
 		for (uint i = 0; i < 3; i++)
 		{
 			edges[i] = triangle.vertices[(i+1)%3] - triangle.vertices[i]; 
 			verticesToPoint[i] = point - triangle.vertices[i];
 		}
-		Vector3f normal = cross(edges[0], edges[2]);
+		vec3f normal = cross(edges[0], edges[2]);
 
 		// Determine whether the point projects inside of the triangle
 		bool inside =
@@ -73,7 +73,7 @@ namespace Cubiquity
 		const auto& verts = triangle.vertices;
 		// Compute the normal (we could pass this in if intersecting multiple
 		// rays with the same triangle). Does not need to be normalised.
-		const Vector3f normal = cross(verts[1] - verts[0], verts[2] - verts[0]);
+		const vec3f normal = cross(verts[1] - verts[0], verts[2] - verts[0]);
 
 		// No intersection if ray and triangle are parallel.
 		const float epsilon = 1e-6f;
@@ -91,14 +91,14 @@ namespace Cubiquity
 		if (t < 0) { return false; } // Miss
 
 		// Compute the intersection point.
-		Vector3f p = ray.mOrigin + (ray.mDir * t);
+		vec3f p = ray.mOrigin + (ray.mDir * t);
 
 		// Check if the point is inside the triangle;
 		for (int i = 0; i < 3; i++)
 		{
-			Vector3f edge = verts[(i+1)%3] - verts[i];
-			Vector3f vp = p - verts[i];
-			Vector3f c = cross(edge, vp); // Perpendicular to triangle
+			vec3f edge = verts[(i+1)%3] - verts[i];
+			vec3f vp = p - verts[i];
+			vec3f c = cross(edge, vp); // Perpendicular to triangle
 			if (dot(normal, c) < 0) {
 				return false; // Point is outside triangle (miss)
 			}
@@ -112,7 +112,7 @@ namespace Cubiquity
 		std::swap(vertices[1], vertices[2]);
 	}
 
-	void Triangle::translate(const Cubiquity::Vector3f& dir)
+	void Triangle::translate(const Cubiquity::vec3f& dir)
 	{
 		for (auto& vertex : vertices)
 		{
@@ -133,7 +133,7 @@ namespace Cubiquity
 		return length(vertices[(index + 1) % 3] - vertices[index]);
 	}
 
-	Vector3f Triangle::computeNormal() const
+	vec3f Triangle::computeNormal() const
 	{
 		// FIXME - Does this normal need to be flipped?
 		return normalize(cross(vertices[2] - vertices[0], vertices[1] - vertices[0]));
@@ -151,16 +151,16 @@ namespace Cubiquity
 		return area;
 	}
 
-	Cubiquity::Vector3f Triangle::centre() const
+	Cubiquity::vec3f Triangle::centre() const
 	{
 		return (vertices[0] + vertices[1] + vertices[2]) / 3.0f;
 	}
 
 	// Note: Could templatize on container type.
-	Box3f computeBounds(const std::array<Cubiquity::Vector3f, 3>& points)
+	Box3f computeBounds(const std::array<Cubiquity::vec3f, 3>& points)
 	{
 		Cubiquity::Box3f bounds;
-		for (const Cubiquity::Vector3f& point : points)	{
+		for (const Cubiquity::vec3f& point : points)	{
 			bounds.accumulate(point);
 		}
 		return bounds;
@@ -177,7 +177,7 @@ namespace Cubiquity
 		return bounds;
 	}
 
-	void translate(TriangleList& triangles, const Cubiquity::Vector3f& dir)
+	void translate(TriangleList& triangles, const Cubiquity::vec3f& dir)
 	{
 		for (auto& triangle : triangles)
 		{

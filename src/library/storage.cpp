@@ -503,7 +503,7 @@ namespace Cubiquity
 					int32 childUpperY = childLowerY + (childSideLength - 1);
 					int32 childUpperZ = childLowerZ + (childSideLength - 1);
 
-					Box3f childBounds(Vector3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }), Vector3f({ static_cast<float>(childUpperX),static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
+					Box3f childBounds(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }), vec3f({ static_cast<float>(childUpperX),static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
 
 					if (!overlaps(brush.bounds(), childBounds))
 					{
@@ -511,14 +511,14 @@ namespace Cubiquity
 					}
 
 					bool allCornersInsideBrush = true;
-					if (!brush.contains(Vector3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
 
 					const bool nodeIsMaterial = isMaterialNode(nodeIndex);
 
@@ -595,7 +595,7 @@ namespace Cubiquity
 					int32 childUpperY = childLowerY + (childSideLength - 1);
 					int32 childUpperZ = childLowerZ + (childSideLength - 1);
 
-					Box3f childBounds(Vector3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) } ), Vector3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
+					Box3f childBounds(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) } ), vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
 
 					/*if (!overlaps(brush.bounds(), childBounds))
 					{
@@ -603,14 +603,14 @@ namespace Cubiquity
 					}*/
 
 					/*bool allCornersInsideBrush = true;
-					if (!brush.contains(Vector3f(childLowerX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childLowerX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childLowerX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childLowerX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childUpperX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childUpperX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childUpperX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(Vector3f(childUpperX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }*/
+					if (!brush.contains(vec3f(childLowerX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childLowerX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childLowerX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childLowerX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childUpperX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childUpperX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childUpperX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
+					if (!brush.contains(vec3f(childUpperX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }*/
 
 					const bool nodeIsMaterial = isMaterialNode(nodeIndex);
 					const bool rhsNodeIsMaterial = isMaterialNode(rhsNodeIndex);

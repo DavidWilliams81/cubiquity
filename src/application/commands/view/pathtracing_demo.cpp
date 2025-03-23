@@ -40,7 +40,7 @@ float PathtracingDemo::positionBasedNoise(const vec3& position)
 {
 	// Because the intersectionl lies exactly between two voxels a proper round to
 	// nearest suffers from floating point problems. Therefore we apply a tiny offset.
-	Vector3i roundedIntesectionPosition = static_cast<Vector3i>(position + vec3::filled(0.499));
+	vec3i roundedIntesectionPosition = static_cast<vec3i>(position + vec3(0.499));
 	uint32 hash = murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
 	return (hash & 0xff) / 255.0f; // 0.0 to 1.0
 }
@@ -55,7 +55,7 @@ vec3 PathtracingDemo::surfaceColour(const RayVolumeIntersection& intersection)
 		// and undershoots for saturated or dark surface colours respectively.
 		float noise = positionBasedNoise(intersection.position);
 		noise = (noise * 0.1) + 0.9; // Map 0.0 - 1.0 to range 0.9 - 1.0.
-		colour *= vec3::filled(noise);
+		colour *= vec3(noise);
 	}
 
 	return colour;
@@ -83,7 +83,7 @@ vec3 PathtracingDemo::randomPointInUnitSphere()
 vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 {
 	const vec3 offset = normal * 0.001f;
-	vec3 intensity = vec3::filled(0.0f);
+	vec3 intensity = vec3(0.0f);
 
 	if (includeSun)
 	{
@@ -115,7 +115,7 @@ vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 
 vec3 PathtracingDemo::traceSingleRayRecurse(const Ray3f& ray, uint depth)
 {
-	if (depth > bounces) { return vec3::filled(0); }
+	if (depth > bounces) { return vec3(0); }
 
 	vec3 pixelColour = { 0.8f, 0.8f, 1.0f }; // Light blue background
 
@@ -163,7 +163,7 @@ vec3 PathtracingDemo::traceSingleRay(const Ray3f& ray, uint depth)
 		pixelColour = surfCol0 * (directLighting0 + indirectLighting0);
 
 		float gamma = 1.0 / 2.2;
-		pixelColour = pow(pixelColour, vec3({ gamma, gamma, gamma }));
+		pixelColour = pow(pixelColour, gamma);
 
 	}
 
@@ -188,7 +188,7 @@ void PathtracingDemo::updateResolution()
 
 void PathtracingDemo::clear()
 {
-	std::fill(mImage.begin(), mImage.end(), Vector3f::filled(0.0f));
+	std::fill(mImage.begin(), mImage.end(), vec3f(0.0f));
 	mAccumulatedFrameCount = 0;
 }
 
@@ -200,7 +200,7 @@ void PathtracingDemo::raytrace(const Camera& camera)
 		{
 			Ray3f ray = static_cast<Ray3f>(camera.rayFromViewportPos(x, y, mImageWidth, mImageHeight));
 
-			Vector3f pixel = traceSingleRay(ray, 0);
+			vec3f pixel = traceSingleRay(ray, 0);
 
 			mImage[y * mImageWidth + x] += pixel;
 		}

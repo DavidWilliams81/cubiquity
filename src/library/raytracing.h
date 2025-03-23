@@ -35,14 +35,14 @@ namespace Cubiquity
 {
 	using namespace Internals;
 
-	typedef Vector3f vec3;
-	typedef Vector4f vec4;
-	typedef Vector3i ivec3;
-	typedef Vector4i ivec4;
-	typedef Vector3u uvec3;
-	typedef Vector4u uvec4;
-	typedef Vector3b bvec3;
-	typedef Vector4b bvec4;
+	typedef vec3f vec3;
+	typedef vec4f vec4;
+	typedef vec3i ivec3;
+	typedef vec4i ivec4;
+	typedef vec3u uvec3;
+	typedef vec4u uvec4;
+	typedef vec3b bvec3;
+	typedef vec4b bvec4;
 
 	// This structure contains an explicit 'hit' member rather than relying on a sentinal value
 	// such as a negative distance or a material of zero. I have found this simplifies the code

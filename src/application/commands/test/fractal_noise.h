@@ -22,8 +22,8 @@ private:
 	float fractalNoise(int x, int y, int z);
 	Cubiquity::MaterialId voronoiCell(int x, int y, int z);
 
-	Cubiquity::Vector3i chooseCentre(Cubiquity::Vector3i cell);
-	Cubiquity::MaterialId chooseMaterial(Cubiquity::Vector3i cell);
+	Cubiquity::vec3i chooseCentre(Cubiquity::vec3i cell);
+	Cubiquity::MaterialId chooseMaterial(Cubiquity::vec3i cell);
 
 	int mOctaves;
 	int mOffsetX = 0;

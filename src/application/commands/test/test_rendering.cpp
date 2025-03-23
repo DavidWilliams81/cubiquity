@@ -31,7 +31,7 @@ bool testRasterization()
 
 	// Note, this is a slightly distorted cube because it was originally just an arbitrary hexagon (plus a couple of points 
 	// inside) in 2d, which I then tried to map to the corners of a cube as I moved from using drawConvexPolygon to drawQuads().
-	Vector2f corners2DFloat[8] =
+	vec2f corners2DFloat[8] =
 	{
 		{ -1.0f, -0.4f },
 		{ -0.1f, -1.0f },
@@ -51,7 +51,7 @@ bool testRasterization()
 
 		for (int ct = 0; ct < 5000; ct++)
 		{
-			Vector2i centre{ (int)(simple_rand() % maskSize), (int)(simple_rand() % maskSize) };
+			vec2i centre{ (int)(simple_rand() % maskSize), (int)(simple_rand() % maskSize) };
 
 			// Note that the base polygon has size of approx two (-1.0 to + 1.0)
 			// FIXME - It would be nice to test with zero-size (or very timy) polygons, but
@@ -62,8 +62,8 @@ bool testRasterization()
 			PolygonVertexArray corners2D;
 			for (int i = 0; i < 8; i++)
 			{
-				Vector2f vertexAsFloat = corners2DFloat[i] * scaleFactor;
-				Vector2i vertexAsInt({ static_cast<int>(vertexAsFloat.x() + 0.5f), static_cast<int>(vertexAsFloat.y() + 0.5f) }); // Add half and cast
+				vec2f vertexAsFloat = corners2DFloat[i] * scaleFactor;
+				vec2i vertexAsInt({ static_cast<int>(vertexAsFloat.x() + 0.5f), static_cast<int>(vertexAsFloat.y() + 0.5f) }); // Add half and cast
 
 				corners2D[i] = centre + vertexAsInt;
 			}
@@ -177,9 +177,9 @@ bool testRaytracingBehaviour()
 	const uint rayCount = 1000;
 	for (uint i = 0; i < rayCount; i++)
 	{
-		Vector3f origin = sampler.next();
-		Vector3f target = sampler.next();
-		Vector3f dir = target - origin;
+		vec3f origin = sampler.next();
+		vec3f target = sampler.next();
+		vec3f dir = target - origin;
 		dir = normalize(dir);
 		Ray3f ray(origin, dir);
 
@@ -233,9 +233,9 @@ bool testRaytracingPerformance()
 	const uint rayCount = 1000000;
 	for (uint i = 0; i < rayCount; i++)
 	{
-		Vector3f origin = sampler.next();
-		Vector3f target = sampler.next();
-		Vector3f dir = target - origin;
+		vec3f origin = sampler.next();
+		vec3f target = sampler.next();
+		vec3f dir = target - origin;
 		dir = normalize(dir);
 		Ray3f ray(origin, dir);
 

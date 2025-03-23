@@ -58,20 +58,20 @@ void Viewer::onInitialise()
 	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&mVolume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 
-	Vector3d lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
-	Vector3d upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
+	vec3d lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
+	vec3d upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
 	log_info("Lower bound = ({},{},{})", lower.x(), lower.y(), lower.z());
 	log_info("Upper bound = ({},{},{})", upper.x(), upper.y(), upper.z());
 	log_info("Bounds estimation took {} seconds", timer.elapsedTimeInSeconds());
 
-	Vector3d centre = (lower + upper) * 0.5;
+	vec3d centre = (lower + upper) * 0.5;
 
 	if (outside_material == 0) // Solid object, point camera at centre and move it back
 	{
 		double halfDiagonal = length(upper - lower) * 0.5;
 
 		// Centred along x, then back and up a bit
-		mCamera.position = Vector3d({ centre.x(), centre.y() - halfDiagonal, centre.z() + halfDiagonal });
+		mCamera.position = vec3d({ centre.x(), centre.y() - halfDiagonal, centre.z() + halfDiagonal });
 
 		// Look down 45 degrees
 		mCamera.pitch = -(Pi / 4.0f);
@@ -79,8 +79,8 @@ void Viewer::onInitialise()
 	}
 	else // Hollow object, place camera at centre.
 	{
-		centre += Vector3d({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
-		mCamera.position = Vector3d({ centre.x(), centre.y(), centre.z() });
+		centre += vec3d({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
+		mCamera.position = vec3d({ centre.x(), centre.y(), centre.z() });
 
 		// Look straight ahead
 		mCamera.pitch = 0.0f;
@@ -160,7 +160,7 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 		RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs, ray, false);
 		if (intersection.hit)
 		{
-			SphereBrush brush(static_cast<Vector3f>(intersection.position), 30);
+			SphereBrush brush(static_cast<vec3f>(intersection.position), 30);
 			mVolume.fillBrush(brush, 0);
 
 			onVolumeModified();

@@ -36,13 +36,13 @@ namespace Cubiquity
 	const uint nearToFar[] = { 0x00, 0x01, 0x02, 0x04, 0x03, 0x05, 0x06, 0x07 };
 
 	// Counter-clockwise winding in a right-handed (OpenGL-style) coordinate system.
-	std::array<Vector4i, 6> cubeIndices = {
-			Vector4i{4,6,2,0}, // min x
-			Vector4i{1,3,7,5}, // max x
-			Vector4i{4,0,1,5}, // min y
-			Vector4i{6,7,3,2}, // max y
-			Vector4i{0,2,3,1}, // min z
-			Vector4i{4,5,7,6}  // max z
+	std::array<vec4i, 6> cubeIndices = {
+			vec4i({4,6,2,0}), // min x
+			vec4i({1,3,7,5}), // max x
+			vec4i({4,0,1,5}), // min y
+			vec4i({6,7,3,2}), // max y
+			vec4i({0,2,3,1}), // min z
+			vec4i({4,5,7,6})  // max z
 	};
 
 	// Was in VisibilityMask.cpp
@@ -107,7 +107,7 @@ namespace Cubiquity
 		return mWidth;
 	}
 
-	bool VisibilityMask::pointInRect(const Vector2i& c, const Vector2i& clippedLowerLeft, const Vector2i& clippedUpperRight)
+	bool VisibilityMask::pointInRect(const vec2i& c, const vec2i& clippedLowerLeft, const vec2i& clippedUpperRight)
 	{
 		return c[0] >= clippedLowerLeft[0] && c[1] >= clippedLowerLeft[1] && c[0] <= clippedUpperRight[0] && c[1] <= clippedUpperRight[1];
 	}
@@ -119,7 +119,7 @@ namespace Cubiquity
 	//
 	// The actual expression is an expansion of the perp dot product of v0->v1 and v0->p,
 	// which is a form of vector determinant. See http://geomalgorithms.com/vector_products.html
-	int det(const Vector2i& v0, const Vector2i& v1, const Vector2i& p)
+	int det(const vec2i& v0, const vec2i& v1, const vec2i& p)
 	{
 		// Make sure the result doesn't overflow. See the section 'Integer Overflows':
 		// https://fgiesen.wordpress.com/2013/02/08/triangle-rasterization-in-practice/
@@ -130,7 +130,7 @@ namespace Cubiquity
 		return (v1[0] - v0[0]) * (p[1] - v0[1]) - (v1[1] - v0[1]) * (p[0] - v0[0]);
 	}
 
-	bool VisibilityMask::pointInQuad(const Vector2i& pointToTest, const QuadVertexArray& vertices)
+	bool VisibilityMask::pointInQuad(const vec2i& pointToTest, const QuadVertexArray& vertices)
 	{
 		// See https://fgiesen.wordpress.com/2013/02/10/optimizing-the-basic-rasterizer/
 		int result = 0;
@@ -220,7 +220,7 @@ namespace Cubiquity
 		tile |= bitToSet;
 	}
 
-	void VisibilityMask::setupQuad(const QuadVertexArray& vertices, const Vector2i& lowerCorner, Vector4i& w, Vector4i& A, Vector4i& B)
+	void VisibilityMask::setupQuad(const QuadVertexArray& vertices, const vec2i& lowerCorner, vec4i& w, vec4i& A, vec4i& B)
 	{
 		// Triangle setup. Note that the elemnts in arraya A and B are shifted by one position compared to what might be expected
 		// when comparing to https://fgiesen.wordpress.com/2013/02/10/optimizing-the-basic-rasterizer/. This is because that article
@@ -239,7 +239,7 @@ namespace Cubiquity
 		w[3] = det(vertices[0], vertices[1], lowerCorner);
 	}
 
-	VisibilityMask::Tile VisibilityMask::rasteriseTile(const Vector4i& w_tile, const Vector4i& A, const Vector4i& B, const Bounds& boundsTileSpace)
+	VisibilityMask::Tile VisibilityMask::rasteriseTile(const vec4i& w_tile, const vec4i& A, const vec4i& B, const Bounds& boundsTileSpace)
 	{
 		const int minX = std::max(0, boundsTileSpace.lower.x());
 		const int minY = std::max(0, boundsTileSpace.lower.y());
@@ -250,7 +250,7 @@ namespace Cubiquity
 		VisibilityMask::Tile bitToTest = 0x0000000000000001;
 		bitToTest <<= minY * TileSize + minX;
 
-		Vector4i w_row = w_tile;
+		vec4i w_row = w_tile;
 
 		w_row += B * minY;
 
@@ -258,7 +258,7 @@ namespace Cubiquity
 		for (int y = minY; y <= maxY; y++)
 		{
 			// Barycentric coordinates at start of row
-			Vector4i w = w_row;
+			vec4i w = w_row;
 
 			w += A * minX;
 
@@ -288,7 +288,7 @@ namespace Cubiquity
 		{
 			if (frontFaces[face])
 			{
-				const Vector4i& i = cubeIndices[face];
+				const vec4i& i = cubeIndices[face];
 				const QuadVertexArray quadVertices{ vertices[i[0]], vertices[i[1]], vertices[i[2]], vertices[i[3]] };
 				drewPixel = drawQuadRef(quadVertices, writeEnabled) || drewPixel;
 			}
@@ -300,13 +300,13 @@ namespace Cubiquity
 	{
 		Bounds bounds = computeBounds(vertices);
 
-		const Vector2i lowerLeft = bounds.lower;
-		const Vector2i upperRight = bounds.upper;
+		const vec2i lowerLeft = bounds.lower;
+		const vec2i upperRight = bounds.upper;
 
-		const Vector2i clippedLowerLeft = max(lowerLeft, Vector2i({ 0, 0 }));
-		const Vector2i clippedUpperRight = min(upperRight, Vector2i({ int(mWidth) - 1, int(mHeight) - 1 }));
+		const vec2i clippedLowerLeft = max(lowerLeft, vec2i({ 0, 0 }));
+		const vec2i clippedUpperRight = min(upperRight, vec2i({ int(mWidth) - 1, int(mHeight) - 1 }));
 
-		Vector2i c;
+		vec2i c;
 		bool drewPixel = false;
 		for (c[1] = clippedLowerLeft.y(); c[1] <= clippedUpperRight.y(); c[1]++)
 		{
@@ -392,7 +392,7 @@ namespace Cubiquity
 		return value;
 	}
 
-	bool VisibilityMask::blitTileRef(const Tile& tile, const Vector2i& position, bool writeEnabled)
+	bool VisibilityMask::blitTileRef(const Tile& tile, const vec2i& position, bool writeEnabled)
 	{
 		bool drewPixel = false;
 		for (uint y = 0; y < TileSize; y++)
@@ -415,14 +415,14 @@ namespace Cubiquity
 		return drewPixel;
 	}
 
-	bool VisibilityMask::blitTile(const Tile& tile, const Vector2i& position, bool writeEnabled)
+	bool VisibilityMask::blitTile(const Tile& tile, const vec2i& position, bool writeEnabled)
 	{
 		Tile drawnPixels = 0;
-		Vector2i lowerLeftTilePos;
+		vec2i lowerLeftTilePos;
 		// FIXME - If we clip the bounds then can we use normal int division instead of this floordiv() function?
 		lowerLeftTilePos[0] = floordiv(position.x(), TileSize);
 		lowerLeftTilePos[1] = floordiv(position.y(), TileSize);
-		Vector2u offset;
+		vec2u offset;
 		offset[0] = position[0] - (lowerLeftTilePos[0] * TileSize);
 		offset[1] = position[1] - (lowerLeftTilePos[1] * TileSize);
 		assert(offset[0] < TileSize && offset[1] < TileSize);
@@ -461,7 +461,7 @@ namespace Cubiquity
 		{
 			for (int tileX = 0; tileX <= maxTileX; tileX++)
 			{
-				Vector2i tilePos;
+				vec2i tilePos;
 				tilePos[0] = lowerLeftTilePos[0] + tileX;
 				tilePos[1] = lowerLeftTilePos[1] + tileY;
 
@@ -507,7 +507,7 @@ namespace Cubiquity
 			{
 				if (frontFaces[face])
 				{
-					const Vector4i& i = cubeIndices[face];
+					const vec4i& i = cubeIndices[face];
 					const QuadVertexArray quadVertices{ tileSpaceVertices[i[0]], tileSpaceVertices[i[1]], tileSpaceVertices[i[2]], tileSpaceVertices[i[3]] };
 					drawQuadSmall(quadVertices, tile);
 				}
@@ -526,8 +526,8 @@ namespace Cubiquity
 	{
 		Bounds bounds = computeBounds(vertices);
 
-		Vector4i A, B, w;
-		Vector2i c = { 0, 0 };
+		vec4i A, B, w;
+		vec2i c = { 0, 0 };
 		setupQuad(vertices, c, w, A, B);
 
 		tile |= rasteriseTile(w, A, B, bounds);
@@ -540,7 +540,7 @@ namespace Cubiquity
 		{
 			if(frontFaces[face])
 			{
-				const Vector4i& i = cubeIndices[face];
+				const vec4i& i = cubeIndices[face];
 				const QuadVertexArray quadVertices{ vertices[i[0]], vertices[i[1]], vertices[i[2]], vertices[i[3]] };
 				drewPixel = drawQuadTiledNew(quadVertices, writeEnabled) || drewPixel;
 			}
@@ -555,22 +555,22 @@ namespace Cubiquity
 		const Bounds bounds = computeBounds(vertices);
 
 		Bounds clippedBounds;
-		clippedBounds.lower = max(bounds.lower, Vector2i({ 0, 0 }));
-		clippedBounds.upper = min(bounds.upper, Vector2i({ int(mWidth) - 1, int(mHeight) - 1 }));
+		clippedBounds.lower = max(bounds.lower, vec2i({ 0, 0 }));
+		clippedBounds.upper = min(bounds.upper, vec2i({ int(mWidth) - 1, int(mHeight) - 1 }));
 
 		int tileXBegin = clippedBounds.lower.x() / TileSize;
 		int tileXEnd = clippedBounds.upper.x() / TileSize;
 		int tileYBegin = clippedBounds.lower.y() / TileSize;
 		int tileYEnd = clippedBounds.upper.y() / TileSize;
 
-		Vector4i A, B;
-		Vector2i c = { tileXBegin * TileSize, tileYBegin * TileSize };
-		Vector4i w_tile_row;
+		vec4i A, B;
+		vec2i c = { tileXBegin * TileSize, tileYBegin * TileSize };
+		vec4i w_tile_row;
 		setupQuad(vertices, c, w_tile_row, A, B);
 
 		for (int tileY = tileYBegin; tileY <= tileYEnd; tileY++)
 		{
-			Vector4i w_tile = w_tile_row;
+			vec4i w_tile = w_tile_row;
 
 			for (int tileX = tileXBegin; tileX <= tileXEnd; tileX++)
 			{
@@ -579,7 +579,7 @@ namespace Cubiquity
 				Tile holes = ~tile;
 				if (holes != 0)
 				{
-					Vector2i tilePos = { tileX * TileSize, tileY * TileSize };
+					vec2i tilePos = { tileX * TileSize, tileY * TileSize };
 					Bounds clippedBoundsTileSpace;
 					clippedBoundsTileSpace.lower = clippedBounds.lower - tilePos;
 					clippedBoundsTileSpace.upper = clippedBounds.upper - tilePos;
@@ -686,14 +686,14 @@ namespace Cubiquity
 		{
 			const double halfSize = static_cast<double>(uint32(1) << height) * 0.5;
 
-			mCubeVertices[height][0] = Vector3d({ -halfSize, -halfSize, -halfSize });
-			mCubeVertices[height][1] = Vector3d({ +halfSize, -halfSize, -halfSize });
-			mCubeVertices[height][2] = Vector3d({ -halfSize, +halfSize, -halfSize });
-			mCubeVertices[height][3] = Vector3d({ +halfSize, +halfSize, -halfSize });
-			mCubeVertices[height][4] = Vector3d({ -halfSize, -halfSize, +halfSize });
-			mCubeVertices[height][5] = Vector3d({ +halfSize, -halfSize, +halfSize });
-			mCubeVertices[height][6] = Vector3d({ -halfSize, +halfSize, +halfSize });
-			mCubeVertices[height][7] = Vector3d({ +halfSize, +halfSize, +halfSize });
+			mCubeVertices[height][0] = vec3d({ -halfSize, -halfSize, -halfSize });
+			mCubeVertices[height][1] = vec3d({ +halfSize, -halfSize, -halfSize });
+			mCubeVertices[height][2] = vec3d({ -halfSize, +halfSize, -halfSize });
+			mCubeVertices[height][3] = vec3d({ +halfSize, +halfSize, -halfSize });
+			mCubeVertices[height][4] = vec3d({ -halfSize, -halfSize, +halfSize });
+			mCubeVertices[height][5] = vec3d({ +halfSize, -halfSize, +halfSize });
+			mCubeVertices[height][6] = vec3d({ -halfSize, +halfSize, +halfSize });
+			mCubeVertices[height][7] = vec3d({ +halfSize, +halfSize, +halfSize });
 		}
 	}
 
@@ -708,7 +708,7 @@ namespace Cubiquity
 	// Note: This functions requres a camera position. How might a 'generic' version work without this? Just take the centre
 	// leaf? Or the first non-zero one we find for a fixed traversal order? Or look at all the leaves and find the most common
 	// (could be slow)? Might need a solution to this if we ever want to do it in a view-independant way.
-	uint32_t getMaterialForNode(float centreX, float centreY, float centreZ, uint32_t nodeIndex, const Volume* volume, const Vector3d& cameraPos)
+	uint32_t getMaterialForNode(float centreX, float centreY, float centreZ, uint32_t nodeIndex, const Volume* volume, const vec3d& cameraPos)
 	{
 		// When descending the tree I believe it would be more correct to compute the nearest child for every iteration.
 		// If the camera is close to a node and near to the centre of one of it's faces then I think the nearest corner
@@ -745,7 +745,7 @@ namespace Cubiquity
 	}
 
 	// Note: We should probably make this operate on integers instead of floats.
-	Vector3f computeNodeNormalRecursive(uint32 nodeIndex, const NodeStore& nodeData, int depth)
+	vec3f computeNodeNormalRecursive(uint32 nodeIndex, const NodeStore& nodeData, int depth)
 	{
 		// Material nodes have no children, so we can't compute a normal for them.
 		if (isMaterialNode(nodeIndex))
@@ -755,7 +755,7 @@ namespace Cubiquity
 
 		Node node = nodeData[nodeIndex];
 
-		Vector3f normal = { 0.0f, 0.0f, 0.0f };
+		vec3f normal = { 0.0f, 0.0f, 0.0f };
 		for (uint32_t z = 0; z < 2; z++)
 		{
 			for (int32_t y = 0; y < 2; y++)
@@ -765,7 +765,7 @@ namespace Cubiquity
 					const uint8_t childId = z << 2 | y << 1 | x;
 					const uint32_t childIndex = node[childId];
 
-					Vector3f normalContribution = { 0.0f, 0.0f, 0.0f };
+					vec3f normalContribution = { 0.0f, 0.0f, 0.0f };
 					if (childIndex == EmptyNodeIndex)
 					{
 						normalContribution = { float(x) * 2 - 1, float(y) * 2 - 1, float(z) * 2 - 1 };
@@ -801,16 +801,16 @@ namespace Cubiquity
 		return normal;
 	}
 
-	Vector3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, const Volume* volume)
+	vec3f estimateNormalFromNeighbours(float x, float y, float z, uint32_t size, const Volume* volume)
 	{
-		Vector3f centre = { x, y, z };
+		vec3f centre = { x, y, z };
 
 		float fSize = size * 0.5f + 0.5f; // It should theorectcally be ok to sample just outside the node
 
 		float fudgeFactor = 2.0f;    // In practice some extra scaling
 		fSize *= fudgeFactor; // results in a smoother normal.
 
-		Vector3f normal = {};
+		vec3f normal = {};
 
 		for (int zOffset = -1; zOffset <= 1; zOffset += 1)
 		{
@@ -818,10 +818,10 @@ namespace Cubiquity
 			{
 				for (int xOffset = -1; xOffset <= 1; xOffset += 1)
 				{
-					Vector3f offset({ static_cast<float>(xOffset), static_cast<float>(yOffset), static_cast<float>(zOffset) });
+					vec3f offset({ static_cast<float>(xOffset), static_cast<float>(yOffset), static_cast<float>(zOffset) });
 					offset *= fSize;
 
-					Vector3f pos = centre + offset;
+					vec3f pos = centre + offset;
 
 					bool occupied = volume->voxel(pos.x() + 0.5f, pos.y() + 0.5f, pos.z() + 0.5f);
 
@@ -848,9 +848,9 @@ namespace Cubiquity
 		{
 			Matrix4x4d viewMatrix = cameraData->viewMatrix();
 			double halfSize = double(uint32(1) << height) * 0.5;
-			Vector3d xAxis = { viewMatrix[0].x(), viewMatrix[0].y(), viewMatrix[0].z() };
-			Vector3d yAxis = { viewMatrix[1].x(), viewMatrix[1].y(), viewMatrix[1].z() };
-			Vector3d zAxis = { viewMatrix[2].x(), viewMatrix[2].y(), viewMatrix[2].z() };
+			vec3d xAxis = { viewMatrix[0].x(), viewMatrix[0].y(), viewMatrix[0].z() };
+			vec3d yAxis = { viewMatrix[1].x(), viewMatrix[1].y(), viewMatrix[1].z() };
+			vec3d zAxis = { viewMatrix[2].x(), viewMatrix[2].y(), viewMatrix[2].z() };
 			xAxis *= halfSize;
 			yAxis *= halfSize;
 			zAxis *= halfSize;
@@ -872,12 +872,12 @@ namespace Cubiquity
 		}
 
 		uint32_t rootHeight = logBase2(VolumeSideLength);
-		Vector4d rootCentre = { 0.0, 0.0, 0.0, 1.0 };
-		Vector4d rootCentreViewSpace = mul(cameraData->viewMatrix(), rootCentre);
+		vec4d rootCentre = { 0.0, 0.0, 0.0, 1.0 };
+		vec4d rootCentreViewSpace = mul(cameraData->viewMatrix(), rootCentre);
 
-		Vector3d rootCentre3 = { rootCentre[0], rootCentre[1], rootCentre[2]};
-		Vector3d rootCentreViewSpace3 = { rootCentreViewSpace[0], rootCentreViewSpace[1], rootCentreViewSpace[2] };
-		Vector3f rootNormal = { 0.0, 0.0, 0.0 };
+		vec3d rootCentre3 = { rootCentre[0], rootCentre[1], rootCentre[2]};
+		vec3d rootCentreViewSpace3 = { rootCentreViewSpace[0], rootCentreViewSpace[1], rootCentreViewSpace[2] };
+		vec3f rootNormal = { 0.0, 0.0, 0.0 };
 
 		processNode(getRootNodeIndex(*volume), rootCentre3, rootCentreViewSpace3, rootHeight, rootNormal,
 			volume, cameraData, glyphs, maxGlyphCount, glyphCount);
@@ -885,7 +885,7 @@ namespace Cubiquity
 		return glyphCount;
 	}
 
-	void VisibilityCalculator::processNode(uint32 nodeIndex, const Vector3d& nodeCentre, const Vector3d& nodeCentreViewSpace, uint32 nodeHeight, const Vector3f& nodeNormal,
+	void VisibilityCalculator::processNode(uint32 nodeIndex, const vec3d& nodeCentre, const vec3d& nodeCentreViewSpace, uint32 nodeHeight, const vec3f& nodeNormal,
 										   const Volume* volume, CameraData* cameraData, Glyph* glyphs, uint32_t maxGlyphCount, uint32_t& glyphCount)
 	{
 		const NodeStore& nodeData = getNodes(*volume).nodes();
@@ -898,7 +898,7 @@ namespace Cubiquity
 
 		// Near to far octree traversal
 		uint8 nearestChild = 0;
-		const Vector3d& cameraPos = cameraData->position();
+		const vec3d& cameraPos = cameraData->position();
 		if (cameraPos.x() > nodeCentre.x()) nearestChild |= 0x01;
 		if (cameraPos.y() > nodeCentre.y()) nearestChild |= 0x02;
 		if (cameraPos.z() > nodeCentre.z()) nearestChild |= 0x04;
@@ -908,15 +908,15 @@ namespace Cubiquity
 			const uint32_t childIndex = isMaterialNode(nodeIndex) ? nodeIndex :node[childId];
 			if (childIndex == 0) { continue; } // Empty child
 			
-			Vector3d childCentre = nodeCentre + mCubeVertices[childHeight][childId];
-			Vector3d childCentreViewSpace = nodeCentreViewSpace + mCubeVerticesViewSpace[childHeight][childId];
+			vec3d childCentre = nodeCentre + mCubeVertices[childHeight][childId];
+			vec3d childCentreViewSpace = nodeCentreViewSpace + mCubeVerticesViewSpace[childHeight][childId];
 
 			// Culling - note that testing against the four sides implicitly culls anything behind the
 			// origin (as nothing can be in front of all planes behind the point where they intersect).
 			// I don't think it's necessary to cull against the near clip plane, and it would 
 			// probably cause a discontinuity as we later assume any node crossing z=0 is visible.
 			bool insideFrustum = true;
-			for (const Vector3d& planeNormal : cameraData->mNormalsViewSpace)
+			for (const vec3d& planeNormal : cameraData->mNormalsViewSpace)
 			{
 				if (dot(childCentreViewSpace, planeNormal) < -childHalfDiagonal)
 				{
@@ -928,11 +928,11 @@ namespace Cubiquity
 			PolygonVertexArray corners2DInt;
 			for (int ct = 0; ct < 8; ct++)
 			{
-				const Vector3d corner = childCentreViewSpace + mCubeVerticesViewSpace[childHeight][ct];
+				const vec3d corner = childCentreViewSpace + mCubeVerticesViewSpace[childHeight][ct];
 
 				// Much simplified version of applying the projection matrix, as we don't care about depth.
 				const Matrix4x4d& projMatrix = cameraData->projMatrix();
-				Vector2d corner2D = { corner[0] * projMatrix[0][0], corner[1] * projMatrix[1][1] };
+				vec2d corner2D = { corner[0] * projMatrix[0][0], corner[1] * projMatrix[1][1] };
 
 				// I believe we can divide by 'z' instead of 'w' because we don't have a near clip
 				// plane. It actually needs negating to match OpenGL but that doesn't matter for
@@ -948,7 +948,7 @@ namespace Cubiquity
 				// I'm not actually sure how OpenGL maps floatint-point viewport coordinates to ints, but
 				// this seems reasonable (and it probably doesn't matter much for our purposes).
 				// Note that the result may be outside the range [0, faceSize) as clipping is handled later.
-				corners2DInt[ct] = static_cast<Vector2i>(round_to_int(corner2D));
+				corners2DInt[ct] = static_cast<vec2i>(round_to_int(corner2D));
 			}
 
 			// This footprint is not in any real units (e.g. pixels), it is just
@@ -982,8 +982,8 @@ namespace Cubiquity
 			const bool isChildVisible = straddlesZeroPlane ||
 										mVisMask->drawNode(corners2DInt, frontFaces, drawNotTraverse);
 
-			Vector3f rawChildNormal = { 0.0f, 0.0f, 0.0f };
-			Vector3f childNormal = { 0.0f, 0.0f, 0.0f };
+			vec3f rawChildNormal = { 0.0f, 0.0f, 0.0f };
+			vec3f childNormal = { 0.0f, 0.0f, 0.0f };
 			if (mNormalEstimation == NormalEstimation::FromChildren)
 			{
 				// There are some nodes for which we cannot compute normals from the chidren (e.g it could be a leaf

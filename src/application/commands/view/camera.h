@@ -8,7 +8,7 @@ class Camera
 public:
 	Camera();
 
-	Cubiquity::Vector3d position;
+	Cubiquity::vec3d position;
 	double pitch;
 	double yaw;
 	double fovInDegrees;
@@ -16,9 +16,9 @@ public:
 
 	Cubiquity::Ray3d rayFromViewportPos(int x, int y, int width, int height) const;
 
-	Cubiquity::Vector3d forward() const;
-	Cubiquity::Vector3d right() const;
-	Cubiquity::Vector3d up() const;
+	Cubiquity::vec3d forward() const;
+	Cubiquity::vec3d right() const;
+	Cubiquity::vec3d up() const;
 
 	Cubiquity::Matrix4x4d viewMatrix() const;
 	Cubiquity::Matrix4x4d projectionMatrix() const;

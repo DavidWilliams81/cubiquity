@@ -94,7 +94,7 @@ namespace Cubiquity
 		static const uint32 mStartPos = 0;
 
 		// Domain
-		Vector3i mOrigin;
+		vec3i mOrigin;
 		uint32 mWidth;
 		uint32 mHeight;
 		uint32 mDepth;

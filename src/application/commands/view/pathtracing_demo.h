@@ -33,9 +33,9 @@
 
 using namespace Cubiquity;
 
-typedef Vector3f vec3;
-typedef Vector3i ivec3;
-typedef Vector4i ivec4;
+typedef vec3f vec3;
+typedef vec3i ivec3;
+typedef vec4i ivec4;
 
 class PathtracingDemo : public Viewer
 {
@@ -76,7 +76,7 @@ private:
 	// Floating point target for path tracing
 	uint mImageWidth;
 	uint mImageHeight;
-	std::vector<Vector3f> mImage;
+	std::vector<vec3f> mImage;
 
 	// Intermediate SDL target for blitting with scaling.
 	SDL_Surface* mRgbSurface = nullptr;
