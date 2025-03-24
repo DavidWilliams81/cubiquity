@@ -106,8 +106,8 @@ bool testWindingNumberPerformance(const TriangleList& triangles, const Box3f& bo
 	Histogram histogram = computeHistogram(volume, bounds);
 
 	// Print details
-	log_info("Lower bound = ({},{},{})", bounds.lower().x(), bounds.lower().y(), bounds.lower().z());
-	log_info("Upper bound = ({},{},{})", bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
+	log_info("Lower bound = ({},{},{})", bounds.lower().x, bounds.lower().y, bounds.lower().z);
+	log_info("Upper bound = ({},{},{})", bounds.upper().x, bounds.upper().y, bounds.upper().z);
 	printHistogram(histogram);
 
 	// Validate details

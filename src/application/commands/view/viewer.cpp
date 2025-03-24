@@ -60,8 +60,8 @@ void Viewer::onInitialise()
 
 	vec3d lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
 	vec3d upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
-	log_info("Lower bound = ({},{},{})", lower.x(), lower.y(), lower.z());
-	log_info("Upper bound = ({},{},{})", upper.x(), upper.y(), upper.z());
+	log_info("Lower bound = ({},{},{})", lower.x, lower.y, lower.z);
+	log_info("Upper bound = ({},{},{})", upper.x, upper.y, upper.z);
 	log_info("Bounds estimation took {} seconds", timer.elapsedTimeInSeconds());
 
 	vec3d centre = (lower + upper) * 0.5;
@@ -71,7 +71,7 @@ void Viewer::onInitialise()
 		double halfDiagonal = length(upper - lower) * 0.5;
 
 		// Centred along x, then back and up a bit
-		mCamera.position = vec3d({ centre.x(), centre.y() - halfDiagonal, centre.z() + halfDiagonal });
+		mCamera.position = vec3d({ centre.x, centre.y - halfDiagonal, centre.z + halfDiagonal });
 
 		// Look down 45 degrees
 		mCamera.pitch = -(Pi / 4.0f);
@@ -80,7 +80,7 @@ void Viewer::onInitialise()
 	else // Hollow object, place camera at centre.
 	{
 		centre += vec3d({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
-		mCamera.position = vec3d({ centre.x(), centre.y(), centre.z() });
+		mCamera.position = vec3d({ centre.x, centre.y, centre.z });
 
 		// Look straight ahead
 		mCamera.pitch = 0.0f;

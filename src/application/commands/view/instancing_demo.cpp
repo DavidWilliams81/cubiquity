@@ -121,7 +121,7 @@ void InstancingDemo::onUpdate(float deltaTime)
 
 	glUniformMatrix4fv(viewMatrixID, 1, GL_FALSE, &ViewMatrix[0][0]);
 	glUniformMatrix4fv(projMatrixID, 1, GL_FALSE, &ProjectionMatrix[0][0]);
-	glUniform3f(cameraPosID, camera().position.x(), camera().position.y(), camera().position.z());
+	glUniform3f(cameraPosID, camera().position.x, camera().position.y, camera().position.z);
 
 	// Bind our texture in Texture Unit 0
 	glActiveTexture(GL_TEXTURE0);

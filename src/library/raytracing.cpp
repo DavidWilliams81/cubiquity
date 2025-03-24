@@ -154,12 +154,12 @@ namespace Cubiquity
 
 	float min3(vec3 vec)
 	{
-		return std::min(std::min(vec.x(), vec.y()), vec.z());
+		return std::min(std::min(vec.x, vec.y), vec.z);
 	}
 
 	float max3(vec3 vec)
 	{
-		return std::max(std::max(vec.x(), vec.y()), vec.z());
+		return std::max(std::max(vec.x, vec.y), vec.z);
 	}
 
 	ivec3 findFirstChild(float nodeEntry, vec3 rayOrigin, vec3 invRayDir, ivec3 nodeCentre)
@@ -438,7 +438,7 @@ namespace Cubiquity
 
 				// Return on first hit. Position computed from real ray (not reflected version).
 				if (intersection.hit) {
-					intersection.position = ray.mOrigin + (ray.mDir * intersection.distance);
+					intersection.position = ray.mOrigin + (ray.mDir * (float)intersection.distance);
 					break;
 				}
 			}

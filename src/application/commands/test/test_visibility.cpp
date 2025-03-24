@@ -18,13 +18,13 @@ template <typename Function>
 void fillVolume(Volume* volume, const Box3i& bounds, Function function)
 {
 
-	for (int32 z = bounds.lower().z(); z <= bounds.upper().z(); z++)
+	for (int32 z = bounds.lower().z; z <= bounds.upper().z; z++)
 	{
 		log_info("Generating slice {}", z);
 
-		for (int32 y = bounds.lower().y(); y <= bounds.upper().y(); y++)
+		for (int32 y = bounds.lower().y; y <= bounds.upper().y; y++)
 		{
-			for (int32 x = bounds.lower().x(); x <= bounds.upper().x(); x++)
+			for (int32 x = bounds.lower().x; x <= bounds.upper().x; x++)
 			{
 				volume->setVoxel(x, y, z, function(x, y, z));
 			}

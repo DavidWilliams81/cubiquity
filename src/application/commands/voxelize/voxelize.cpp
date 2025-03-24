@@ -92,11 +92,11 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	}
 
 	log_debug("Computed object file bounds as = ({},{},{}) to ({},{},{})",
-			 bounds.lower().x(), bounds.lower().y(), bounds.lower().z(),
-			 bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
+			 bounds.lower().x, bounds.lower().y, bounds.lower().z,
+			 bounds.upper().x, bounds.upper().y, bounds.upper().z);
 
 	vec3f dims = bounds.upper() - bounds.lower();
-	int longestAxis = std::max_element(dims.begin(), dims.end()) - dims.begin();
+	int longestAxis = max_index(dims);
 
 	// If scale is not specified then compute it from desired size
 	log_warning_if(scale && size, "Ignoring --size as --scale also specified");

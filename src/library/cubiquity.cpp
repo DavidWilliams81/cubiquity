@@ -10,12 +10,12 @@ void cubiquity_estimate_bounds(Volume* volume, uint8_t* outside_material,
 {
 	auto result = estimateBounds(*volume);
 	*outside_material = result.first;
-	*lower_x = result.second.lower().x();
-	*lower_y = result.second.lower().y();
-	*lower_z = result.second.lower().z();
-	*upper_x = result.second.upper().x();
-	*upper_y = result.second.upper().y();
-	*upper_z = result.second.upper().z();
+	*lower_x = result.second.lower().x;
+	*lower_y = result.second.lower().y;
+	*lower_z = result.second.lower().z;
+	*upper_x = result.second.upper().x;
+	*upper_y = result.second.upper().y;
+	*upper_z = result.second.upper().z;
 }
 
 // I'm not sure this shouold really be part of the public API. We only really use it for validating that the

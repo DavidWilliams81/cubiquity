@@ -145,7 +145,7 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	glUseProgram(pathtracingProgram);
 	glUniformMatrix4fv(glGetUniformLocation(pathtracingProgram, "VInv"), 1, GL_FALSE, &VInv[0][0]);
 	glUniformMatrix4fv(glGetUniformLocation(pathtracingProgram, "PInv"), 1, GL_FALSE, &PInv[0][0]);
-	glUniform3f(glGetUniformLocation(pathtracingProgram, "cameraPos"), camera().position.x(), camera().position.y(), camera().position.z());
+	glUniform3f(glGetUniformLocation(pathtracingProgram, "cameraPos"), camera().position.x, camera().position.y, camera().position.z);
 	glUniform1ui(glGetUniformLocation(pathtracingProgram, "frameId"), ++frameId);
 
 	// Bind our texture in Texture Unit 0

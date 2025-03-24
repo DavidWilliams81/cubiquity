@@ -374,7 +374,7 @@ Patch::Patch(TriangleSpan triSpan)
 		// still more things I could try (more than two groups, non-axis-aligned split
 		// planes, clustering algorithms, etc), but I'm not convinced they're worthwhile.
 		vec3f dims = bounds.upper() - bounds.lower();
-		int longestAxis = std::max_element(dims.begin(), dims.end()) - dims.begin();
+		int longestAxis = max_index(dims);
 
 		// Sort all triangles in this patch (other triangles in the mesh are unchanged).
 		std::sort(triangles.begin(), triangles.end(), 
@@ -428,11 +428,11 @@ void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
 		static_cast<vec3i>(ceil(triBounds.mExtents[0])),
 		static_cast<vec3i>(floor(triBounds.mExtents[1])) };
 
-	for (int32_t z = triBoundsAsInt.lower().z(); z <= triBoundsAsInt.upper().z(); z++)
+	for (int32_t z = triBoundsAsInt.lower().z; z <= triBoundsAsInt.upper().z; z++)
 	{
-		for (int32_t y = triBoundsAsInt.lower().y(); y <= triBoundsAsInt.upper().y(); y++)
+		for (int32_t y = triBoundsAsInt.lower().y; y <= triBoundsAsInt.upper().y; y++)
 		{
-			for (int32_t x = triBoundsAsInt.lower().x(); x <= triBoundsAsInt.upper().x(); x++)
+			for (int32_t x = triBoundsAsInt.lower().x; x <= triBoundsAsInt.upper().x; x++)
 			{
 				const vec3f pos = { (float)x,(float)y,(float)z };
 
@@ -692,18 +692,18 @@ void doPerVoxelVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, Materia
 	vec3i maxBound = voxelisationBounds.upper();
 
 	// Iterate over each voxel within the bounds and classify as inside or outside
-	for (int32 volZ = minBound.z(); volZ <= maxBound.z(); volZ++)
+	for (int32 volZ = minBound.z; volZ <= maxBound.z; volZ++)
 	{
-		for (int32 volY = minBound.y(); volY <= maxBound.y(); volY++)
+		for (int32 volY = minBound.y; volY <= maxBound.y; volY++)
 		{
-			for (int32 volX = minBound.x(); volX <= maxBound.x(); volX++)
+			for (int32 volX = minBound.x; volX <= maxBound.x; volX++)
 			{
 				vec3f queryPoint = { static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) };
 				auto material = isInside(queryPoint, mesh) ? fill : background;
 				volume.setVoxel(volX, volY, volZ, material);
 			}
 		}
-		reportProgress("Classifying voxels (Brute Force!)", minBound.z(), volZ, maxBound.z());
+		reportProgress("Classifying voxels (Brute Force!)", minBound.z, volZ, maxBound.z);
 	}
 }
 

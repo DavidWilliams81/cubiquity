@@ -23,9 +23,9 @@ namespace Cubiquity
 		PositionEnumerator(const Box3i& bounds)
 			:mOrigin(bounds.lower()),
 			 mPosition(mStartPos),
-			 mWidth(bounds.upper().x() - bounds.lower().x() + 1),
-			 mHeight(bounds.upper().y() - bounds.lower().y() + 1),
-			 mDepth(bounds.upper().z() - bounds.lower().z() + 1)
+			 mWidth(bounds.upper().x - bounds.lower().x + 1),
+			 mHeight(bounds.upper().y - bounds.lower().y + 1),
+			 mDepth(bounds.upper().z - bounds.lower().z + 1)
 		{
 			if (mode == Morton)
 			{
@@ -55,9 +55,9 @@ namespace Cubiquity
 			return mPosition != mStartPos;
 		}
 
-		uint32_t x() { return mOrigin.x() + mXPos; }
-		uint32_t y() { return  mOrigin.y() + mYPos; }
-		uint32_t z() { return  mOrigin.z() + mZPos; }
+		uint32_t x() { return mOrigin.x + mXPos; }
+		uint32_t y() { return  mOrigin.y + mYPos; }
+		uint32_t z() { return  mOrigin.z + mZPos; }
 
 	private:
 

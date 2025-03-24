@@ -63,7 +63,7 @@ bool testRasterization()
 			for (int i = 0; i < 8; i++)
 			{
 				vec2f vertexAsFloat = corners2DFloat[i] * scaleFactor;
-				vec2i vertexAsInt({ static_cast<int>(vertexAsFloat.x() + 0.5f), static_cast<int>(vertexAsFloat.y() + 0.5f) }); // Add half and cast
+				vec2i vertexAsInt({ static_cast<int>(vertexAsFloat.x + 0.5f), static_cast<int>(vertexAsFloat.y + 0.5f) }); // Add half and cast
 
 				corners2D[i] = centre + vertexAsInt;
 			}

@@ -115,9 +115,9 @@ namespace Cubiquity
 		bool contains(const vec3f& point) const
 		{
 			// WARNING - Dubious precision here - these values can be huge!
-			float distX = point.x() - mCentre.x();
-			float distY = point.y() - mCentre.y();
-			float distZ = point.z() - mCentre.z();
+			float distX = point.x - mCentre.x;
+			float distY = point.y - mCentre.y;
+			float distZ = point.z - mCentre.z;
 
 			int64 distSq = (distX * distX + distY * distY + distZ * distZ);
 

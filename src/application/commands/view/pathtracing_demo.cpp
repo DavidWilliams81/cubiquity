@@ -127,7 +127,7 @@ vec3 PathtracingDemo::traceSingleRayRecurse(const Ray3f& ray, uint depth)
 		vec3 directLighting = gatherLighting(intersection.position, intersection.normal);
 
 		const vec3 reflectedDir = normalize(intersection.normal + randomPointInUnitSphere());
-		const Ray3f reflectedRay(intersection.position + (intersection.normal * 0.01), reflectedDir);
+		const Ray3f reflectedRay(intersection.position + (intersection.normal * 0.01f), reflectedDir);
 
 		vec3 indirectLighting = traceSingleRayRecurse(reflectedRay, depth + 1);
 
@@ -149,7 +149,7 @@ vec3 PathtracingDemo::traceSingleRay(const Ray3f& ray, uint depth)
 		vec3 directLighting0 = gatherLighting(intersection0.position, intersection0.normal);
 
 		const vec3 reflectedDir = normalize(intersection0.normal + randomPointInUnitSphere());
-		const Ray3f reflectedRay(intersection0.position + (intersection0.normal * 0.01), reflectedDir);
+		const Ray3f reflectedRay(intersection0.position + (intersection0.normal * 0.01f), reflectedDir);
 
 		vec3 indirectLighting0 = {0.0f, 0.0f, 0.0f};
 		RayVolumeIntersection intersection1 = intersectVolume(volume(), subDAGs, reflectedRay, true, maxFootprint);

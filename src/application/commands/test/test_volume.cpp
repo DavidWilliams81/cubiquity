@@ -229,24 +229,24 @@ bool testBounds()
 	for(int ct = 0; ct < 20; ct++)
 	{
 		vec3i pos = sampler.next();
-		volume->setVoxel(pos.x(), pos.y(), pos.z(), 1);
+		volume->setVoxel(pos.x, pos.y, pos.z, 1);
 		refResult.accumulate(pos);
 	}*/
 
 	for(auto pos : Box3iSampler2(20, fullVolumeBox3i))
 	{
-		volume->setVoxel(pos.x(), pos.y(), pos.z(), 1);
+		volume->setVoxel(pos.x, pos.y, pos.z, 1);
 		refResult.accumulate(pos);
 	}
 
 	const MaterialId externalMaterial = 0;
 	Box3i bounds = computeBounds(*volume, externalMaterial);
 
-	log_info("Lower     = ({},{},{})", bounds.lower().x(), bounds.lower().y(), bounds.lower().z());
-	log_info("Ref Lower = ({},{},{})", refResult.lower().x(), refResult.lower().y(), refResult.lower().z());
+	log_info("Lower     = ({},{},{})", bounds.lower().x, bounds.lower().y, bounds.lower().z);
+	log_info("Ref Lower = ({},{},{})", refResult.lower().x, refResult.lower().y, refResult.lower().z);
 
-	log_info("Upper     = ({},{},{})", bounds.upper().x(), bounds.upper().y(), bounds.upper().z());
-	log_info("Ref Upper = ({},{},{})", refResult.upper().x(), refResult.upper().y(), refResult.upper().z());
+	log_info("Upper     = ({},{},{})", bounds.upper().x, bounds.upper().y, bounds.upper().z);
+	log_info("Ref Upper = ({},{},{})", refResult.upper().x, refResult.upper().y, refResult.upper().z);
 
 	return true;
 }

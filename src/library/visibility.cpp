@@ -123,9 +123,9 @@ namespace Cubiquity
 	{
 		// Make sure the result doesn't overflow. See the section 'Integer Overflows':
 		// https://fgiesen.wordpress.com/2013/02/08/triangle-rasterization-in-practice/
-		//assert(a.x() >= -16384 && a.x() <= 16383);
-		//assert(b.x() >= -16384 && b.x() <= 16383);
-		//assert(c.x() >= -16384 && c.x() <= 16383);
+		//assert(a.x >= -16384 && a.x <= 16383);
+		//assert(b.x >= -16384 && b.x <= 16383);
+		//assert(c.x >= -16384 && c.x <= 16383);
 
 		return (v1[0] - v0[0]) * (p[1] - v0[1]) - (v1[1] - v0[1]) * (p[0] - v0[0]);
 	}
@@ -241,11 +241,11 @@ namespace Cubiquity
 
 	VisibilityMask::Tile VisibilityMask::rasteriseTile(const vec4i& w_tile, const vec4i& A, const vec4i& B, const Bounds& boundsTileSpace)
 	{
-		const int minX = std::max(0, boundsTileSpace.lower.x());
-		const int minY = std::max(0, boundsTileSpace.lower.y());
+		const int minX = std::max(0, boundsTileSpace.lower.x);
+		const int minY = std::max(0, boundsTileSpace.lower.y);
 
-		const int maxX = std::min(TileSize - 1, boundsTileSpace.upper.x());
-		const int maxY = std::min(TileSize - 1, boundsTileSpace.upper.y());
+		const int maxX = std::min(TileSize - 1, boundsTileSpace.upper.x);
+		const int maxY = std::min(TileSize - 1, boundsTileSpace.upper.y);
 
 		VisibilityMask::Tile bitToTest = 0x0000000000000001;
 		bitToTest <<= minY * TileSize + minX;
@@ -308,9 +308,9 @@ namespace Cubiquity
 
 		vec2i c;
 		bool drewPixel = false;
-		for (c[1] = clippedLowerLeft.y(); c[1] <= clippedUpperRight.y(); c[1]++)
+		for (c[1] = clippedLowerLeft.y; c[1] <= clippedUpperRight.y; c[1]++)
 		{
-			for (c[0] = clippedLowerLeft.x(); c[0] <= clippedUpperRight.x(); c[0]++)
+			for (c[0] = clippedLowerLeft.x; c[0] <= clippedUpperRight.x; c[0]++)
 			{
 				// Note: We have calls to both testPixel() and drawPixel(), which means the logic to find the tile within the image and
 				// the pixel within the tile actually gets executed twice. I tried pulling this outside but it actually made performance
@@ -337,10 +337,10 @@ namespace Cubiquity
 			for (const auto& vertex : vertices)
 			{
 				// Can we eliminate this bounds test?
-				if (vertex.x() >= 0 && vertex.x() < static_cast<int32>(mWidth) &&
-					vertex.y() >= 0 && vertex.y() < static_cast<int32>(mHeight))
+				if (vertex.x >= 0 && vertex.x < static_cast<int32>(mWidth) &&
+					vertex.y >= 0 && vertex.y < static_cast<int32>(mHeight))
 				{
-					if (testPixel(vertex.x(), vertex.y()) == false)
+					if (testPixel(vertex.x, vertex.y) == false)
 					{
 						return true;
 					}
@@ -350,8 +350,8 @@ namespace Cubiquity
 
 		//return drawNodeRef(vertices, frontFaces, writeEnabled);
 		Bounds nodeBounds = computeBounds(vertices);
-		int widthMinusOne = (nodeBounds.upper.x() - nodeBounds.lower.x());
-		int heightMinusOne = (nodeBounds.upper.y() - nodeBounds.lower.y());
+		int widthMinusOne = (nodeBounds.upper.x - nodeBounds.lower.x);
+		int heightMinusOne = (nodeBounds.upper.y - nodeBounds.lower.y);
 		
 		if (widthMinusOne < TileSize && heightMinusOne < TileSize)
 		{
@@ -401,11 +401,11 @@ namespace Cubiquity
 			{
 				if (getPixel(x, y, tile))
 				{
-					if (position.x() + x < mWidth && position.y() + y < mHeight)
+					if (position.x + x < mWidth && position.y + y < mHeight)
 					{
-						if (testPixel(position.x() + x, position.y() + y) == false)
+						if (testPixel(position.x + x, position.y + y) == false)
 						{
-							drawPixel(position.x() + x, position.y() + y, writeEnabled);
+							drawPixel(position.x + x, position.y + y, writeEnabled);
 							drewPixel = true;
 						}
 					}
@@ -420,8 +420,8 @@ namespace Cubiquity
 		Tile drawnPixels = 0;
 		vec2i lowerLeftTilePos;
 		// FIXME - If we clip the bounds then can we use normal int division instead of this floordiv() function?
-		lowerLeftTilePos[0] = floordiv(position.x(), TileSize);
-		lowerLeftTilePos[1] = floordiv(position.y(), TileSize);
+		lowerLeftTilePos[0] = floordiv(position.x, TileSize);
+		lowerLeftTilePos[1] = floordiv(position.y, TileSize);
 		vec2u offset;
 		offset[0] = position[0] - (lowerLeftTilePos[0] * TileSize);
 		offset[1] = position[1] - (lowerLeftTilePos[1] * TileSize);
@@ -455,8 +455,8 @@ namespace Cubiquity
 		//     to clip it and hence decrease the number of cases where we need to process the whole four
 		//     tiles. I haven't tied exploiting this yet, and I think we would need to track the  size of
 		//     the rendered node (or compute it from the tile via bitwise operations?).
-		int maxTileX = offset.x() == 0 ? 0 : 1;
-		int maxTileY = offset.y() == 0 ? 0 : 1;
+		int maxTileX = offset.x == 0 ? 0 : 1;
+		int maxTileY = offset.y == 0 ? 0 : 1;
 		for (int tileY = 0; tileY <= maxTileY; tileY++)
 		{
 			for (int tileX = 0; tileX <= maxTileX; tileX++)
@@ -468,8 +468,8 @@ namespace Cubiquity
 				Tile tileCopy = tile;
 
 				int shift = 0;
-				shift += (int(offset.y()) - int(TileSize * tileY)) * int(TileSize);
-				shift += int(offset.x()) - int(TileSize * tileX);
+				shift += (int(offset.y) - int(TileSize * tileY)) * int(TileSize);
+				shift += int(offset.x) - int(TileSize * tileX);
 
 				tileCopy = signedLeftShift(tileCopy, shift);
 
@@ -558,10 +558,10 @@ namespace Cubiquity
 		clippedBounds.lower = max(bounds.lower, vec2i({ 0, 0 }));
 		clippedBounds.upper = min(bounds.upper, vec2i({ int(mWidth) - 1, int(mHeight) - 1 }));
 
-		int tileXBegin = clippedBounds.lower.x() / TileSize;
-		int tileXEnd = clippedBounds.upper.x() / TileSize;
-		int tileYBegin = clippedBounds.lower.y() / TileSize;
-		int tileYEnd = clippedBounds.upper.y() / TileSize;
+		int tileXBegin = clippedBounds.lower.x / TileSize;
+		int tileXEnd = clippedBounds.upper.x / TileSize;
+		int tileYBegin = clippedBounds.lower.y / TileSize;
+		int tileYEnd = clippedBounds.upper.y / TileSize;
 
 		vec4i A, B;
 		vec2i c = { tileXBegin * TileSize, tileYBegin * TileSize };
@@ -620,10 +620,10 @@ namespace Cubiquity
 			//bounds.lower = (min)(bounds.lower, vertices[ct]);
 			//bounds.upper = (max)(bounds.upper, vertices[ct]);
 
-			bounds.lower[0] = (std::min)(bounds.lower.x(), vertices[ct][0]);
-			bounds.lower[1] = (std::min)(bounds.lower.y(), vertices[ct][1]);
-			bounds.upper[0] = (std::max)(bounds.upper.x(), vertices[ct][0]);
-			bounds.upper[1] = (std::max)(bounds.upper.y(), vertices[ct][1]);
+			bounds.lower[0] = (std::min)(bounds.lower.x, vertices[ct][0]);
+			bounds.lower[1] = (std::min)(bounds.lower.y, vertices[ct][1]);
+			bounds.upper[0] = (std::max)(bounds.upper.x, vertices[ct][0]);
+			bounds.upper[1] = (std::max)(bounds.upper.y, vertices[ct][1]);
 		}
 
 		return bounds;
@@ -643,10 +643,10 @@ namespace Cubiquity
 			//bounds.lower = (min)(bounds.lower, vertices[ct]);
 			//bounds.upper = (max)(bounds.upper, vertices[ct]);
 
-			bounds.lower[0] = (std::min)(bounds.lower.x(), vertices[ct].x());
-			bounds.lower[1] = (std::min)(bounds.lower.y(), vertices[ct].y());
-			bounds.upper[0] = (std::max)(bounds.upper.x(), vertices[ct].x());
-			bounds.upper[1] = (std::max)(bounds.upper.y(), vertices[ct].y());
+			bounds.lower[0] = (std::min)(bounds.lower.x, vertices[ct].x);
+			bounds.lower[1] = (std::min)(bounds.lower.y, vertices[ct].y);
+			bounds.upper[0] = (std::max)(bounds.upper.x, vertices[ct].x);
+			bounds.upper[1] = (std::max)(bounds.upper.y, vertices[ct].y);
 		}
 
 		return bounds;
@@ -663,10 +663,10 @@ namespace Cubiquity
 		// index list, but the logic would be slightly more complicated.
 		for (uint32_t ct = 0; ct < 8; ct++)
 		{
-			min_x = (std::min)(min_x, vertices[ct].x());
-			max_x = (std::max)(max_x, vertices[ct].x());
-			min_y = (std::min)(min_y, vertices[ct].y());
-			max_y = (std::max)(max_y, vertices[ct].y());
+			min_x = (std::min)(min_x, vertices[ct].x);
+			max_x = (std::max)(max_x, vertices[ct].x);
+			min_y = (std::min)(min_y, vertices[ct].y);
+			max_y = (std::max)(max_y, vertices[ct].y);
 		}
 	}
 
@@ -716,9 +716,9 @@ namespace Cubiquity
 		// to get the material for distant nodes, so it probably doesn't matter and it seemed like it might be faster to
 		// do it once at the start. We might need to come back to this in the future.
 		uint8_t nearestChild = 0;
-		if (cameraPos.x() > centreX) nearestChild |= 0x01;
-		if (cameraPos.y() > centreY) nearestChild |= 0x02;
-		if (cameraPos.z() > centreZ) nearestChild |= 0x04;
+		if (cameraPos.x > centreX) nearestChild |= 0x01;
+		if (cameraPos.y > centreY) nearestChild |= 0x02;
+		if (cameraPos.z > centreZ) nearestChild |= 0x04;
 
 		const NodeStore& nodeData = getNodes(*volume).nodes();
 
@@ -823,7 +823,7 @@ namespace Cubiquity
 
 					vec3f pos = centre + offset;
 
-					bool occupied = volume->voxel(pos.x() + 0.5f, pos.y() + 0.5f, pos.z() + 0.5f);
+					bool occupied = volume->voxel(pos.x + 0.5f, pos.y + 0.5f, pos.z + 0.5f);
 
 					if (!occupied)
 					{
@@ -848,9 +848,9 @@ namespace Cubiquity
 		{
 			Matrix4x4d viewMatrix = cameraData->viewMatrix();
 			double halfSize = double(uint32(1) << height) * 0.5;
-			vec3d xAxis = { viewMatrix[0].x(), viewMatrix[0].y(), viewMatrix[0].z() };
-			vec3d yAxis = { viewMatrix[1].x(), viewMatrix[1].y(), viewMatrix[1].z() };
-			vec3d zAxis = { viewMatrix[2].x(), viewMatrix[2].y(), viewMatrix[2].z() };
+			vec3d xAxis = { viewMatrix[0].x, viewMatrix[0].y, viewMatrix[0].z };
+			vec3d yAxis = { viewMatrix[1].x, viewMatrix[1].y, viewMatrix[1].z };
+			vec3d zAxis = { viewMatrix[2].x, viewMatrix[2].y, viewMatrix[2].z };
 			xAxis *= halfSize;
 			yAxis *= halfSize;
 			zAxis *= halfSize;
@@ -899,9 +899,9 @@ namespace Cubiquity
 		// Near to far octree traversal
 		uint8 nearestChild = 0;
 		const vec3d& cameraPos = cameraData->position();
-		if (cameraPos.x() > nodeCentre.x()) nearestChild |= 0x01;
-		if (cameraPos.y() > nodeCentre.y()) nearestChild |= 0x02;
-		if (cameraPos.z() > nodeCentre.z()) nearestChild |= 0x04;
+		if (cameraPos.x > nodeCentre.x) nearestChild |= 0x01;
+		if (cameraPos.y > nodeCentre.y) nearestChild |= 0x02;
+		if (cameraPos.z > nodeCentre.z) nearestChild |= 0x04;
 		for(uint i = 0; i < 8; i++) // Iterate over the children
 		{
 			uint32_t childId = nearestChild ^ nearToFar[i]; // See octree traversal link above
@@ -938,7 +938,7 @@ namespace Cubiquity
 				// plane. It actually needs negating to match OpenGL but that doesn't matter for
 				// occlusion testing purposes (I think this negation is where OpenGL switches from
 				// RH to LH coordinate systems? See https://stackoverflow.com/a/12336360).
-				const double invZ = 1.0 / -corner.z();
+				const double invZ = 1.0 / -corner.z;
 				corner2D *= invZ;
 
 				// Map to window coordinates
@@ -964,12 +964,12 @@ namespace Cubiquity
 			// Note: This approach should be extened to be hierarchal. If a given face of a node is
 			// front-facing then the corresponding face of it's children must also be front-facing?
 			FrontFaces frontFaces;
-			frontFaces[0] = cameraData->position().x() < (childCentre.x() - childHalfSize);
-			frontFaces[1] = cameraData->position().x() > (childCentre.x() + childHalfSize);
-			frontFaces[2] = cameraData->position().y() < (childCentre.y() - childHalfSize);
-			frontFaces[3] = cameraData->position().y() > (childCentre.y() + childHalfSize);
-			frontFaces[4] = cameraData->position().z() < (childCentre.z() - childHalfSize);
-			frontFaces[5] = cameraData->position().z() > (childCentre.z() + childHalfSize);
+			frontFaces[0] = cameraData->position().x < (childCentre.x - childHalfSize);
+			frontFaces[1] = cameraData->position().x > (childCentre.x + childHalfSize);
+			frontFaces[2] = cameraData->position().y < (childCentre.y - childHalfSize);
+			frontFaces[3] = cameraData->position().y > (childCentre.y + childHalfSize);
+			frontFaces[4] = cameraData->position().z < (childCentre.z - childHalfSize);
+			frontFaces[5] = cameraData->position().z > (childCentre.z + childHalfSize);
 
 			const bool drawNotTraverse = // Attempt to draw (rather than traversing further) if:
 				(childHeight == 0) || // We've reached a leaf
@@ -978,7 +978,7 @@ namespace Cubiquity
 
 			// Determine whether the node is visible, whilst also updating the visibility buffer if the node
 			// is drawable. Nodes which can't be rasterised (due to straddling z=0) are assumed to be visible.
-			const bool straddlesZeroPlane = childCentreViewSpace.z() >= -childHalfDiagonal;
+			const bool straddlesZeroPlane = childCentreViewSpace.z >= -childHalfDiagonal;
 			const bool isChildVisible = straddlesZeroPlane ||
 										mVisMask->drawNode(corners2DInt, frontFaces, drawNotTraverse);
 
@@ -1009,19 +1009,19 @@ namespace Cubiquity
 					{
 						// This generates high quality normals and also works for leaf 
 						// nodes. There is no need for a contribution from the parent.
-						childNormal = estimateNormalFromNeighbours(childCentre.x(), childCentre.y(), childCentre.z(), childSize, volume);
+						childNormal = estimateNormalFromNeighbours(childCentre.x, childCentre.y, childCentre.z, childSize, volume);
 					}
 
 					Glyph glyph;
-					glyph.x = childCentre.x();
-					glyph.y = childCentre.y();
-					glyph.z = childCentre.z();
+					glyph.x = childCentre.x;
+					glyph.y = childCentre.y;
+					glyph.z = childCentre.z;
 					glyph.size = childSize;
 
-					glyph.a = childNormal.x();
-					glyph.b = childNormal.y();
-					glyph.c = childNormal.z();
-					glyph.d = getMaterialForNode(childCentre.x(), childCentre.y(), childCentre.z(), childIndex, volume, cameraPos);
+					glyph.a = childNormal.x;
+					glyph.b = childNormal.y;
+					glyph.c = childNormal.z;
+					glyph.d = getMaterialForNode(childCentre.x, childCentre.y, childCentre.z, childIndex, volume, cameraPos);
 
 					assert(glyphCount < maxGlyphCount);
 					glyphs[glyphCount] = glyph;
