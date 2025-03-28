@@ -53,13 +53,13 @@ struct Vec2
 
 	Type& operator[](int index)
 	{
-		assert(index < size && "Index out of range");
+		assert(index < size() && "Index out of range");
 		if (index == 0) return x;
 		if (index == 1) return y;
 	}
 	const Type& operator[](int index) const
 	{
-		assert(index < size && "Index out of range");
+		assert(index < size() && "Index out of range");
 		if (index == 0) return x;
 		if (index == 1) return y;
 	}
@@ -86,13 +86,13 @@ struct Vec3
 	Type& operator[](int index)
 	{
 		static_assert(sizeof(Vec3<Type>) == 3 * sizeof(Type)); // Packed
-		assert(index < size && "Index out of range");
+		assert(index < size() && "Index out of range");
 		return *((&x) + index);
 	}
 	const Type& operator[](int index) const
 	{
 		static_assert(sizeof(Vec3<Type>) == 3 * sizeof(Type)); // Packed
-		assert(index < size && "Index out of range");
+		assert(index < size() && "Index out of range");
 		return *((&x) + index);
 	}
 
@@ -147,13 +147,13 @@ struct Vec4
 	Type& operator[](int index)
 	{
 		static_assert(sizeof(Vec4<Type>) == 4 * sizeof(Type)); // Packed
-		assert(index < size && "Index out of range");
+		assert(index < size() && "Index out of range");
 		return *((&x) + index);
 	}
 	const Type& operator[](int index) const
 	{
 		static_assert(sizeof(Vec4<Type>) == 4 * sizeof(Type)); // Packed
-		assert(index < size && "Index out of range");
+		assert(index < size() && "Index out of range");
 		return *((&x) + index);
 	}
 
