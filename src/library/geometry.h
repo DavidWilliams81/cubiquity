@@ -31,501 +31,501 @@ template <typename T> int sign(T val) {
 	return (T(0) < val) - (val < T(0));
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//                                    Vector
-////////////////////////////////////////////////////////////////////////////////
-
 template <class Type>
-struct Vec2
+struct XY
 {
-	typedef Type value_type;
-	static constexpr bool is_vec() { return true; }
-	static constexpr int size() { return 2; }
+	XY() {}
+	XY(const Type& x, const Type& y)
+		:x(x), y(y) {}
 
-	// Constructors
-	Vec2() {}
-	Vec2(const Type& val) : x(val), y(val) {}
-	Vec2(const Type& x, const Type& y) : x(x), y(y) {}
-
-	// Converting constructor
-	template <typename SrcType>
-	explicit Vec2(const Vec2<SrcType>& v) :x(v.x), y(v.y) {}
-
-	Type& operator[](int index)
-	{
-		assert(index < size() && "Index out of range");
-		if (index == 0) return x;
-		if (index == 1) return y;
-	}
-	const Type& operator[](int index) const
-	{
-		assert(index < size() && "Index out of range");
-		if (index == 0) return x;
-		if (index == 1) return y;
-	}
+	static constexpr int sz() { return 2; }
 
 	Type x, y;
 };
 
 template <class Type>
-struct Vec3
+struct XYZ
 {
-	typedef Type value_type;
-	static constexpr bool is_vec() { return true; }
-	static constexpr int size() { return 3; }
+	XYZ() {}
+	XYZ(const Type& x, const Type& y, const Type& z)
+		:x(x), y(y), z(z) {}
 
-	// Constructors
-	Vec3() {}
-	Vec3(const Type& val): x(val), y(val), z(val) {}
-	Vec3(const Type& x, const Type& y, const Type& z) :x(x), y(y), z(z) {}
-
-	// Converting constructor
-	template <typename SrcType>
-	explicit Vec3(const Vec3<SrcType>& v) :x(v.x), y(v.y), z(v.z) {}
-
-	Type& operator[](int index)
-	{
-		static_assert(sizeof(Vec3<Type>) == 3 * sizeof(Type)); // Packed
-		assert(index < size() && "Index out of range");
-		return *((&x) + index);
-	}
-	const Type& operator[](int index) const
-	{
-		static_assert(sizeof(Vec3<Type>) == 3 * sizeof(Type)); // Packed
-		assert(index < size() && "Index out of range");
-		return *((&x) + index);
-	}
+	static constexpr int sz() { return 3; }
 
 	Type x, y, z;
 };
 
 template <class Type>
-bool operator==(const Vec3<Type>& lhs, const Vec3<Type>& rhs)
+struct XYZW
 {
-	return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
-}
-template <class Type>
-bool operator!=(const Vec3<Type>& lhs, const Vec3<Type>& rhs) { return !(lhs == rhs); }
-
-template <class Type>
-bool operator<(Vec3<Type> const& lhs, Vec3<Type> const& rhs)
-{
-	if (lhs.x < rhs.x) return true;
-	if (rhs.x < lhs.x) return false;
-
-	if (lhs.y < rhs.y) return true;
-	if (rhs.y < lhs.y) return false;
-
-	return lhs.z < rhs.z;
-}
-
-template <class Type>
-struct Vec4
-{
-	typedef Type value_type;
-	static constexpr bool is_vec() { return true; }
-	static constexpr int size() { return 4; }
-
-	// Constructors
-	Vec4() {}
-	Vec4(const Type& val) : x(val), y(val), z(val), w(val) {}
-	Vec4(const Type& x, const Type& y, const Type& z, const Type& w)
+	XYZW() {}
+	XYZW(const Type& x, const Type& y, const Type& z, const Type& w)
 		:x(x), y(y), z(z), w(w) {}
-	
+
+	static constexpr int sz() { return 4; }
+
+	Type x, y, z, w;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+//                                    Vector
+////////////////////////////////////////////////////////////////////////////////
+
+//template <class Type, int Size>
+template <template<class> class Base, class Type>
+struct vec : public Base<Type>
+{
+	// Constructors
+	vec() {}
+	vec(const Type& val)
+	{
+		// On Visual Studio 2022 unrolling the fill is slightly faster.
+		//this->fill(val);
+		if constexpr (this->sz() > 0) { (*this)[0] = val; }
+		if constexpr (this->sz() > 1) { (*this)[1] = val; }
+		if constexpr (this->sz() > 2) { (*this)[2] = val; }
+		if constexpr (this->sz() > 3) { (*this)[3] = val; }
+	}
+
+	vec(const Type& x, const Type& y) : Base<Type>(x, y) {}
+	vec(const Type& x, const Type& y, const Type& z) : Base<Type>(x, y, z) {}
+	vec(const Type& x, const Type& y, const Type& z, const Type& w) : Base<Type>(x, y, z, w) {}
+
+	/*explicit vec(const vec& v)
+	{
+		std::copy(v.begin(), v.end(), this->begin());
+	}*/
+
+	// Using an std::initializer_list to initialise an underlying array is
+	// suprisingly difficult: https://stackoverflow.com/q/5549524
+	// I did not get the proposed variadic template solution to work (perhaps
+	// because array is a base, not a member?), but the simple copy() works.
+	//vec(std::initializer_list<Type> l) : Base<Type>(l)
+	//{
+		// On Visual Studio 2022 unrolling the copy is slightly faster.
+		//std::copy(l.begin(), l.end(), this->begin());
+		//if constexpr (Base<Type>::sz() > 0) { (*this)[0] = l.begin()[0]; }
+		//if constexpr (Base<Type>::sz() > 1) { (*this)[1] = l.begin()[1]; }
+		//if constexpr (Base<Type>::sz() > 2) { (*this)[2] = l.begin()[2]; }
+		//if constexpr (Base<Type>::sz() > 3) { (*this)[3] = l.begin()[3]; }
+	//}
 
 	//vec(std::array<Type, Size> a) : std::array<Type, Size>(a) {}
 
 	// For static_cast support
 	template <typename CastType>
-	explicit operator Vec4<CastType>() const
+	explicit operator vec<Base, CastType>() const
 	{
-		Vec4<CastType> result;
-		for (uint32_t ct = 0; ct < 4; ++ct) { result[ct] = static_cast<CastType>((*this)[ct]); }
+		vec<Base, CastType> result;
+		for (uint32_t ct = 0; ct < Base<Type>::sz(); ++ct) { result[ct] = static_cast<CastType>((*this)[ct]); }
 		return result;
 	}
 
+	/*template <typename SrcType>
+	explicit vec(const vec<Base, SrcType>& v)
+	{
+		if constexpr (v.sz() > 0) { this->x = static_cast<SrcType>(v.x); }
+		if constexpr (v.sz() > 1) { this->y = static_cast<SrcType>(v.y); }
+		if constexpr (v.sz() > 2) { this->z = static_cast<SrcType>(v.z); }
+		if constexpr (v.sz() > 3) { this->w = static_cast<SrcType>(v.w); }
+	}*/
+
+	// Named element access
+	//const Type& x() const { static_assert(Base<Type>::sz() > 0); return (*this)[0]; }
+	//const Type& y() const { static_assert(Base<Type>::sz() > 1); return (*this)[1]; }
+	//const Type& z() const { static_assert(Base<Type>::sz() > 2); return (*this)[2]; }
+	//const Type& w() const { static_assert(Base<Type>::sz() > 3); return (*this)[3]; }
+
+	/**************************** Support functions ***************************/
+
+	// Apply function in-place to each element of this vector. The explicit
+	// unrolling seems to help performance, at least on Visual C++ 2022.
+	template<class UnaryFunc>
+	constexpr vec& apply(UnaryFunc func)
+	{
+		static_assert(this->sz() <= 4);
+		if constexpr (this->sz() > 0) { func((*this)[0]); }
+		if constexpr (this->sz() > 1) { func((*this)[1]); }
+		if constexpr (this->sz() > 2) { func((*this)[2]); }
+		if constexpr (this->sz() > 3) { func((*this)[3]); }
+		return *this;
+	}
+
+	// As above, but using the corresponding element of the params vector.
+	template<class BinaryFunc>
+	constexpr vec& apply(const vec& params, BinaryFunc func)
+	{
+		static_assert(this->sz() <= 4);
+		if constexpr (this->sz() > 0) { func((*this)[0], params[0]); }
+		if constexpr (this->sz() > 1) { func((*this)[1], params[1]); }
+		if constexpr (this->sz() > 2) { func((*this)[2], params[2]); }
+		if constexpr (this->sz() > 3) { func((*this)[3], params[3]); }
+		return *this;
+	}
+
+	// Similar to 'apply()', but as a non-member making from supplied vector.
+	template<class UnaryFunc>
+	friend constexpr vec make_from(const vec& v, UnaryFunc func)
+	{
+		static_assert(v.sz() <= 4);
+		vec<Base, Type> result;
+		if constexpr (v.sz() > 0) { result[0] = func(v[0]); }
+		if constexpr (v.sz() > 1) { result[1] = func(v[1]); }
+		if constexpr (v.sz() > 2) { result[2] = func(v[2]); }
+		if constexpr (v.sz() > 3) { result[3] = func(v[3]); }
+		return result;
+	}
+
+	// As above, but taking two vectors as input.
+	template<class BinaryFunc>
+	friend constexpr auto make_from(const vec& v0,
+		                            const vec& v1, BinaryFunc func)
+	{
+		static_assert(v0.sz() <= 4);
+		using RetType = decltype(func(v0[0], v1[0])); // Can we avoid this?
+		vec<Base, RetType> result;
+		if constexpr (v0.sz() > 0) { result[0] = func(v0[0], v1[0]); }
+		if constexpr (v0.sz() > 1) { result[1] = func(v0[1], v1[1]); }
+		if constexpr (v0.sz() > 2) { result[2] = func(v0[2], v1[2]); }
+		if constexpr (v0.sz() > 3) { result[3] = func(v0[3], v1[3]); }
+		return result;
+	}
+
+	/************************** Overloaded operators **************************/
+
+	// Overloaded operators following the guidelines here:
+	// https://en.cppreference.com/w/cpp/language/operators
+	// https://learn.microsoft.com/en-us/cpp/cpp/operator-overloading
+
 	Type& operator[](int index)
 	{
-		static_assert(sizeof(Vec4<Type>) == 4 * sizeof(Type)); // Packed
-		assert(index < size() && "Index out of range");
-		return *((&x) + index);
+		//static_assert(sizeof(vec) == 3 * sizeof(Type)); // Packed
+		//assert(index < size && "Index out of range");
+		//return *((&Base<Type>::_x) + index);
+		Type* ptr = &(Base<Type>::x);
+		ptr = ptr + index;
+		return *ptr;
+		//return Base<Type>::operator[](index);
 	}
 	const Type& operator[](int index) const
 	{
-		static_assert(sizeof(Vec4<Type>) == 4 * sizeof(Type)); // Packed
-		assert(index < size() && "Index out of range");
-		return *((&x) + index);
+		//static_assert(sizeof(vec) == 3 * sizeof(Type)); // Packed
+		//assert(index < size && "Index out of range");
+		const Type* ptr = &(Base<Type>::x);
+		ptr = ptr + index;
+		return *ptr;
+		//return Base<Type>::operator[](index);
 	}
 
-	Type x, y, z, w;
+	friend bool operator==(const vec& lhs, const vec& rhs)
+	{
+		for (uint32_t ct = 0; ct < Base<Type>::sz(); ++ct)
+		{
+			if (lhs[ct] != rhs[ct]) return false;
+		}
+		return true;
+	}
+
+	friend bool operator!=(const vec& lhs, const vec& rhs) { return !(lhs == rhs); }
+
+	friend bool operator<(vec const& lhs, vec const& rhs)
+	{
+		for (uint32_t ct = 0; ct < Base<Type>::sz() - 1; ++ct)
+		{
+			if (lhs[ct] < rhs[ct]) return true;
+			if (rhs[ct] < lhs[ct]) return false;
+		}
+
+		return lhs[Base<Type>::sz() - 1] < rhs[Base<Type>::sz() - 1];
+	}
+
+	// Unary operators as non-members
+	friend vec operator-(vec v) { return v.apply([](Type& t) {t = -t; }); }
+	friend vec operator~(vec v) { return v.apply([](Type& t) {t = ~t; }); }
+
+	// Binary operators with assignment and scalar on right-hand side
+	vec& operator+= (const Type& rhs) {
+		return apply([rhs](Type& t) {t += rhs; }); }
+	vec& operator-= (const Type& rhs) {
+		return apply([rhs](Type& t) {t -= rhs; }); }
+	vec& operator*= (const Type& rhs) {
+		return apply([rhs](Type& t) {t *= rhs; }); }
+	vec& operator/= (const Type& rhs) {
+		return apply([rhs](Type& t) {t /= rhs; }); }
+	vec& operator%= (const Type& rhs) {
+		return apply([rhs](Type& t) {t %= rhs; }); }
+
+	vec& operator&= (const Type& rhs) {
+		return apply([rhs](Type& t) {t &= rhs; }); }
+	vec& operator|= (const Type& rhs) {
+		return apply([rhs](Type& t) {t |= rhs; }); }
+	vec& operator^= (const Type& rhs) {
+		return apply([rhs](Type& t) {t ^= rhs; }); }
+	vec& operator>>=(const Type& rhs) {
+		return apply([rhs](Type& t) {t >>= rhs;}); }
+	vec& operator<<=(const Type& rhs) {
+		return apply([rhs](Type& t) {t <<= rhs;}); }
+
+	// Binary operators with assignment and vector on right-hand side
+	vec& operator+= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l += r; }); }
+	vec& operator-= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l -= r; }); }
+	vec& operator*= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l *= r; }); }
+	vec& operator/= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l /= r; }); }
+	vec& operator%= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l %= r; }); }
+
+	vec& operator&= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l &= r; }); }
+	vec& operator|= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l |= r; }); }
+	vec& operator^= (const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l ^= r; }); }
+	vec& operator>>=(const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l >>= r;}); }
+	vec& operator<<=(const vec& rhs) {
+		return apply(rhs, [](Type& l, const Type& r) {l <<= r;}); }
+
+	// Binary operators as members with scalar on right-hand side
+	friend vec operator+ (vec lhs, const Type& rhs) { return lhs += rhs; }
+	friend vec operator- (vec lhs, const Type& rhs) { return lhs -= rhs; }
+	friend vec operator* (vec lhs, const Type& rhs) { return lhs *= rhs; }
+	friend vec operator/ (vec lhs, const Type& rhs) { return lhs /= rhs; }
+	friend vec operator% (vec lhs, const Type& rhs) { return lhs %= rhs; }
+
+	friend vec operator& (vec lhs, const Type& rhs) { return lhs &= rhs; }
+	friend vec operator| (vec lhs, const Type& rhs) { return lhs |= rhs; }
+	friend vec operator^ (vec lhs, const Type& rhs) { return lhs ^= rhs; }
+	friend vec operator>>(vec lhs, const Type& rhs) { return lhs >>= rhs; }
+	friend vec operator<<(vec lhs, const Type& rhs) { return lhs <<= rhs; }
+
+	// Binary operators as members with vector on right-hand side
+	friend vec operator+ (vec lhs, const vec& rhs) { return lhs += rhs; }
+	friend vec operator- (vec lhs, const vec& rhs) { return lhs -= rhs; }
+	friend vec operator* (vec lhs, const vec& rhs) { return lhs *= rhs; }
+	friend vec operator/ (vec lhs, const vec& rhs) { return lhs /= rhs; }
+	friend vec operator% (vec lhs, const vec& rhs) { return lhs %= rhs; }
+
+	friend vec operator& (vec lhs, const vec& rhs) { return lhs &= rhs; }
+	friend vec operator| (vec lhs, const vec& rhs) { return lhs |= rhs; }
+	friend vec operator^ (vec lhs, const vec& rhs) { return lhs ^= rhs; }
+	friend vec operator>>(vec lhs, const vec& rhs) { return lhs >>= rhs; }
+	friend vec operator<<(vec lhs, const vec& rhs) { return lhs <<= rhs; }
+
+	// Stream insertion operator.
+	friend std::ostream& operator<<(std::ostream& os, const vec& vector) {
+		os << "[";
+		for (int i = 0; i < Base<Type>::sz(); ++i) { os << vector[i] << ","; }
+		os << "\b]"; // Backspace to remove last comma.
+		return os;
+	}
+
+	/************************* Other vector operations ************************/
+
+	friend vec abs(vec v)
+	{
+		return make_from(v, [](const Type& t) { return std::abs(t); });
+	}
+
+	friend bool all(const vec& x)
+	{
+		for (int i = 0; i < Base<Type>::size(); ++i) { if (!x[i]) return false; }
+		return true;
+	}
+
+	friend bool any(const vec& x)
+	{
+		for (int i = 0; i < Base<Type>::size(); ++i) { if (x[i]) return true; }
+		return false;
+	}
+
+	friend vec ceil(vec v)
+	{
+		return make_from(v, [](const Type& t) { return std::ceil(t); });
+	}
+
+	friend vec cross(const vec& a, const vec& b)
+	{
+		static_assert(a.sz() == 3, "Cross product only valid for 3D vectors");
+		return { a.y * b.z - a.z * b.y,
+				 a.z * b.x - a.x * b.z,
+				 a.x * b.y - a.y * b.x };
+	}
+
+	friend Type dot(const vec& a, const vec& b)
+	{
+		Type result = 0;
+		for (int i = 0; i < Base<Type>::sz(); ++i) { result += a[i] * b[i]; }
+		return result;
+	}
+
+	friend vec floor(vec v)
+	{
+		return make_from(v, [](const Type& t) { return std::floor(t); });
+	}
+
+	friend vec fract(vec v)
+	{
+		return v - floor(v);
+	}
+
+	friend Type length(const vec& v)
+	{
+		// Floating point componenents only due to sqrt(). Integer vectors can
+		// be cast to floating point vectors prior to calling this function.
+		static_assert(std::is_floating_point<Type>::value);
+		return sqrt(dot(v, v));
+	}
+
+	friend vec max(vec v0, const vec& v1)
+	{
+		return make_from(v0, v1,
+			[](const Type& x, const Type& y) { return std::max(x, y); });
+	}
+
+	friend int max_index(vec v)
+	{
+		int result = 0;
+		for (int i = 0; i < Base<Type>::sz(); ++i)
+		{ 
+			if (v[i] > v[result]) { result = i; }
+		}
+		return result;
+	}
+
+	friend Type max_value(vec v)
+	{
+		Type result = v[0];
+		for (int i = 0; i < Base<Type>::sz(); ++i)
+		{
+			if (v[i] > result) { result = v[i]; }
+		}
+		return result;
+	}
+
+	friend vec min(vec v0, const vec& v1)
+	{
+		return make_from(v0, v1,
+			[](const Type& x, const Type& y) { return std::min(x, y); });
+	}
+
+	friend int min_index(vec v)
+	{
+		int result = 0;
+		for (int i = 0; i < Base<Type>::sz(); ++i)
+		{
+			if (v[i] < v[result]) { result = i; }
+		}
+		return result;
+	}
+
+	friend Type min_value(vec v)
+	{
+		Type result = v[0];
+		for (int i = 0; i < Base<Type>::sz(); ++i)
+		{
+			if (v[i] < result) { result = v[i]; }
+		}
+		return result;
+	}
+
+	friend vec mix(const vec& x, const vec& y, const vec& a)
+	{
+		return x * (vec(1) - a) + y * a;
+	}
+
+	friend vec normalize(const vec& v)
+	{
+		static_assert(std::is_floating_point<Type>::value);
+		assert(length(v) >= 0.001f);
+		return v / length(v);
+	}
+
+	friend vec pow(vec x, const Type& y)
+	{
+		return make_from(x, [y](const Type& t) { return std::pow(t, y); });
+	}
+
+	friend vec<Base, long int> round_to_int(const vec& v)
+	{
+		// Rounding in C++ is suprisingly complex (e.g. lround() vs lrint()) and 
+		// built-in functions can be slow (https://stackoverflow.com/q/53962727).
+		// Hence we use a simpler method here.
+		return static_cast<vec<Base, long int>>(floor(v + vec(0.5)));
+	}
+
+	friend vec sign(vec v)
+	{
+		return v.apply([](Type& t) {t = std::copysign(1.0f, t); });
+	}
+
+	friend vec step(float edge, vec v)
+	{
+		return v.apply([edge](Type& t) {t = t < edge ? 0 : 1; });
+	}
+
+	// GLSL-compatible comparisons
+	friend vec<Base, bool> equal(vec x, vec y)
+	{
+		return make_from(
+			x, y, [](const Type& l, const Type& r) {return l == r; });
+	}
+
+	friend vec<Base, bool> lessThan(vec x, vec y)
+	{
+		return make_from(
+			x, y, [](const Type& l, const Type& r) {return l < r; });
+	}
+
+	friend vec<Base, bool> lessThanEqual(vec x, vec y)
+	{
+		return make_from(
+			x, y, [](const Type& l, const Type& r) {return l <= r; });
+	}
+
+	friend vec<Base, bool> greaterThan(vec x, vec y)
+	{
+		return make_from(
+			x, y, [](const Type& l, const Type& r) {return l > r; });
+	}
+
+	friend vec<Base, bool> greaterThanEqual(vec x, vec y)
+	{
+		return make_from(
+			x, y, [](const Type& l, const Type& r) {return l >= r; });
+	}
 };
 
-/****************************** Support functions *****************************/
-
-// Apply function in-place to each element of this vector. The explicit
-// unrolling seems to help performance, at least on Visual C++ 2022.
-template<class VecType, class UnaryFunc>
-constexpr VecType& apply(VecType& v, UnaryFunc func)
-{
-	if constexpr (v.size() > 0) func(v.x);
-	if constexpr (v.size() > 1) func(v.y);
-	if constexpr (v.size() > 2) func(v.z);
-	if constexpr (v.size() > 3) func(v.w);
-	return v;
-}
-
-// As above, but using the corresponding element of the params vector.
-template<class VecType, class BinaryFunc>
-constexpr VecType& apply(VecType& v, const VecType& params, BinaryFunc func)
-{
-	if constexpr (v.size() > 0) func(v.x, params.x);
-	if constexpr (v.size() > 1) func(v.y, params.y);
-	if constexpr (v.size() > 2) func(v.z, params.z);
-	if constexpr (v.size() > 3) func(v.w, params.w);
-	return v;
-}
-
-// Similar to 'apply()', but as a non-member making from supplied vector.
-template <template<class> class Vec, class T, class UnaryFunc>
-constexpr Vec<T> make_from(const Vec<T>& v, UnaryFunc func)
-{
-	Vec<T> result;
-	if constexpr (v.size() > 0) result.x = func(v.x);
-	if constexpr (v.size() > 1) result.y = func(v.y);
-	if constexpr (v.size() > 2) result.z = func(v.z);
-	if constexpr (v.size() > 3) result.w = func(v.w);
-	return result;
-}
-
-// As above, but taking two vectors as input.
-//template<class BinaryFunc>
-template <template<class> class Vec, class T, class BinaryFunc>
-constexpr auto make_from(const Vec<T>& v0,
-	const Vec<T>& v1, BinaryFunc func)
-{
-	using RetType = decltype(func(v0.x, v1.x)); // Can we avoid this?
-	Vec<RetType> result;
-	if constexpr (v0.size() > 0) result.x = func(v0.x, v1.x);
-	if constexpr (v0.size() > 1) result.y = func(v0.y, v1.y);
-	if constexpr (v0.size() > 2) result.z = func(v0.z, v1.z);
-	if constexpr (v0.size() > 3) result.w = func(v0.w, v1.w);
-	return result;
-}
-
-// Stream insertion operator.
-template <class VecType, typename = std::enable_if<VecType::is_vec()>>
-std::ostream& operator<<(std::ostream& os, const VecType& vector) {
-	os << "[";
-	for (int i = 0; i < vector.size(); i++) { os << vector[i] << ","; }
-	os << "\b]"; // Backspace to remove last comma.
-	return os;
-}
-
-/**************************** Overloaded operators ****************************/
-
-// Overloaded operators following the guidelines here:
-// https://en.cppreference.com/w/cpp/language/operators
-// https://learn.microsoft.com/en-us/cpp/cpp/operator-overloading
-
-// Unary operators
-template <template<class> class Vec, class T>
-Vec<T> operator-(Vec<T> v) { return apply(v, [](T& t) {t = -t; }); }
-template <template<class> class Vec, class T>
-Vec<T> operator~(Vec<T> v) { return apply(v, [](T& t) {t = ~t; }); }
-
-// Binary operators with assignment and scalar on right-hand side
-template <template<class> class Vec, class T>
-Vec<T>& operator+= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t += rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator-= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t -= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator*= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t *= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator/= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t /= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator%= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t %= rhs; }); }
-
-template <template<class> class Vec, class T>
-Vec<T>& operator&= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t &= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator|= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t |= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator^= (Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t ^= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator<<=(Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t <<= rhs; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator>>=(Vec<T>& lhs, const T& rhs) { return apply(lhs, [rhs](T& t) {t >>= rhs; }); }
-
-
-// Binary operators with assignment and vector on right-hand side
-template <template<class> class Vec, class T>
-Vec<T>& operator+= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l += r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator-= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l -= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator*= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l *= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator/= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l /= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator%= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l %= r; }); }
-
-template <template<class> class Vec, class T>
-Vec<T>& operator&= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l &= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator|= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l |= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator^= (Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l ^= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator<<=(Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l <<= r; }); }
-template <template<class> class Vec, class T>
-Vec<T>& operator>>=(Vec<T>& lhs, const Vec<T>& rhs) { return apply(lhs, rhs, [](T& l, const T& r) {l >>= r; }); }
-
-
-// Binary operators with scalar on right-hand side
-template <template<class> class Vec, class T>
-Vec<T> operator+ (Vec<T> lhs, const T& rhs) { return lhs += rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator- (Vec<T> lhs, const T& rhs) { return lhs -= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator* (Vec<T> lhs, const T& rhs) { return lhs *= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator/ (Vec<T> lhs, const T& rhs) { return lhs /= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator% (Vec<T> lhs, const T& rhs) { return lhs %= rhs; }
-
-template <template<class> class Vec, class T>
-Vec<T> operator& (Vec<T> lhs, const T& rhs) { return lhs &= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator| (Vec<T> lhs, const T& rhs) { return lhs |= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator^ (Vec<T> lhs, const T& rhs) { return lhs ^= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator<<(Vec<T> lhs, const T& rhs) { return lhs <<= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator>>(Vec<T> lhs, const T& rhs) { return lhs >>= rhs; }
-
-// Binary operators with vector on right-hand side
-template <template<class> class Vec, class T>
-Vec<T> operator+ (Vec<T> lhs, const Vec<T>& rhs) { return lhs += rhs; }
-// FIXME I don't understand why this enable_if is needed. Without it I get
-// non-sensical errors in voxelization when working with std::span. These errors
-// only occur on Vixual Studioo - GCC compiles fine. I'm hoping the issue gets
-// fixed as I review the rest of the code.
-template <template<class> class Vec, class T, typename = std::enable_if<Vec<T>::is_vec()>>
-Vec<T> operator- (Vec<T> lhs, const Vec<T>& rhs) { return lhs -= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator* (Vec<T> lhs, const Vec<T>& rhs) { return lhs *= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator/ (Vec<T> lhs, const Vec<T>& rhs) { return lhs /= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator% (Vec<T> lhs, const Vec<T>& rhs) { return lhs %= rhs; }
-
-template <template<class> class Vec, class T>
-Vec<T> operator& (Vec<T> lhs, const Vec<T>& rhs) { return lhs &= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator| (Vec<T> lhs, const Vec<T>& rhs) { return lhs |= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator^ (Vec<T> lhs, const Vec<T>& rhs) { return lhs ^= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator<<(Vec<T> lhs, const Vec<T>& rhs) { return lhs <<= rhs; }
-template <template<class> class Vec, class T>
-Vec<T> operator>>(Vec<T> lhs, const Vec<T>& rhs) { return lhs >>= rhs; }
-
-
-/*************************** Other vector operations **************************/
-
-template <class VecType>
-VecType abs(VecType v)
-{
-	return make_from(v, [](const VecType::value_type& t) { return std::abs(t); });
-}
-
-template <class VecType>
-bool all(const VecType& x)
-{
-	for (int i = 0; i < 3; ++i) { if (!x[i]) return false; }
-	return true;
-}
-
-template <class VecType>
-bool any(const VecType& x)
-{
-	for (int i = 0; i < 3; ++i) { if (x[i]) return true; }
-	return false;
-}
-
-template <class VecType>
-VecType ceil(VecType v)
-{
-	return make_from(v, [](const VecType::value_type& t) { return std::ceil(t); });
-}
+template <class Type>
+using Vec2 = vec<XY, Type>;
 
 template <class Type>
-Vec3<Type> cross(const Vec3<Type>& a, const Vec3<Type>& b)
-{
-	return { a.y * b.z - a.z * b.y,
-			 a.z * b.x - a.x * b.z,
-			 a.x * b.y - a.y * b.x };
-}
-
-template <class VecType>
-VecType::value_type dot(const VecType& a, const VecType& b)
-{
-	typename VecType::value_type result = 0;
-	for (int i = 0; i < 3; ++i) { result += a[i] * b[i]; }
-	return result;
-}
-
-template <class VecType>
-VecType floor(VecType v)
-{
-	return make_from(v, [](const VecType::value_type& t) { return std::floor(t); });
-}
-
-template <class VecType>
-VecType fract(VecType v)
-{
-	return v - floor(v);
-}
-
-template <class VecType>
-VecType::value_type length(const VecType& v)
-{
-	// Floating point componenents only due to sqrt(). Integer vectors can
-	// be cast to floating point vectors prior to calling this function.
-	static_assert(std::is_floating_point<typename VecType::value_type>::value);
-	return sqrt(dot(v, v));
-}
-
-template <class VecType>
-VecType max(VecType v0, const VecType& v1)
-{
-	return make_from(v0, v1,
-		[](const VecType::value_type& x, const VecType::value_type& y) { return std::max(x, y); });
-}
-
-template <class VecType>
-int max_index(VecType v)
-{
-	if (v.x >= v.y && v.x >= v.z) return 0;
-	if (v.y >= v.x && v.y >= v.z) return 1;
-	return 2;
-}
-
-template <class VecType>
-VecType::value_type max_value(VecType v)
-{
-	return std::max(std::max(v.x, v.y), v.z);
-}
-
-template <class VecType>
-VecType min(VecType v0, const VecType& v1)
-{
-	return make_from(v0, v1,
-		[](const VecType::value_type& x, const VecType::value_type& y) { return std::min(x, y); });
-}
-
-template <class VecType>
-VecType::value_type min_value(VecType v)
-{
-	return std::min(std::min(v.x, v.y), v.z);
-}
-
-template <class VecType>
-VecType mix(const VecType& x, const VecType& y, const VecType& a)
-{
-	return x * (Vec3(1) - a) + y * a;
-}
-
-template <class VecType>
-VecType normalize(const VecType& v)
-{
-	static_assert(std::is_floating_point<typename VecType::value_type>::value);
-	assert(length(v) >= 0.001f);
-	return v / length(v);
-}
-
-template <class VecType>
-VecType pow(VecType x, const typename VecType::value_type& y)
-{
-	return make_from(x, [y](const VecType::value_type& t) { return std::pow(t, y); });
-}
+using Vec3 = vec<XYZ, Type>;
 
 template <class Type>
-Vec2<long int> round_to_int(const Vec2<Type>& v)
-{
-	// Rounding in C++ is suprisingly complex (e.g. lround() vs lrint()) and 
-	// built-in functions can be slow (https://stackoverflow.com/q/53962727).
-	// Hence we use a simpler method here.
-	return static_cast<Vec2<long int>>(floor(v + Vec2(0.5)));
-}
-
-template <class VecType>
-VecType sign(VecType v)
-{
-	return apply(v, [](VecType::value_type& t) {t = std::copysign(1.0f, t); });
-}
-
-template <class VecType>
-VecType step(float edge, VecType v)
-{
-	return apply(v, [edge](VecType::value_type& t) {t = t < edge ? 0 : 1; });
-}
-
-// GLSL-compatible comparisons
-template <class VecType>
-auto equal(VecType x, VecType y)
-{
-	return make_from(
-		x, y, [](const VecType::value_type& l, const VecType::value_type& r) {return l == r; });
-}
-
-template <class VecType>
-auto lessThan(VecType x, VecType y)
-{
-	return make_from(
-		x, y, [](const VecType::value_type& l, const VecType::value_type& r) {return l < r; });
-}
-
-template <class VecType>
-auto lessThanEqual(VecType x, VecType y)
-{
-	return make_from(
-		x, y, [](const VecType::value_type& l, const VecType::value_type& r) {return l <= r; });
-}
-
-template <class VecType>
-auto greaterThan(VecType x, VecType y)
-{
-	return make_from(
-		x, y, [](const VecType::value_type& l, const VecType::value_type& r) {return l > r; });
-}
-
-template <class VecType>
-auto greaterThanEqual(VecType x, VecType y)
-{
-	return make_from(
-		x, y, [](const VecType::value_type& l, const VecType::value_type& r) {return l >= r; });
-}
+using Vec4 = vec<XYZW, Type>;
 
 // Typedefs for basic vector types
-typedef Vec2<int32> vec2i;
-typedef Vec2<uint32> vec2u;
-typedef Vec2<bool> vec2b;
-typedef Vec2<float> vec2f;
-typedef Vec2<double> vec2d;
+using vec2i = Vec2<int32>;
+using vec2u = Vec2<uint32>;
+using vec2b = Vec2<bool>;
+using vec2f = Vec2<float>;
+using vec2d = Vec2<double>;
 
-typedef Vec3<int32> vec3i;
-typedef Vec3<uint32> vec3u;
-typedef Vec3<bool> vec3b;
-typedef Vec3<float> vec3f;
-typedef Vec3<double> vec3d;
+using vec3i = Vec3<int32>;
+using vec3u = Vec3<uint32>;
+using vec3b = Vec3<bool>;
+using vec3f = Vec3<float>;
+using vec3d = Vec3<double>;
 
-typedef Vec4<int32> vec4i;
-typedef Vec4<uint32> vec4u;
-typedef Vec4<bool> vec4b;
-typedef Vec4<float> vec4f;
-typedef Vec4<double> vec4d;
+using vec4i = Vec4<int32>;
+using vec4u = Vec4<uint32>;
+using vec4b = Vec4<bool>;
+using vec4f = Vec4<float>;
+using vec4d = Vec4<double>;
 
 ////////////////////////////////////////////////////////////////////////////////
 //									Matrix
@@ -537,9 +537,9 @@ public:
 	// Set to identity matrix.
 	Matrix4x4()
 	{
-		for(int y = 0; y < 4; y++)
+		for (int y = 0; y < 4; y++)
 		{
-			for(int x = 0; x < 4; x++)
+			for (int x = 0; x < 4; x++)
 			{
 				data[x][y] = x == y ? 1.0f : 0.0f;
 			}
@@ -557,7 +557,7 @@ public:
 	// For casting betwween vec types of matching size.
 	template <typename CastType> explicit Matrix4x4(const Matrix4x4<CastType>& matrix)
 	{
-		for (uint32_t ct = 0; ct < 4; ++ct) { data[ct] = static_cast< Vec4<Type> >(matrix.data[ct]); }
+		for (uint32_t ct = 0; ct < 4; ++ct) { data[ct] = static_cast<Vec4<Type>>(matrix.data[ct]); }
 	}
 
 	Vec4<Type>& operator[](int index) { return data[index]; }
@@ -727,7 +727,8 @@ public:
 
 	Ray3(const Vec3<Type>& origin, const Vec3<Type>& dir)
 		: mOrigin(origin)
-		, mDir(dir)	{}
+		, mDir(dir) {
+	}
 
 	template <typename CastType> explicit Ray3(const Ray3<CastType>& ray)
 	{
@@ -753,14 +754,16 @@ public:
 	Box() { invalidate(); }
 
 	Box(const Vec3<Type>& lower, const Vec3<Type>& upper)
-		:mExtents{ lower, upper } {}
+		:mExtents{ lower, upper } {
+	}
 
 	// For casting betwween Box types of matching size.
 	template <typename CastType> explicit Box(const Box<CastType>& box)
-		:mExtents { 
+		:mExtents{
 			static_cast<Vec3<Type>>(box.lower()),
 			static_cast<Vec3<Type>>(box.upper())
-		} {}
+		} {
+	}
 
 	const Vec3<Type>& lower() const { return mExtents[0]; }
 	const Vec3<Type>& upper() const { return mExtents[1]; }
@@ -900,7 +903,8 @@ public:
 		: eng(0)
 		, randX(bounds.lower().x, bounds.upper().x)
 		, randY(bounds.lower().y, bounds.upper().y)
-		, randZ(bounds.lower().z, bounds.upper().z) {}
+		, randZ(bounds.lower().z, bounds.upper().z) {
+	}
 
 	vec3f next() {
 		vec3f result = { (float)randX(eng), (float)randY(eng), (float)randZ(eng) };
@@ -922,7 +926,8 @@ public:
 		: eng(0)
 		, randX(bounds.lower().x, bounds.upper().x)
 		, randY(bounds.lower().y, bounds.upper().y)
-		, randZ(bounds.lower().z, bounds.upper().z) {}
+		, randZ(bounds.lower().z, bounds.upper().z) {
+	}
 
 	vec3i next() { return vec3i({ randX(eng), randY(eng), randZ(eng) }); }
 
@@ -942,7 +947,7 @@ public:
 	public:
 		iterator(uint32_t index, const Box3i& box) : eng(0), randX(box.lower().x, box.upper().x), randY(box.lower().y, box.upper().y), randZ(box.lower().z, box.upper().z), mIndex(index) { mValue = vec3i({ randX(eng), randY(eng), randZ(eng) }); }
 		iterator operator++() { ++mIndex; mValue = vec3i({ randX(eng), randY(eng), randZ(eng) }); return *this; }
-		bool operator!=(const iterator & other) const { return mIndex != other.mIndex; }
+		bool operator!=(const iterator& other) const { return mIndex != other.mIndex; }
 		const vec3i& operator*() const { return mValue; }
 
 	private:
@@ -969,7 +974,8 @@ class Triangle
 public:
 	Triangle();
 	Triangle(const Cubiquity::vec3f& vertex0, const Cubiquity::vec3f& vertex1, const Cubiquity::vec3f& vertex2)
-		: vertices{ { vertex0, vertex1, vertex2 } } {}
+		: vertices{ { vertex0, vertex1, vertex2 } } {
+	}
 
 	void flip();
 	void translate(const Cubiquity::vec3f& dir);
@@ -1025,7 +1031,7 @@ RayBoxIntersection intersect(const Ray3<Type>& ray, const Box3<Type>& box)
 }
 
 bool intersect(const Ray3f& ray, const Triangle& triangle, float& t);
-	
+
 }
 
 #endif // CUBIQUITY_GEOMETRY_H
