@@ -17,7 +17,7 @@
 
 // Cubiquity
 #include "geometry.h"
-#include "visibility.h"
+#include "extraction.h"
 #include "raytracing.h"
 #include "utility.h"
 #include "storage.h"

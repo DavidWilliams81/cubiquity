@@ -3,7 +3,7 @@
 
 #include "base/logging.h"
 
-#include "visibility.h"
+#include "extraction.h"
 
 #define check(actual, expected) \
 do \
@@ -18,7 +18,5 @@ do \
 		log_error("********************************************************************************\n"); \
 	} \
 } while (0)
-
-void saveVisibilityMaskAsImage(Cubiquity::VisibilityMask& visMask, const std::string& filename);
 
 #endif

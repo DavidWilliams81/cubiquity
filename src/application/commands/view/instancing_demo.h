@@ -3,7 +3,7 @@
 
 #include "opengl_viewer.h"
 
-#include "visibility.h"
+#include "extraction.h"
 
 class InstancingDemo : public OpenGLViewer
 {
@@ -18,6 +18,8 @@ public:
 
 	void onKeyDown(const SDL_KeyboardEvent& event);
 
+	void onVolumeModified() override;
+
 
 	GLuint glyphProgram;
 
@@ -29,10 +31,8 @@ public:
 	GLuint materialsTexture;
 	GLuint materialsTextureID;
 
-	Cubiquity::VisibilityCalculator* mVisibilityCalculator = nullptr;
-
 	Cubiquity::Glyph* mGlyphs;
-	bool mDoGlyphUpdates = true;
+	bool mNeedsUpdate = true;
 
 	GLuint VertexArrayID;
 

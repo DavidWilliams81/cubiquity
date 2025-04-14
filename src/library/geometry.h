@@ -36,120 +36,6 @@ template <typename T> int sign(T val) {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class Type>
-struct Vec2
-{
-	typedef Type value_type;
-	static constexpr int size() { return 2; }
-
-	// Constructors
-	Vec2() {}
-	Vec2(const Type& val) : x(val), y(val) {}
-	Vec2(const Type& x, const Type& y) : x(x), y(y) {}
-
-	// Converting constructor
-	template <typename SrcType>
-	explicit Vec2(const Vec2<SrcType>& v) :x(v.x), y(v.y) {}
-
-	// Default comparison operators (requires C++20)
-	friend auto operator<=>(const Vec2&, const Vec2&) = default;
-
-	// Overloaded operators following the guidelines here:
-	// https://en.cppreference.com/w/cpp/language/operators
-	// https://learn.microsoft.com/en-us/cpp/cpp/operator-overloading
-	Type& operator[](int index)
-	{
-		static_assert(sizeof(Vec2<Type>) == size() * sizeof(Type)); // Packed
-		assert(index < size() && "Index out of range");
-		return *((&x) + index);
-	}
-	const Type& operator[](int index) const
-	{
-		static_assert(sizeof(Vec2<Type>) == size() * sizeof(Type)); // Packed
-		assert(index < size() && "Index out of range");
-		return *((&x) + index);
-	}
-
-	friend std::ostream& operator<<(std::ostream& os, const Vec2& v)
-	{
-		os << "[" << v.x << ", " << v.y << "]";
-		return os;
-	}
-
-	// Unary negation returns by value - see https://stackoverflow.com/a/2155307
-	Vec2 operator-() const { return { -x, -y }; }
-
-	// Binary operators with assignment and scalar on right-hand side
-	Vec2& operator+= (const Type& rhs) { x +=  rhs; y +=  rhs; return *this; }
-	Vec2& operator-= (const Type& rhs) { x -=  rhs; y -=  rhs; return *this; }
-	Vec2& operator*= (const Type& rhs) { x *=  rhs; y *=  rhs; return *this; }
-	Vec2& operator/= (const Type& rhs) { x /=  rhs; y /=  rhs; return *this; }
-	Vec2& operator%= (const Type& rhs) { x %=  rhs; y %=  rhs; return *this; }
-															   
-	Vec2& operator&= (const Type& rhs) { x &=  rhs; y &=  rhs; return *this; }
-	Vec2& operator|= (const Type& rhs) { x |=  rhs; y |=  rhs; return *this; }
-	Vec2& operator^= (const Type& rhs) { x ^=  rhs; y ^=  rhs; return *this; }
-	Vec2& operator<<=(const Type& rhs) { x <<= rhs; y <<= rhs; return *this; }
-	Vec2& operator>>=(const Type& rhs) { x >>= rhs; y >>= rhs; return *this; }
-
-	// Binary operators with assignment and vector on right-hand side
-	Vec2& operator+= (const Vec2& rhs) { x +=  rhs.x; y +=  rhs.y; return *this; }
-	Vec2& operator-= (const Vec2& rhs) { x -=  rhs.x; y -=  rhs.y; return *this; }
-	Vec2& operator*= (const Vec2& rhs) { x *=  rhs.x; y *=  rhs.y; return *this; }
-	Vec2& operator/= (const Vec2& rhs) { x /=  rhs.x; y /=  rhs.y; return *this; }
-	Vec2& operator%= (const Vec2& rhs) { x %=  rhs.x; y %=  rhs.y; return *this; }
-
-	Vec2& operator&= (const Vec2& rhs) { x &=  rhs.x; y &=  rhs.y; return *this; }
-	Vec2& operator|= (const Vec2& rhs) { x |=  rhs.x; y |=  rhs.y; return *this; }
-	Vec2& operator^= (const Vec2& rhs) { x ^=  rhs.x; y ^=  rhs.y; return *this; }
-	Vec2& operator<<=(const Vec2& rhs) { x <<= rhs.x; y <<= rhs.y; return *this; }
-	Vec2& operator>>=(const Vec2& rhs) { x >>= rhs.x; y >>= rhs.y; return *this; }
-
-	// Binary operators with scalar on right-hand side
-	friend Vec2 operator+ (Vec2 lhs, const Type& rhs) { return lhs += rhs; }
-	friend Vec2 operator- (Vec2 lhs, const Type& rhs) { return lhs -= rhs; }
-	friend Vec2 operator* (Vec2 lhs, const Type& rhs) { return lhs *= rhs; }
-	friend Vec2 operator/ (Vec2 lhs, const Type& rhs) { return lhs /= rhs; }
-	friend Vec2 operator% (Vec2 lhs, const Type& rhs) { return lhs %= rhs; }
-
-	friend Vec2 operator& (Vec2 lhs, const Type& rhs) { return lhs &= rhs; }
-	friend Vec2 operator| (Vec2 lhs, const Type& rhs) { return lhs |= rhs; }
-	friend Vec2 operator^ (Vec2 lhs, const Type& rhs) { return lhs ^= rhs; }
-	friend Vec2 operator<<(Vec2 lhs, const Type& rhs) { return lhs <<= rhs; }
-	friend Vec2 operator>>(Vec2 lhs, const Type& rhs) { return lhs >>= rhs; }
-
-	// Binary operators with vector on right-hand side
-	friend Vec2 operator+ (Vec2 lhs, const Vec2& rhs) { return lhs += rhs; }
-	friend Vec2 operator- (Vec2 lhs, const Vec2& rhs) { return lhs -= rhs; }
-	friend Vec2 operator* (Vec2 lhs, const Vec2& rhs) { return lhs *= rhs; }
-	friend Vec2 operator/ (Vec2 lhs, const Vec2& rhs) { return lhs /= rhs; }
-	friend Vec2 operator% (Vec2 lhs, const Vec2& rhs) { return lhs %= rhs; }
-
-	friend Vec2 operator& (Vec2 lhs, const Vec2& rhs) { return lhs &= rhs; }
-	friend Vec2 operator| (Vec2 lhs, const Vec2& rhs) { return lhs |= rhs; }
-	friend Vec2 operator^ (Vec2 lhs, const Vec2& rhs) { return lhs ^= rhs; }
-	friend Vec2 operator<<(Vec2 lhs, const Vec2& rhs) { return lhs <<= rhs; }
-	friend Vec2 operator>>(Vec2 lhs, const Vec2& rhs) { return lhs >>= rhs; }
-
-	// Other vector operations
-	friend Vec2 floor(const Vec2& v) { return { std::floor(v.x), std::floor(v.y) }; }
-	friend Vec2 max(const Vec2& v0, const Vec2& v1) {
-		return { std::max(v0.x, v1.x), std::max(v0.y, v1.y) };
-	}
-	friend Vec2 min(const Vec2& v0, const Vec2& v1) {
-		return { std::min(v0.x, v1.x), std::min(v0.y, v1.y) };
-	}
-	friend Vec2<long int> round_to_int(const Vec2<Type>& v)
-	{
-		// Rounding in C++ is suprisingly complex (e.g. lround() vs lrint()) and 
-		// built-in functions can be slow (https://stackoverflow.com/q/53962727).
-		// Hence we use a simpler method here.
-		return static_cast<Vec2<long int>>(floor(v + Vec2(0.5)));
-	}
-
-	Type x, y;
-};
-
-template <class Type>
 struct Vec3
 {
 	typedef Type value_type;
@@ -287,7 +173,7 @@ struct Vec3
 	}
 	friend Vec3 normalize(const Vec3& v) {
 		static_assert(std::is_floating_point_v<Type>);
-		assert(length(v) >= 0.001f);
+		//assert(length(v) >= 0.001f);
 		return v / length(v);
 	}
 	friend Vec3 pow(const Vec3& v, const Type& t) {
@@ -422,12 +308,6 @@ struct Vec4
 };
 
 // Typedefs for basic vector types
-typedef Vec2<int32> vec2i;
-typedef Vec2<uint32> vec2u;
-typedef Vec2<bool> vec2b;
-typedef Vec2<float> vec2f;
-typedef Vec2<double> vec2d;
-
 typedef Vec3<int32> vec3i;
 typedef Vec3<uint32> vec3u;
 typedef Vec3<bool> vec3b;

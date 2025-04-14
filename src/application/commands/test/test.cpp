@@ -3,7 +3,6 @@
 #include "test_base.h"
 #include "test_linear_algebra.h"
 #include "test_rendering.h"
-#include "test_visibility.h"
 #include "test_volume.h"
 #include "test_voxelisation.h"
 
@@ -27,11 +26,6 @@ bool test(const flags::args& args)
 	}
 
 	if (!testRaytracingPerformance())
-	{
-		log_error("TEST FAILED!");
-	}
-
-	if (!testVisibility())
 	{
 		log_error("TEST FAILED!");
 	}

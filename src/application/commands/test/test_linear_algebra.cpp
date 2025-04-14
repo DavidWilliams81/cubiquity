@@ -7,7 +7,7 @@ using namespace std;
 
 bool testLinearAlgebra()
 {
-	vec2i a({ 1,2 });
+	/*vec2i a({1,2});
 	vec2i b({ 3,4 });
 
 	a += 1;
@@ -16,7 +16,7 @@ bool testLinearAlgebra()
 	a += b;
 	vec2i c = a + b;
 
-	vec2f f = static_cast<vec2f>(c);
+	vec2f f = static_cast<vec2f>(c);*/
 
 	/*vec3f vf(1.5f, 2.5f, 3.5f);
 	vec3i vi = static_cast<vec3i>(vf);

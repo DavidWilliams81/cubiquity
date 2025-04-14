@@ -4,11 +4,11 @@
 
 #include "utility.h"
 
-#include "visibility.h"
+#include "extraction.h"
 
 using namespace Cubiquity;
 
-const uint32_t MaxGlyphCount = 1000000;
+const uint32_t MaxGlyphCount = 10000000;
 
 static const GLfloat gCubeVertices[] =
 {
@@ -29,8 +29,6 @@ static const GLfloat gCubeVertices[] =
 void InstancingDemo::onInitialise()
 {
 	OpenGLViewer::onInitialise();
-
-	mVisibilityCalculator = new VisibilityCalculator;
 
 	std::string shader_path = getShaderPath();
 	log_debug("Using shader path'{}", shader_path);
@@ -88,11 +86,8 @@ void InstancingDemo::onUpdate(float deltaTime)
 {
 	OpenGLViewer::onUpdate(deltaTime);
 
-	CameraData cameraData(camera().position, camera().position + camera().forward(), camera().up(), camera().fovInDegrees / 57.2958f, camera().aspect);
-
 	const vec3f volumeCentre = vec3f({ 0.0f, 0.0f, 0.0f });
 
-	mVisibilityCalculator->mMaxFootprintSize = 0.007f;
 	Timer timer;
 
 	NormalEstimation normalEstimation = NormalEstimation::None;
@@ -100,9 +95,12 @@ void InstancingDemo::onUpdate(float deltaTime)
 	// Per-glyph normals looks poor if they are too large, so subdivide.
 	bool subdivideMaterialNodes = normalEstimation != NormalEstimation::None;
 
-	if (mDoGlyphUpdates)
+	if (mNeedsUpdate)
 	{
-		mGlyphCount = mVisibilityCalculator->findVisibleOctreeNodes(&(volume()), &(cameraData), normalEstimation, subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
+		//mGlyphCount = mVisibilityCalculator->findVisibleOctreeNodes(&(volume()), camera().position, normalEstimation, subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
+
+		mGlyphCount = extractGlyphs(const_cast<Volume&>(volume()), subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
+
 		log_debug("Found {} glyphs in {}ms", mGlyphCount, timer.elapsedTimeInMilliSeconds());
 		assert(mGlyphCount <= MaxGlyphCount);
 
@@ -111,6 +109,8 @@ void InstancingDemo::onUpdate(float deltaTime)
 		glBindBuffer(GL_ARRAY_BUFFER, mPerInstanceDataBuffer);
 		glBufferData(GL_ARRAY_BUFFER, MaxGlyphCount * sizeof(Glyph), NULL, GL_STREAM_DRAW); // Buffer orphaning
 		glBufferSubData(GL_ARRAY_BUFFER, 0, mGlyphCount * sizeof(Glyph), mGlyphs);
+
+		mNeedsUpdate = false;
 	}
 
 	Matrix4x4f ProjectionMatrix = static_cast<Matrix4x4f>(camera().projectionMatrix());
@@ -218,6 +218,15 @@ void InstancingDemo::onKeyDown(const SDL_KeyboardEvent & event)
 
 	if (event.keysym.sym == SDLK_SPACE)
 	{
-		mDoGlyphUpdates = !(mDoGlyphUpdates);
+		mNeedsUpdate = !(mNeedsUpdate);
 	}
+}
+
+void InstancingDemo::onVolumeModified()
+{
+	//subDAGs = findSubDAGs(
+	//	Internals::getNodes(volume()).nodes(), getRootNodeIndex(volume()));
+
+	//clear();
+	mNeedsUpdate = true;
 }

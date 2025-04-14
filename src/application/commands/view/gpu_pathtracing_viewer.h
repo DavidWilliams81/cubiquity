@@ -3,7 +3,7 @@
 
 #include "opengl_viewer.h"
 
-#include "visibility.h"
+#include "extraction.h"
 #include "utility.h"
 
 

@@ -3,7 +3,7 @@
 #include "base/logging.h"
 
 #include "cubiquity.h"
-#include "visibility.h"
+#include "extraction.h"
 #include "raytracing.h"
 #include "utility.h"
 

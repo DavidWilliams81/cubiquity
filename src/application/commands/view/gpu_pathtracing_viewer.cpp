@@ -4,7 +4,7 @@
 
 #include "utility.h"
 
-#include "visibility.h"
+#include "extraction.h"
 #include "raytracing.h"
 
 using namespace Cubiquity;
