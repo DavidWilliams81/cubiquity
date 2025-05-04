@@ -1,4 +1,5 @@
 #include "raytracing.h"
+#include "utility.h"
 
 #include <cfloat>
 #include <climits>
@@ -381,6 +382,16 @@ namespace Cubiquity
 	// for Octree Traversal'. I think that the standard behaviour of IEEE 754 handling of +/-infinity
 	// and NaNs might be enough but I am not certain. If it proves to be a problem (if we ever see
 	// NaNs?) then it can be solved by nudging tiny direction components away from zero.
+	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs,
+		float ray_orig_x, float ray_orig_y, float ray_orig_z,
+		float ray_dir_x, float ray_dir_y, float ray_dir_z,
+		bool computeSurfaceProperties, float maxFootprint)
+	{
+		return intersectVolume(volume, subDAGs,
+			Ray3f(vec3(ray_orig_x, ray_orig_y, ray_orig_z), vec3(ray_dir_x, ray_dir_y, ray_dir_z)),
+			computeSurfaceProperties, maxFootprint);
+	}
+
 	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs, Ray3f ray, bool computeSurfaceProperties, float maxFootprint)
 	{
 		RayVolumeIntersection intersection = { false, 0, 0, {0, 0, 0}, {0, 0, 0} }; // Miss
@@ -452,5 +463,62 @@ namespace Cubiquity
 		} while (childId <= 7); // 8 children, number 7 is the last.
 
 		return intersection;
+	}
+
+	class IntersectionFinder
+	{
+	public:
+		IntersectionFinder(const Ray3f& ray) : mRay(ray)
+		{
+			mIntersection.hit = false;
+			mIntersection.material = 0;
+			mIntersection.distance = DBL_MAX; // Note: Might change type to float in the future?
+		}
+
+		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& bounds)
+		{
+			Box3d dilatedBounds = static_cast<Box3d>(bounds);
+			dilatedBounds.dilate(0.5);
+			RayBoxIntersection intersection = intersect(mRay, dilatedBounds);
+
+			if (!intersection) { return false; } // Stop traversal if the ray missed the node.
+
+			if ((isMaterialNode(nodeIndex)) && (nodeIndex > 0)) // Non-empty leaf node
+			{
+				// Discard nodes behind the start point, but include the node we start in.
+				if (intersection.exit > 0.0)
+				{
+					if (intersection.entry < mIntersection.distance) // Is it closer than any other interection we foud?
+					{
+						mIntersection.hit = true;
+						mIntersection.distance = intersection.entry;
+						mIntersection.material = static_cast<MaterialId>(nodeIndex);
+					}
+				}
+			}
+
+			// Should early out here if we miss the node?
+			return true;
+		}
+
+	public:
+		Ray3d mRay;
+		RayVolumeIntersection mIntersection;
+	};
+
+	RayVolumeIntersection traceRayRef(Volume& volume,
+		float ray_orig_x, float ray_orig_y, float ray_orig_z,
+		float ray_dir_x, float ray_dir_y, float ray_dir_z)
+	{
+		return traceRayRef(volume,
+			Ray3f(vec3(ray_orig_x, ray_orig_y, ray_orig_z), vec3(ray_dir_x, ray_dir_y, ray_dir_z)));
+	}
+
+	RayVolumeIntersection traceRayRef(Volume& volume, Ray3f ray)
+	{
+		IntersectionFinder intersectionFinder(ray);
+		visitVolumeNodes(volume, intersectionFinder);
+
+		return intersectionFinder.mIntersection;
 	}
 }

@@ -4,7 +4,6 @@
 #include "test_linear_algebra.h"
 #include "test_rendering.h"
 #include "test_volume.h"
-#include "test_voxelisation.h"
 
 #include "base/logging.h"
 

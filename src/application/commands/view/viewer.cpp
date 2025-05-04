@@ -11,8 +11,6 @@
 #include <fstream>
 #include <vector>
 
-using namespace Cubiquity;
-
 Viewer::Viewer(const std::string& filename, WindowType windowType)
 	: Window(windowType)
 {
@@ -51,27 +49,26 @@ void Viewer::onInitialise()
 
 	mVolume.setTrackEdits(true);
 
-	//Box3i bounds = computeBounds(mVolume, [](MaterialId matId) { return matId != 0; });
-	Timer timer;
+	Cubiquity::Timer timer;
 
-	uint8 outside_material;
-	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	uint8_t outside_material;
+	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&mVolume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 
-	vec3d lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
-	vec3d upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
+	dvec3 lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
+	dvec3 upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
 	log_info("Lower bound = ({},{},{})", lower.x, lower.y, lower.z);
 	log_info("Upper bound = ({},{},{})", upper.x, upper.y, upper.z);
 	log_info("Bounds estimation took {} seconds", timer.elapsedTimeInSeconds());
 
-	vec3d centre = (lower + upper) * 0.5;
+	dvec3 centre = (lower + upper) * 0.5;
 
 	if (outside_material == 0) // Solid object, point camera at centre and move it back
 	{
 		double halfDiagonal = length(upper - lower) * 0.5;
 
 		// Centred along x, then back and up a bit
-		mCamera.position = vec3d({ centre.x, centre.y - halfDiagonal, centre.z + halfDiagonal });
+		mCamera.position = dvec3({ centre.x, centre.y - halfDiagonal, centre.z + halfDiagonal });
 
 		// Look down 45 degrees
 		mCamera.pitch = -(Pi / 4.0f);
@@ -79,8 +76,8 @@ void Viewer::onInitialise()
 	}
 	else // Hollow object, place camera at centre.
 	{
-		centre += vec3d({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
-		mCamera.position = vec3d({ centre.x, centre.y, centre.z });
+		centre += dvec3({ 0.1, 0.1, 0.1 }); // Hack to help not be on a certain boundary which triggers assert in debug mode.
+		mCamera.position = dvec3({ centre.x, centre.y, centre.z });
 
 		// Look straight ahead
 		mCamera.pitch = 0.0f;
@@ -155,12 +152,15 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 	//if (mouseButtonState(SDL_BUTTON_LEFT) == MouseButtonState::Down)
 	{
 		Ray3f ray = static_cast<Ray3f>(mCamera.rayFromViewportPos(event.x, event.y, width(), height()));
-		SubDAGArray subDAGs = findSubDAGs(
-			Internals::getNodes(volume()).nodes(), getRootNodeIndex(volume()));
-		RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs, ray, false);
+		Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(
+			Cubiquity::Internals::getNodes(volume()).nodes(), Cubiquity::getRootNodeIndex(volume()));
+		Cubiquity::RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs,
+			ray.mOrigin.x, ray.mOrigin.y, ray.mOrigin.z,
+			ray.mDir.x, ray.mDir.y, ray.mDir.z,
+			false);
 		if (intersection.hit)
 		{
-			SphereBrush brush(static_cast<vec3f>(intersection.position), 30);
+			Cubiquity::SphereBrush brush(intersection.position.x, intersection.position.y, intersection.position.z, 30);
 			mVolume.fillBrush(brush, 0);
 
 			onVolumeModified();

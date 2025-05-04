@@ -36,13 +36,9 @@ namespace Cubiquity
 	using namespace Internals;
 
 	typedef vec3f vec3;
-	typedef vec4f vec4;
 	typedef vec3i ivec3;
-	typedef vec4i ivec4;
 	typedef vec3u uvec3;
-	typedef vec4u uvec4;
 	typedef vec3b bvec3;
-	typedef vec4b bvec4;
 
 	// This structure contains an explicit 'hit' member rather than relying on a sentinal value
 	// such as a negative distance or a material of zero. I have found this simplifies the code
@@ -73,7 +69,16 @@ namespace Cubiquity
 	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex);
 
 	const float MAX_FOOTPRINT_DISABLED = -1.0f;
+	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs,
+		float ray_orig_x, float ray_orig_y, float ray_orig_z,
+		float ray_dir_x, float ray_dir_y, float ray_dir_z,
+		bool computeSurfaceProperties, float maxFootprint = MAX_FOOTPRINT_DISABLED);
 	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs, Ray3f ray, bool computeSurfaceProperties, float maxFootprint = MAX_FOOTPRINT_DISABLED);
+
+	RayVolumeIntersection traceRayRef(Volume& volume,
+		float ray_orig_x, float ray_orig_y, float ray_orig_z,
+		float ray_dir_x, float ray_dir_y, float ray_dir_z);
+	RayVolumeIntersection traceRayRef(Volume& volume, Ray3f ray);
 }
 
 #endif // CUBIQUITY_RAYTRACING_H

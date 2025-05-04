@@ -15,11 +15,11 @@
 
 #include "base/logging.h"
 #include "base/metadata.h"
+#include "base/ray.h"
 
 #include "stb_image.h"
 
 #include "cubiquity.h"
-#include "geometry.h"
 #include "storage.h"
 #include "voxelization.h"
 #include "utility.h"
@@ -36,8 +36,9 @@
 // FIXME - Temporarily added to access writeing volume as images (should not be done from this file).
 #include "commands/export/export.h"
 
-using namespace Cubiquity;
-using namespace Internals;
+using Cubiquity::Volume;
+using Cubiquity::Mesh;
+using Cubiquity::Triangle;
 
 using namespace std;
 
@@ -45,7 +46,7 @@ void voxelizeSurface(Mesh& mesh, Volume& volume)
 {
 	mesh.build();
 
-	MaterialId mainMaterial = findMainMaterial(mesh);
+	Cubiquity::MaterialId mainMaterial = findMainMaterial(mesh);
 
 	Volume temp;
 	voxelize(temp, mesh, mainMaterial, 0);
@@ -79,7 +80,8 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	}
 
 	/* ==== Compute mesh bounds and determine required size/scale ==== */
-	Cubiquity::Box3f bounds;
+	vec3 lower = vec3(std::numeric_limits<float>::max());
+	vec3 upper = vec3(std::numeric_limits<float>::lowest());
 	const auto& vertices = objReader.GetAttrib().vertices;
 	const int vertex_count = vertices.size() / 3; // Safe if not multiple of 3.
 
@@ -88,15 +90,13 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 		auto vx = vertices[3 * vertex_index + 0];
 		auto vy = vertices[3 * vertex_index + 1];
 		auto vz = vertices[3 * vertex_index + 2];
-		bounds.accumulate(vec3f({ vx, vy, vz }));
+		lower = linalg::min(lower, vec3({ vx, vy, vz }));
+		upper = linalg::max(upper, vec3({ vx, vy, vz }));
 	}
 
 	log_debug("Computed object file bounds as = ({},{},{}) to ({},{},{})",
-			 bounds.lower().x, bounds.lower().y, bounds.lower().z,
-			 bounds.upper().x, bounds.upper().y, bounds.upper().z);
-
-	vec3f dims = bounds.upper() - bounds.lower();
-	int longestAxis = max_index(dims);
+			 lower.x, lower.y, lower.z,
+			 upper.x, upper.y, upper.z);
 
 	// If scale is not specified then compute it from desired size
 	log_warning_if(scale && size, "Ignoring --size as --scale also specified");
@@ -107,7 +107,10 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 			log_debug("Using default size of {}", size);
 
 		}
-		scale = static_cast<float>(*size) / dims[longestAxis];
+		// Compute scale based on longest axis length and target size
+		vec3 mesh_dims = upper - lower;
+		float mesh_size = *(std::max_element(begin(mesh_dims), end(mesh_dims)));
+		scale = static_cast<float>(*size) / mesh_size;
 		log_debug("Using scale factor to {} to achieve size of {} voxels",
 		          *scale, *size);
 	}
@@ -186,8 +189,8 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 		for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
 			size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 
-			vec3f temp = { 0.0f, 0.0f, 0.0f };
-			Triangle triangle(temp, temp, temp);
+			//Cubiquity::vec3f temp = { 0.0f, 0.0f, 0.0f };
+			Triangle triangle(0, 0, 0, 0, 0, 0, 0, 0, 0);
 
 			// Loop over vertices in the face.
 			for (size_t v = 0; v < fv; v++) {
@@ -197,7 +200,9 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 				tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
 				tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
 
-				triangle.vertices[v] = vec3f({ vx, vy, vz });
+				triangle.vertices[v].x = vx;
+				triangle.vertices[v].y = vy;
+				triangle.vertices[v].z = vz;
 
 				// Check if `normal_index` is zero or positive. negative = no normal data
 				if (idx.normal_index >= 0) {
@@ -247,11 +252,11 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 			}
 
 			// Use face material if valid, otherwise use default material.
-			MaterialId matId = (faceMaterial >= 0) && (faceMaterial < max_obj_materials) ?
-				static_cast<MaterialId>(matBegin + faceMaterial) : default_material;
+			Cubiquity::MaterialId matId = (faceMaterial >= 0) && (faceMaterial < max_obj_materials) ?
+				static_cast<Cubiquity::MaterialId>(matBegin + faceMaterial) : default_material;
 
 			triangle.scale(*scale);
-			mesh.addTriangle(triangle, static_cast<MaterialId>(matId));
+			mesh.addTriangle(triangle, static_cast<Cubiquity::MaterialId>(matId));
 		}
 
 		voxelizeSurface(mesh, volume);
@@ -274,7 +279,7 @@ bool voxelize(const flags::args& args)
 	const auto outputPath = args.get<std::filesystem::path >("output", defOutputPath.string());
 
 	// Perform the voxelization
-	Timer timer;
+	Cubiquity::Timer timer;
 	Volume volume;
 	Metadata metadata;
 
@@ -302,14 +307,14 @@ bool voxelize(const flags::args& args)
 	// In general the user should run cubiquity a second time to do the export.
 	//saveVolumeAsImages(volume, metadata, ".");
 
-	uint8 outside_material;
-	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	uint8_t outside_material;
+	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
 
 	int64_t histogram[256];
 	cubiquity_compute_histogram(&volume, histogram);
-	uint64 total = 0;
+	uint64_t total = 0;
 	for(int i = 0; i < 256; i++)
 	{
 		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow

@@ -1,7 +1,7 @@
 #ifndef CUBIQUITY_SIMPLEX_NOISE_H_
 #define CUBIQUITY_SIMPLEX_NOISE_H_
 
-#include "geometry.h"
+#include "base/types.h"
 #include "storage.h"
 
 #include <cstdint>
@@ -22,8 +22,8 @@ private:
 	float fractalNoise(int x, int y, int z);
 	Cubiquity::MaterialId voronoiCell(int x, int y, int z);
 
-	Cubiquity::vec3i chooseCentre(Cubiquity::vec3i cell);
-	Cubiquity::MaterialId chooseMaterial(Cubiquity::vec3i cell);
+	ivec3 chooseCentre(ivec3 cell);
+	Cubiquity::MaterialId chooseMaterial(ivec3 cell);
 
 	int mOctaves;
 	int mOffsetX = 0;

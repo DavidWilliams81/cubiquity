@@ -7,7 +7,7 @@
 #include "extraction.h"
 #include "raytracing.h"
 
-using namespace Cubiquity;
+
 
 void GPUPathtracingViewer::onInitialise()
 {
@@ -40,15 +40,15 @@ void GPUPathtracingViewer::onInitialise()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	const Internals::NodeStore& nodeStore = Internals::getNodes(volume()).nodes();
-	SubDAGArray subDAGs = findSubDAGs(nodeStore, getRootNodeIndex(volume()));
+	const Cubiquity::Internals::NodeStore& nodeStore = Cubiquity::Internals::getNodes(volume()).nodes();
+	Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(nodeStore, Cubiquity::getRootNodeIndex(volume()));
 
-	uint32 nodeCount = Internals::getNodes(volume()).bakedNodesEnd();
+	uint32_t nodeCount = Cubiquity::Internals::getNodes(volume()).bakedNodesEnd();
 
 	GLuint dagData;
 	glGenBuffers(1, &dagData);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, dagData);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node) * nodeCount, nodeStore.data(), GL_STATIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Cubiquity::Node) * nodeCount, nodeStore.data(), GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, dagData);
 	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // unbind
 
@@ -135,8 +135,8 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	// the copy to the double-buffered window buffer from there.
 	bool progressive = staticFrameCount >= 2;
 
-	Matrix4x4f PInv = static_cast<Matrix4x4f>(inverse(camera().projectionMatrix()));
-	Matrix4x4f VInv = static_cast<Matrix4x4f>(inverse(camera().viewMatrix()));
+	mat4 PInv = static_cast<mat4>(inverse(camera().projectionMatrix()));
+	mat4 VInv = static_cast<mat4>(inverse(camera().viewMatrix()));
 
 	glBindFramebuffer(GL_FRAMEBUFFER, accFramebuffer);
 	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

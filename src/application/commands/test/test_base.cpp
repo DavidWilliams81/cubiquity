@@ -9,17 +9,16 @@
 #include <numeric>
 #include <vector>
 
-using namespace Cubiquity;
 using namespace std;
 
-uint64 mixPeriod()
+uint64_t mixPeriod()
 {
-	uint32 initialState = 42;
-	uint32 state = initialState;
-	uint64 steps = 0;
+	uint32_t initialState = 42;
+	uint32_t state = initialState;
+	uint64_t steps = 0;
 	do
 	{
-		state = mixBits(state);
+		state = Cubiquity::mixBits(state);
 		steps++;
 	} while (state != initialState);
 
@@ -29,11 +28,11 @@ uint64 mixPeriod()
 bool testBase()
 {
 	// Test utility function 
-	assert(Internals::roundUpToPowerOf2(1023) == 1024);
-	assert(Internals::roundUpToPowerOf2(1024) == 1024);
+	assert(Cubiquity::Internals::roundUpToPowerOf2(1023) == 1024);
+	assert(Cubiquity::Internals::roundUpToPowerOf2(1024) == 1024);
 
 	// Test integer hashing
-	assert(Internals::mixBits(42) == 0x087fcd5c);
+	assert(Cubiquity::Internals::mixBits(42) == 0x087fcd5c);
 
 
 	// Check the period of the mix function. In the future
@@ -44,7 +43,7 @@ bool testBase()
 	// Test data hashing
 	std::vector<int> data(1000000);
 	std::iota (std::begin(data), std::end(data), 0);
-	uint32_t dataHash = Internals::murmurHash3(data.data(), sizeof(data[0]) * data.size(), 123);
+	uint32_t dataHash = Cubiquity::Internals::murmurHash3(data.data(), sizeof(data[0]) * data.size(), 123);
 	assert(dataHash == 0x6e894d1d);
 
 	return true;

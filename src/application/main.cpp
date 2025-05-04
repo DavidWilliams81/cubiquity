@@ -44,8 +44,6 @@ this software. If not, see http://creativecommons.org/publicdomain/zero/1.0/.
 // System libraries
 #include <map>
 
-using namespace Cubiquity;
-
 void log_debug_func(const char* message)
 {
     log_debug("{}", message);

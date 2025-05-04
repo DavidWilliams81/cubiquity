@@ -20,8 +20,8 @@
 
 #include <filesystem>
 
-using namespace Cubiquity;
-using namespace Internals;
+using Cubiquity::Volume;
+using Cubiquity::uint;
 
 using namespace std;
 
@@ -58,12 +58,12 @@ bool generateVolume(const flags::args& args)
 	const auto sizeExp = args.get<uint>("size_exp", 5);
 
 	Volume volume;
-	MaterialId matId = 1;
+	Cubiquity::MaterialId matId = 1;
 	Metadata metadata;
 	metadata.materials.push_back(Metadata::EmptySpace);
 	metadata.materials.push_back(Metadata::Default);
 
-	uint32 size = 1;
+	uint32_t size = 1;
 	for (uint i = 0; i < sizeExp; i++)
 	{
 		size *= 3;

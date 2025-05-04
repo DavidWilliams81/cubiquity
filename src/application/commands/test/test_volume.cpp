@@ -3,6 +3,7 @@
 #include "position_enumerator.h"
 
 #include "base/logging.h"
+#include "base/random3d.h"
 
 #include "cubiquity.h"
 #include "utility.h"
@@ -20,12 +21,11 @@
 #include <mutex>
 #include <set>
 
-using namespace Cubiquity;
-using namespace Cubiquity::Internals;
+using Cubiquity::Volume;
 
 bool checkIntegrity(Volume& volume)
 {
-	const NodeStore& nodes = getNodes(volume).nodes();
+	const Cubiquity::Internals::NodeStore& nodes = Cubiquity::Internals::getNodes(volume).nodes();
 
 	// Reserved nodes always contain dummy data.
 	//for (uint32_t i = 0; i < MaterialCount; i++)
@@ -118,7 +118,7 @@ bool checkIntegrity(Volume& volume)
 
 std::set< std::pair<uint32_t, uint32_t> > mergeOpportunities(Volume& volume)
 {
-	NodeDAG& nodes = getNodes(volume);
+	Cubiquity::Internals::NodeDAG& nodes = Cubiquity::Internals::getNodes(volume);
 
 	std::set< std::pair<uint32_t, uint32_t> > result;
 
@@ -173,9 +173,9 @@ std::set< std::pair<uint32_t, uint32_t> > mergeOpportunities(Volume& volume)
 }
 
 template <typename PositionEnumeratorType, typename Function>
-void applyFunction(Volume* volume, const Box3i& bounds, Function function)
+void applyFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Function function)
 {
-	PositionEnumeratorType pe(bounds);
+	PositionEnumeratorType pe(lower, upper);
 
 	do
 	{
@@ -186,13 +186,13 @@ void applyFunction(Volume* volume, const Box3i& bounds, Function function)
 }
 
 template <typename PositionEnumeratorType, typename Function>
-std::pair<uint32_t, uint32_t> validateFunction(Volume* volume, const Box3i& bounds, Function function, uint64_t maxTests = std::numeric_limits<uint64_t>::max())
+std::pair<uint32_t, uint32_t> validateFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Function function, uint64_t maxTests = std::numeric_limits<uint64_t>::max())
 {
 	uint32_t matches = 0;
 	uint32_t mismatches = 0;
     uint64_t testCount = 0;
 
-	PositionEnumeratorType pe(bounds);
+	PositionEnumeratorType pe(lower, upper);
 
 	do
 	{
@@ -221,32 +221,28 @@ bool testBounds()
 	int sideLength = 256;
 	std::unique_ptr<Volume> volume(new Volume);
 
-	Box3i refResult;
-	Box3i fullVolumeBox3i(vec3i(0), vec3i(sideLength - 1));
+	ivec3 ref_lower(1000000000);
+	ivec3 ref_upper(-1000000000);
 
-	/*Box3iSampler sampler(fullVolumeBox3i);
+	uniform_vec3i_distribution random_vec3i(ivec3(0), ivec3(sideLength - 1));
 
 	for(int ct = 0; ct < 20; ct++)
 	{
-		vec3i pos = sampler.next();
+		ivec3 pos = random_vec3i();
 		volume->setVoxel(pos.x, pos.y, pos.z, 1);
-		refResult.accumulate(pos);
-	}*/
-
-	for(auto pos : Box3iSampler2(20, fullVolumeBox3i))
-	{
-		volume->setVoxel(pos.x, pos.y, pos.z, 1);
-		refResult.accumulate(pos);
+		ref_lower = min(pos, ref_lower);
+		ref_upper = max(pos, ref_upper);
 	}
 
-	const MaterialId externalMaterial = 0;
-	Box3i bounds = computeBounds(*volume, externalMaterial);
+	uint8_t outside_material;
+	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(volume.get(), &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 
-	log_info("Lower     = ({},{},{})", bounds.lower().x, bounds.lower().y, bounds.lower().z);
-	log_info("Ref Lower = ({},{},{})", refResult.lower().x, refResult.lower().y, refResult.lower().z);
+	log_info("Lower     = ({},{},{})", lower_x, lower_y, lower_z);
+	log_info("Ref Lower = ({},{},{})", ref_lower.x, ref_lower.y, ref_lower.z);
 
-	log_info("Upper     = ({},{},{})", bounds.upper().x, bounds.upper().y, bounds.upper().z);
-	log_info("Ref Upper = ({},{},{})", refResult.upper().x, refResult.upper().y, refResult.upper().z);
+	log_info("Upper     = ({},{},{})", upper_x, upper_y, upper_z);
+	log_info("Ref Upper = ({},{},{})", ref_upper.x, ref_upper.y, ref_upper.z);
 
 	return true;
 }
@@ -262,11 +258,12 @@ bool testBasics()
 
 	// Create a volume for some simple tests
 	int sideLength = 64;
-	const Box3i bounds(vec3i(0), vec3i(sideLength - 1));
+	const ivec3 lower(ivec3(0));
+	const ivec3 upper(ivec3(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Volume should start empty
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 0; });
 	log_info("Empty volume node count = {}", volume->countNodes());
 	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -276,8 +273,8 @@ bool testBasics()
 	}
 
 	// Fill it
-	applyFunction<RandomPositionEnumerator>(volume.get(), bounds,  [](uint32_t, uint32_t, uint32_t) { return 5; });
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 5; });
+	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper,  [](uint32_t, uint32_t, uint32_t) { return 5; });
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 5; });
 	log_info("\nFull volume node count = {}", volume->countNodes());
 	log_info("Full volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -287,8 +284,8 @@ bool testBasics()
 	}
 
 	// Empty it again
-	applyFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, [](uint32_t, uint32_t, uint32_t) { return 0; });
+	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 0; });
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 0; });
 	log_info("\nEmpty volume node count = {}", volume->countNodes());
 	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -312,12 +309,13 @@ bool testCheckerboard()
 
 	// Create a volume for some simple tests
 	int sideLength = 64;
-	const Box3i bounds(vec3i(0), vec3i(sideLength - 1));
+	const ivec3 lower(ivec3(0));
+	const ivec3 upper(ivec3(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Fill it
-	applyFunction<RandomPositionEnumerator>(volume.get(), bounds,  checkerboard);
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, checkerboard);
+	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper,  checkerboard);
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, checkerboard);
 
 	log_info("Node count before bake = {}", volume->countNodes());
 	volume->bake();
@@ -339,13 +337,14 @@ bool testRandomAccess()
 
 	// Create a volume for some simple tests
 	int sideLength = 64;
-	const Box3i bounds(vec3i(0), vec3i(sideLength - 1));
+	const ivec3 lower(ivec3(0));
+	const ivec3 upper(ivec3(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
-	Timer timer;
+	Cubiquity::Timer timer;
 	for (int i = 0; i < 10; i++)
 	{
-		applyFunction<RandomPositionEnumerator>(volume.get(), bounds, randomMaterial);
+		applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, randomMaterial);
 	}
 
 	if(!checkIntegrity(*volume))
@@ -368,18 +367,19 @@ bool testSerialization()
 
 	// Create a volume for some simple tests
 	int sideLength = 128;
-	const Box3i bounds(vec3i(0), vec3i(sideLength - 1));
+	const ivec3 lower(ivec3(0));
+	const ivec3 upper(ivec3(sideLength - 1));
 	Volume* volume = new Volume;
 
 	// Write in simplex noise
 	FractalNoise fractalNoise(7, 0, 0, 0);
-	applyFunction<RandomPositionEnumerator>(volume, bounds, fractalNoise);
+	applyFunction<RandomPositionEnumerator>(volume, lower, upper, fractalNoise);
 
 	volume->save("testSerialization.dag");
 	delete volume;
 	volume = new Volume("testSerialization.dag");
 
-	auto validationResult = validateFunction<RandomPositionEnumerator>(volume, bounds, fractalNoise);
+	auto validationResult = validateFunction<RandomPositionEnumerator>(volume, lower, upper, fractalNoise);
 
 	// Test the result
 	log_info("Serialization test gave {} matches and {} mismatches", validationResult.first, validationResult.second);
@@ -402,10 +402,11 @@ bool testFractalNoise()
 
 	// Create a volume for some simple tests
 	int sideLength = 128;
-	const Box3i bounds(vec3i(0), vec3i(sideLength - 1));
+	const ivec3 lower(ivec3(0));
+	const ivec3 upper(ivec3(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
-	Timer timer;
+	Cubiquity::Timer timer;
 	for (int i = 0; i < 10; i++)
 	{
 		// Each iteration samples from a differnt region of the fractal noise field to give different data each time.
@@ -415,7 +416,7 @@ bool testFractalNoise()
 
 		// Write in simplex noise
 		FractalNoise fractalNoise(7, offset, offset, offset);
-		applyFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise);
+		applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, fractalNoise);
 
 		// Sometimes bake the octree
 		if (i % 2 == 0)
@@ -423,7 +424,7 @@ bool testFractalNoise()
 			volume->bake();
 		}
 
-		auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise);
+		auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, fractalNoise);
 
 		// Test the result
 		log_info("Simplex noise test gave {} matches and {} mismatches, node count = {}",
@@ -451,15 +452,16 @@ bool testMerging()
 
 	// Create a volume for some simple tests
 	int sideLength = 256;
-	const Box3i bounds(vec3i(0), vec3i(sideLength - 1));
+	const ivec3 lower(ivec3(0));
+	const ivec3 upper(ivec3(sideLength - 1));
 	std::unique_ptr<Volume> volume(new Volume);
 
-	Timer timer;
+	Cubiquity::Timer timer;
 
 	// Write in simplex noise
 	FractalNoise fractalNoise(9);
 
-	MortonPositionEnumerator pe(bounds);
+	MortonPositionEnumerator pe(lower, upper);
 
 	do
 	{
@@ -477,7 +479,7 @@ bool testMerging()
 	volume->bake();
 	log_info("{} : Baked", timer.elapsedTimeInSeconds());
 
-	auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), bounds, fractalNoise, 1000000);
+	auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, fractalNoise, 1000000);
 
 	// Test the result
 	log_info("Merge test gave {} matches and {} mismatches, node count = {}",
@@ -512,8 +514,8 @@ bool testCSG()
 
 	building.save("../data/csg.dag");
 
-	uint8 outside_material;
-	int32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	uint8_t outside_material;
+	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&building, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
 

@@ -104,6 +104,8 @@ namespace Cubiquity
 	class SphereBrush : public Brush
 	{
 	public:
+		SphereBrush(float x, float y, float z, float radius)
+			:SphereBrush(vec3f(x, y, z), radius) {}
 		SphereBrush(const vec3f& centre, float radius)
 			:mRadiusSquared(radius * radius)
 		{

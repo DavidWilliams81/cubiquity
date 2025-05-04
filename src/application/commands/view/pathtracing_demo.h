@@ -15,8 +15,9 @@
 
 #include "viewer.h"
 
+#include "base/ray.h"
+
 // Cubiquity
-#include "geometry.h"
 #include "extraction.h"
 #include "raytracing.h"
 #include "utility.h"
@@ -30,12 +31,6 @@
 #include <cmath>
 #include <functional>
 #include <random>
-
-using namespace Cubiquity;
-
-typedef vec3f vec3;
-typedef vec3i ivec3;
-typedef vec4i ivec4;
 
 class PathtracingDemo : public Viewer
 {
@@ -67,7 +62,7 @@ private:
 	void raytrace(const Camera& camera);
 
 	float positionBasedNoise(const vec3& position);
-	vec3 surfaceColour(const RayVolumeIntersection& intersection);
+	vec3 surfaceColour(const Cubiquity::RayVolumeIntersection& intersection);
 	vec3 randomPointInUnitSphere();
 	vec3 gatherLighting(vec3 position, vec3 normal);
 	vec3 traceSingleRayRecurse(const Ray3f& ray, uint depth);
@@ -76,7 +71,7 @@ private:
 	// Floating point target for path tracing
 	uint mImageWidth;
 	uint mImageHeight;
-	std::vector<vec3f> mImage;
+	std::vector<vec3> mImage;
 
 	// Intermediate SDL target for blitting with scaling.
 	SDL_Surface* mRgbSurface = nullptr;
@@ -92,7 +87,7 @@ private:
 	uint mAccumulatedFrameCount = 0;
 	bool mPreviewMode = false;
 
-	SubDAGArray subDAGs;
+	Cubiquity::SubDAGArray subDAGs;
 };
 
 #endif // CUBIQUITY_PATHTRACING_DEMO_H

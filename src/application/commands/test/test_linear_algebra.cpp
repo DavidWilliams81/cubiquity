@@ -1,8 +1,7 @@
 #include "test_linear_algebra.h"
 
-#include "geometry.h"
+#include "base/ray.h"
 
-using namespace Cubiquity;
 using namespace std;
 
 bool testLinearAlgebra()
@@ -22,9 +21,9 @@ bool testLinearAlgebra()
 	vec3i vi = static_cast<vec3i>(vf);
 	log_info(vi)*/
 
-	/*Matrix4x4f translation = translationMatrix(vec3f(0.0, 0.0, -10));
-	Matrix4x4f rotation = rotationMatrix(vec4f(0.3f, 1.0f, 0.0f, 0.0f));
-	Matrix4x4f scale = scalingMatrix(vec3f(1.0f, 2.0f, 3.0f));
+	/*mat4 translation = translationMatrix(vec3f(0.0, 0.0, -10));
+	mat4 rotation = rotationMatrix(vec4f(0.3f, 1.0f, 0.0f, 0.0f));
+	mat4 scale = scalingMatrix(vec3f(1.0f, 2.0f, 3.0f));
 
 	auto result = mul(mul(translation, rotation), scale);
 

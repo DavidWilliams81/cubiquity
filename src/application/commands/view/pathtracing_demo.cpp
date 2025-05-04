@@ -16,7 +16,6 @@
 #include "base/logging.h"
 
 // Cubiquity
-#include "geometry.h"
 #include "extraction.h"
 #include "raytracing.h"
 #include "utility.h"
@@ -31,8 +30,6 @@
 #include <functional>
 #include <random>
 
-using namespace Cubiquity;
-
 uint32_t nextPointInUnitSphere = 17;
 
 // Return a small positive noise value
@@ -40,12 +37,12 @@ float PathtracingDemo::positionBasedNoise(const vec3& position)
 {
 	// Because the intersectionl lies exactly between two voxels a proper round to
 	// nearest suffers from floating point problems. Therefore we apply a tiny offset.
-	vec3i roundedIntesectionPosition = static_cast<vec3i>(position + vec3(0.499));
-	uint32 hash = murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
+	ivec3 roundedIntesectionPosition = static_cast<ivec3>(position + vec3(0.499));
+	uint32_t hash = Cubiquity::murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
 	return (hash & 0xff) / 255.0f; // 0.0 to 1.0
 }
 
-vec3 PathtracingDemo::surfaceColour(const RayVolumeIntersection& intersection)
+vec3 PathtracingDemo::surfaceColour(const Cubiquity::RayVolumeIntersection& intersection)
 {
 	vec3 colour = vec3({ colours()[intersection.material][0], colours()[intersection.material][1], colours()[intersection.material][2] });
 
@@ -53,7 +50,8 @@ vec3 PathtracingDemo::surfaceColour(const RayVolumeIntersection& intersection)
 	{
 		// Noise is applied multiplicatively as this avoids creating overshoots
 		// and undershoots for saturated or dark surface colours respectively.
-		float noise = positionBasedNoise(intersection.position);
+		vec3 position(intersection.position.x, intersection.position.y, intersection.position.z);
+		float noise = positionBasedNoise(position);
 		noise = (noise * 0.1) + 0.9; // Map 0.0 - 1.0 to range 0.9 - 1.0.
 		colour *= vec3(noise);
 	}
@@ -66,7 +64,7 @@ vec3 PathtracingDemo::randomPointInUnitSphere()
 	vec3 result;
 	do
 	{
-		nextPointInUnitSphere = mixBits(nextPointInUnitSphere);
+		nextPointInUnitSphere = Cubiquity::mixBits(nextPointInUnitSphere);
 		result[0] = nextPointInUnitSphere & 0x3FF;
 		result[1] = (nextPointInUnitSphere >> 10) & 0x3FF;
 		result[2] = (nextPointInUnitSphere >> 20) & 0x3FF;
@@ -91,7 +89,10 @@ vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 		vec3 sunDir(normalize(vec3({ 1.0, -2.0, 10.0 })));
 
 		Ray3f sunShadowRay(position + offset, sunDir);
-		RayVolumeIntersection sunShadowIntersection = intersectVolume(volume(), subDAGs, sunShadowRay, false, maxFootprint);
+		Cubiquity::RayVolumeIntersection sunShadowIntersection = intersectVolume(volume(), subDAGs,
+			sunShadowRay.mOrigin.x, sunShadowRay.mOrigin.y, sunShadowRay.mOrigin.z,
+			sunShadowRay.mDir.x, sunShadowRay.mDir.y, sunShadowRay.mDir.z,
+			false, maxFootprint);
 		if (sunShadowIntersection.hit == false)
 		{
 			intensity += sunColour * std::max(dot(sunDir, normal), 0.0f);
@@ -103,7 +104,10 @@ vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 		const vec3 skyColour = vec3({ 1.5f, 1.5f, 1.5f });
 		const vec3 skyDir = normalize(normal + randomPointInUnitSphere());
 		Ray3f skyShadowRay(position + offset, skyDir);
-		RayVolumeIntersection skyShadowIntersection = intersectVolume(volume(), subDAGs, skyShadowRay, false, maxFootprint);
+		Cubiquity::RayVolumeIntersection skyShadowIntersection = intersectVolume(volume(), subDAGs,
+			skyShadowRay.mOrigin.x, skyShadowRay.mOrigin.y, skyShadowRay.mOrigin.z,
+			skyShadowRay.mDir.x, skyShadowRay.mDir.y, skyShadowRay.mDir.z,
+			false, maxFootprint);
 		if (skyShadowIntersection.hit == false)
 		{
 			intensity += skyColour;
@@ -115,19 +119,24 @@ vec3 PathtracingDemo::gatherLighting(vec3 position, vec3 normal)
 
 vec3 PathtracingDemo::traceSingleRayRecurse(const Ray3f& ray, uint depth)
 {
-	if (depth > bounces) { return vec3(0); }
+	if (depth > bounces) { return vec3(0, 0, 0); }
 
 	vec3 pixelColour = { 0.8f, 0.8f, 1.0f }; // Light blue background
 
-	RayVolumeIntersection intersection = intersectVolume(volume(), subDAGs, ray, true, maxFootprint);
+	Cubiquity::RayVolumeIntersection intersection = intersectVolume(volume(), subDAGs,
+		ray.mOrigin.x, ray.mOrigin.y, ray.mOrigin.z,
+		ray.mDir.x, ray.mDir.y, ray.mDir.z,
+		true, maxFootprint);
 	if (intersection.hit)
 	{
 		pixelColour = surfaceColour(intersection);
 
-		vec3 directLighting = gatherLighting(intersection.position, intersection.normal);
+		vec3 position(intersection.position.x, intersection.position.y, intersection.position.z);
+		vec3 normal(intersection.normal.x, intersection.normal.y, intersection.normal.z);
+		vec3 directLighting = gatherLighting(position, normal);
 
-		const vec3 reflectedDir = normalize(intersection.normal + randomPointInUnitSphere());
-		const Ray3f reflectedRay(intersection.position + (intersection.normal * 0.01f), reflectedDir);
+		const vec3 reflectedDir = normalize(normal + randomPointInUnitSphere());
+		const Ray3f reflectedRay(position + (normal * 0.01f), reflectedDir);
 
 		vec3 indirectLighting = traceSingleRayRecurse(reflectedRay, depth + 1);
 
@@ -142,21 +151,31 @@ vec3 PathtracingDemo::traceSingleRay(const Ray3f& ray, uint depth)
 {
 	vec3 pixelColour = { 0.8f, 0.8f, 1.0f }; // Light blue background
 
-	RayVolumeIntersection intersection0 = intersectVolume(volume(), subDAGs, ray, true, maxFootprint);
+	Cubiquity::RayVolumeIntersection intersection0 = intersectVolume(volume(), subDAGs,
+		ray.mOrigin.x, ray.mOrigin.y, ray.mOrigin.z,
+		ray.mDir.x, ray.mDir.y, ray.mDir.z,
+		true, maxFootprint);
 	if (intersection0.hit)
 	{
 		vec3 surfCol0 = surfaceColour(intersection0);
-		vec3 directLighting0 = gatherLighting(intersection0.position, intersection0.normal);
+		vec3 position0(intersection0.position.x, intersection0.position.y, intersection0.position.z);
+		vec3 normal0(intersection0.normal.x, intersection0.normal.y, intersection0.normal.z);
+		vec3 directLighting0 = gatherLighting(position0, normal0);
 
-		const vec3 reflectedDir = normalize(intersection0.normal + randomPointInUnitSphere());
-		const Ray3f reflectedRay(intersection0.position + (intersection0.normal * 0.01f), reflectedDir);
+		const vec3 reflectedDir = normalize(normal0 + randomPointInUnitSphere());
+		const Ray3f reflectedRay(position0 + (normal0 * 0.01f), reflectedDir);
 
 		vec3 indirectLighting0 = {0.0f, 0.0f, 0.0f};
-		RayVolumeIntersection intersection1 = intersectVolume(volume(), subDAGs, reflectedRay, true, maxFootprint);
+		Cubiquity::RayVolumeIntersection intersection1 = intersectVolume(volume(), subDAGs,
+			reflectedRay.mOrigin.x, reflectedRay.mOrigin.y, reflectedRay.mOrigin.z,
+			reflectedRay.mDir.x, reflectedRay.mDir.y, reflectedRay.mDir.z,
+			true, maxFootprint);
 		if (intersection1.hit)
 		{
 			vec3 surfCol1 = surfaceColour(intersection1);
-			vec3 directLighting1 = gatherLighting(intersection1.position, intersection1.normal);
+			vec3 position1(intersection1.position.x, intersection1.position.y, intersection1.position.z);
+			vec3 normal1(intersection1.normal.x, intersection1.normal.y, intersection1.normal.z);
+			vec3 directLighting1 = gatherLighting(position1, normal1);
 			indirectLighting0 = surfCol1 * directLighting1;
 		}
 
@@ -188,7 +207,7 @@ void PathtracingDemo::updateResolution()
 
 void PathtracingDemo::clear()
 {
-	std::fill(mImage.begin(), mImage.end(), vec3f(0.0f));
+	std::fill(mImage.begin(), mImage.end(), vec3(0.0f));
 	mAccumulatedFrameCount = 0;
 }
 
@@ -200,7 +219,7 @@ void PathtracingDemo::raytrace(const Camera& camera)
 		{
 			Ray3f ray = static_cast<Ray3f>(camera.rayFromViewportPos(x, y, mImageWidth, mImageHeight));
 
-			vec3f pixel = traceSingleRay(ray, 0);
+			vec3 pixel = traceSingleRay(ray, 0);
 
 			mImage[y * mImageWidth + x] += pixel;
 		}
@@ -214,7 +233,7 @@ void PathtracingDemo::onUpdate(float deltaTime)
 	Viewer::onUpdate(deltaTime);
 
 	// Update the pathtraced image
-	Timer timer;
+	Cubiquity::Timer timer;
 	raytrace(camera());
 	log_info("Rendered frame in {}ms", timer.elapsedTimeInMilliSeconds());
 
@@ -315,8 +334,8 @@ void PathtracingDemo::onCameraModified()
 
 void PathtracingDemo::onVolumeModified()
 {
-	subDAGs = findSubDAGs(
-		Internals::getNodes(volume()).nodes(), getRootNodeIndex(volume()));
+	subDAGs = Cubiquity::findSubDAGs(
+		Cubiquity::Internals::getNodes(volume()).nodes(), Cubiquity::getRootNodeIndex(volume()));
 
 	clear();
 }

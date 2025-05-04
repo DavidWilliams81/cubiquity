@@ -1,12 +1,11 @@
 #include "instancing_demo.h"
 
 #include "base/logging.h"
+#include "base/types.h"
 
 #include "utility.h"
 
 #include "extraction.h"
-
-using namespace Cubiquity;
 
 const uint32_t MaxGlyphCount = 10000000;
 
@@ -73,7 +72,7 @@ void InstancingDemo::onInitialise()
 	glBufferData(GL_ARRAY_BUFFER, MaxGlyphCount * 8 * sizeof(GLfloat), NULL, GL_STREAM_DRAW);
 
 
-	mGlyphs = new Glyph[MaxGlyphCount];
+	mGlyphs = new Cubiquity::Glyph[MaxGlyphCount];
 
 	// Light blue background
 	glClearColor(0.8f, 0.8f, 1.0f, 0.0f);
@@ -86,20 +85,20 @@ void InstancingDemo::onUpdate(float deltaTime)
 {
 	OpenGLViewer::onUpdate(deltaTime);
 
-	const vec3f volumeCentre = vec3f({ 0.0f, 0.0f, 0.0f });
+	const vec3 volumeCentre = vec3({ 0.0f, 0.0f, 0.0f });
 
-	Timer timer;
+	Cubiquity::Timer timer;
 
-	NormalEstimation normalEstimation = NormalEstimation::None;
+	Cubiquity::NormalEstimation normalEstimation = Cubiquity::NormalEstimation::None;
 
 	// Per-glyph normals looks poor if they are too large, so subdivide.
-	bool subdivideMaterialNodes = normalEstimation != NormalEstimation::None;
+	bool subdivideMaterialNodes = normalEstimation != Cubiquity::NormalEstimation::None;
 
 	if (mNeedsUpdate)
 	{
 		//mGlyphCount = mVisibilityCalculator->findVisibleOctreeNodes(&(volume()), camera().position, normalEstimation, subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
 
-		mGlyphCount = extractGlyphs(const_cast<Volume&>(volume()), subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
+		mGlyphCount = extractGlyphs(const_cast<Cubiquity::Volume&>(volume()), subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
 
 		log_debug("Found {} glyphs in {}ms", mGlyphCount, timer.elapsedTimeInMilliSeconds());
 		assert(mGlyphCount <= MaxGlyphCount);
@@ -107,14 +106,14 @@ void InstancingDemo::onUpdate(float deltaTime)
 		// Update the buffers that OpenGL uses for rendering.
 		// See http://www.opengl.org/wiki/Buffer_Object_Streaming for other approaches
 		glBindBuffer(GL_ARRAY_BUFFER, mPerInstanceDataBuffer);
-		glBufferData(GL_ARRAY_BUFFER, MaxGlyphCount * sizeof(Glyph), NULL, GL_STREAM_DRAW); // Buffer orphaning
-		glBufferSubData(GL_ARRAY_BUFFER, 0, mGlyphCount * sizeof(Glyph), mGlyphs);
+		glBufferData(GL_ARRAY_BUFFER, MaxGlyphCount * sizeof(Cubiquity::Glyph), NULL, GL_STREAM_DRAW); // Buffer orphaning
+		glBufferSubData(GL_ARRAY_BUFFER, 0, mGlyphCount * sizeof(Cubiquity::Glyph), mGlyphs);
 
 		mNeedsUpdate = false;
 	}
 
-	Matrix4x4f ProjectionMatrix = static_cast<Matrix4x4f>(camera().projectionMatrix());
-	Matrix4x4f ViewMatrix = static_cast<Matrix4x4f>(camera().viewMatrix());
+	mat4 ProjectionMatrix = static_cast<mat4>(camera().projectionMatrix());
+	mat4 ViewMatrix = static_cast<mat4>(camera().viewMatrix());
 
 	// Use our shader
 	glUseProgram(glyphProgram);
@@ -136,7 +135,7 @@ void InstancingDemo::onUpdate(float deltaTime)
 	// https://community.khronos.org/t/rendering-order-within-a-single-draw-call/66591/4
 	glEnable(GL_DEPTH_TEST);
 
-	Matrix4x4f ModelMatrix = translation_matrix(volumeCentre);
+	mat4 ModelMatrix = translation_matrix(volumeCentre);
 	glUniformMatrix4fv(modelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
 
 	glBindVertexArray(VertexArrayID);

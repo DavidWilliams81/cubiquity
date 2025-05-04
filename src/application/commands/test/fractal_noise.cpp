@@ -1,9 +1,8 @@
 #include "fractal_noise.h"
 
-#include "geometry.h"
 #include "storage.h"
 
-using namespace Cubiquity;
+using Cubiquity::MaterialId;
 
 extern "C"
 {
@@ -63,8 +62,8 @@ float FractalNoise::fractalNoise(int x, int y, int z)
 
 MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 {
-	vec3i pos({ x, y, z });
-	const vec3i cell = pos / mCellSize;
+	ivec3 pos({ x, y, z });
+	const ivec3 cell = pos / mCellSize;
 
 	MaterialId closestMaterial = 0;
 	int closestCellDistanceSquared = 1000000000;
@@ -75,10 +74,10 @@ MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 		{
 			for (int nx = -1; nx <= 1; nx++)
 			{
-				vec3i neighbourCellOffset({ nx, ny, nz });
-				vec3i neighbourCell = cell + neighbourCellOffset;
-				vec3i neighbourCentre = chooseCentre(neighbourCell);
-				vec3i toNeighbour = neighbourCentre - pos;
+				ivec3 neighbourCellOffset({ nx, ny, nz });
+				ivec3 neighbourCell = cell + neighbourCellOffset;
+				ivec3 neighbourCentre = chooseCentre(neighbourCell);
+				ivec3 toNeighbour = neighbourCentre - pos;
 				int neighbourDistSquared = dot(toNeighbour, toNeighbour);
 
 				if (neighbourDistSquared < closestCellDistanceSquared)
@@ -93,24 +92,24 @@ MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 	return closestMaterial;
 }
 
-vec3i FractalNoise::chooseCentre(vec3i cell)
+ivec3 FractalNoise::chooseCentre(ivec3 cell)
 {
 	// When hashing for centre we use a differnt seed than when hashing for material.
-	uint32_t cellHash = Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
+	uint32_t cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
 
 	int32_t x = cellHash % mCellSize;
-	cellHash = Internals::mixBits(cellHash);
+	cellHash = Cubiquity::Internals::mixBits(cellHash);
 	int32_t y = cellHash % mCellSize;
-	cellHash = Internals::mixBits(cellHash);
+	cellHash = Cubiquity::Internals::mixBits(cellHash);
 	int32_t z = cellHash % mCellSize;
 
-	return cell * mCellSize + vec3i({ x, y, z });
+	return cell * mCellSize + ivec3({ x, y, z });
 }
 
-MaterialId FractalNoise::chooseMaterial(vec3i cell)
+MaterialId FractalNoise::chooseMaterial(ivec3 cell)
 {
 	// When hashing for material we use a differnt seed than when hashing for centre.
-	uint32_t cellHash = Internals::murmurHash3(&(cell[0]), sizeof(cell), 65);
+	uint32_t cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 65);
 
 	const uint32_t limit = 50; // Increase this to get more cells which are clamped to max material.
 	cellHash %= limit; // Constrain to range 0 - (limit-1)

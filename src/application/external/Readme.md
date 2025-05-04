@@ -27,6 +27,11 @@ Cubiquity uses the following open source libraries:
     - JSON for Modern C++
     - MIT license
     - https://github.com/nlohmann/json
+	
+* linalg
+    - Single header short vector math library for C++
+    - Public domain
+    - https://github.com/sgorsten/linalg
 
 * PoolSTL
     - Light, self-contained, thread pool-based implementation of C++17 parallel
