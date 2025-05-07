@@ -41,8 +41,8 @@ public:
 	{
 		// Iterate over positions (either in pseudorandom order or linearly)
 		// until one is found which is valid for the current bounds.
-		uint32_t offset = Random ? 7753    : 1;
-		uint32_t scale  = Random ? 2976221 : 1;
+		u32 offset = Random ? 7753    : 1;
+		u32 scale  = Random ? 2976221 : 1;
 		do 			{
 			mPosition = mPosition * scale + offset;
 		} while (mPosition >= (mWidth * mHeight * mDepth));
@@ -53,14 +53,14 @@ public:
 		return mPosition != mStartPos;
 	}
 
-	uint32_t x() { return mOrigin.x + mXPos; }
-	uint32_t y() { return  mOrigin.y + mYPos; }
-	uint32_t z() { return  mOrigin.z + mZPos; }
+	u32 x() { return mOrigin.x + mXPos; }
+	u32 y() { return  mOrigin.y + mYPos; }
+	u32 z() { return  mOrigin.z + mZPos; }
 
 private:
 
 	// See https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
-	uint32_t Compact1By2(uint32_t x)
+	u32 Compact1By2(u32 x)
 	{
 		x &= 0x09249249;
 		x = (x ^ (x >> 2)) & 0x030c30c3;
@@ -80,7 +80,7 @@ private:
 		}
 		else
 		{
-			uint32_t position = mPosition;
+			u32 position = mPosition;
 			mXPos = position % mWidth;
 			position /= mWidth;
 			mYPos = position % mHeight;
@@ -89,21 +89,21 @@ private:
 		}
 	}
 
-	static const uint32_t mStartPos = 0;
+	static const u32 mStartPos = 0;
 
 	// Domain
 	ivec3 mOrigin;
-	uint32_t mWidth;
-	uint32_t mHeight;
-	uint32_t mDepth;
+	u32 mWidth;
+	u32 mHeight;
+	u32 mDepth;
 
 	// Encoded position
-	uint32_t mPosition;
+	u32 mPosition;
 
 	// Decoded components
-	uint32_t mXPos;
-	uint32_t mYPos;
-	uint32_t mZPos;
+	u32 mXPos;
+	u32 mYPos;
+	u32 mZPos;
 };
 
 typedef PositionEnumerator<Linear> LinearPositionEnumerator;

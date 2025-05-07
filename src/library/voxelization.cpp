@@ -270,7 +270,7 @@ float computeWindingNumber(const vec3f& queryPoint, const Patch& patch)
 TriangleList computeClosingTriangles(TriangleSpan triangles)
 {
 	typedef std::pair<vec3f, vec3f> TriangleEdge;
-	std::unordered_map<TriangleEdge, int32_t, Internals::MurmurHash3<TriangleEdge> > edgeCounts;
+	std::unordered_map<TriangleEdge, i32, Internals::MurmurHash3<TriangleEdge> > edgeCounts;
 
 	edgeCounts.max_load_factor(1.0); // Default anyway, changing it doesn't seem to help?
 	edgeCounts.reserve(triangles.size() * 3);
@@ -304,7 +304,7 @@ TriangleList computeClosingTriangles(TriangleSpan triangles)
 	for (const auto& edgeCount : edgeCounts)
 	{
 		TriangleEdge edge = edgeCount.first;
-		int32_t count = edgeCount.second;
+		i32 count = edgeCount.second;
 
 		if (count < 0)
 		{
@@ -408,7 +408,7 @@ Patch::Patch(TriangleSpan triSpan)
 ***************************************************************************************************/
 
 // A callback for each voxel which is part of the triangle. 
-typedef std::function<void(int32, int32, int32, MaterialId)> DrawVoxelFunc;
+typedef std::function<void(i32, i32, i32, MaterialId)> DrawVoxelFunc;
 
 void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
 	                   float thickness, DrawVoxelFunc drawVoxel)
@@ -428,11 +428,11 @@ void drawSmallTriangle(const Triangle& triangle, MaterialId matId,
 		static_cast<vec3i>(ceil(triBounds.mExtents[0])),
 		static_cast<vec3i>(floor(triBounds.mExtents[1])) };
 
-	for (int32_t z = triBoundsAsInt.lower().z; z <= triBoundsAsInt.upper().z; z++)
+	for (i32 z = triBoundsAsInt.lower().z; z <= triBoundsAsInt.upper().z; z++)
 	{
-		for (int32_t y = triBoundsAsInt.lower().y; y <= triBoundsAsInt.upper().y; y++)
+		for (i32 y = triBoundsAsInt.lower().y; y <= triBoundsAsInt.upper().y; y++)
 		{
-			for (int32_t x = triBoundsAsInt.lower().x; x <= triBoundsAsInt.upper().x; x++)
+			for (i32 x = triBoundsAsInt.lower().x; x <= triBoundsAsInt.upper().x; x++)
 			{
 				const vec3f pos = { (float)x,(float)y,(float)z };
 
@@ -502,7 +502,7 @@ void drawLargeTriangle(const Triangle& triangle, MaterialId matId,
 
 void drawTriangles(const TriangleList& triList, const MaterialList& materialList, float thickness, DrawVoxelFunc drawVoxel)
 {
-	uint32_t trianglesDrawn = 0;
+	u32 trianglesDrawn = 0;
 	for (uint i = 0; i < triList.size(); i++)
 	{
 		drawLargeTriangle(triList[i], materialList[i], thickness, drawVoxel);
@@ -524,8 +524,8 @@ void drawTriangles(const TriangleList& triList, const MaterialList& materialList
 
 struct NodeToTest
 {
-	uint32_t index;
-	uint32_t childId;
+	u32 index;
+	u32 childId;
 	vec3f centre;
 	bool result;
 };
@@ -550,7 +550,7 @@ public:
 		return Box3i(childLowerBound, childUpperBound);
 	}
 
-	bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& nodeBounds)
+	bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& nodeBounds)
 	{
 		// Signal to stop traversing parts of the tree which do not overlap our voxelized object.
 		if (!overlaps(nodeBounds, mBounds)) { return false; }
@@ -564,7 +564,7 @@ public:
 		{
 			for (unsigned int childId = 0; childId < 8; childId++)
 			{
-				uint32 childNodeIndex = nodes[nodeIndex][childId];
+				u32 childNodeIndex = nodes[nodeIndex][childId];
 				if (isMaterialNode(childNodeIndex))
 				{
 					Box3i childNodeBounds = childBounds(nodeBounds, childId);
@@ -620,12 +620,12 @@ void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, 
 	});
 }
 
-uint32 prune(NodeDAG& nodes, uint32 nodeIndex)
+u32 prune(NodeDAG& nodes, u32 nodeIndex)
 {
 	Node node = nodes[nodeIndex];
 	for (int i = 0; i < 8; i++)
 	{
-		uint32 nodeChildIndex = node[i];
+		u32 nodeChildIndex = node[i];
 		if (!isMaterialNode(nodeChildIndex))
 		{
 			node[i] = prune(nodes, nodeChildIndex);
@@ -637,9 +637,9 @@ uint32 prune(NodeDAG& nodes, uint32 nodeIndex)
 
 void prune(Volume& volume)
 {
-	uint32 rootNodeIndex = getRootNodeIndex(volume);
+	u32 rootNodeIndex = getRootNodeIndex(volume);
 	NodeDAG& nodes = getNodes(volume);
-	uint32 newRootNodeIndex = prune(nodes, rootNodeIndex);
+	u32 newRootNodeIndex = prune(nodes, rootNodeIndex);
 	volume.setRootNodeIndex(newRootNodeIndex);
 }
 
@@ -692,11 +692,11 @@ void doPerVoxelVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, Materia
 	vec3i maxBound = voxelisationBounds.upper();
 
 	// Iterate over each voxel within the bounds and classify as inside or outside
-	for (int32 volZ = minBound.z; volZ <= maxBound.z; volZ++)
+	for (i32 volZ = minBound.z; volZ <= maxBound.z; volZ++)
 	{
-		for (int32 volY = minBound.y; volY <= maxBound.y; volY++)
+		for (i32 volY = minBound.y; volY <= maxBound.y; volY++)
 		{
-			for (int32 volX = minBound.x; volX <= maxBound.x; volX++)
+			for (i32 volX = minBound.x; volX <= maxBound.x; volX++)
 			{
 				vec3f queryPoint = { static_cast<float>(volX), static_cast<float>(volY), static_cast<float>(volZ) };
 				auto material = isInside(queryPoint, mesh) ? fill : background;
@@ -728,7 +728,7 @@ void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background
 			// eight voxels can all be set which would then be pruned. The checkerboard does not prevent DAG
 			// deduplication, but that does not happen automatically anyway.
 			drawTriangles(mesh.triangles, mesh.materials, -1.0,
-				[&](int32 x, int32 y, int32 z, MaterialId matId) {
+				[&](i32 x, i32 y, i32 z, MaterialId matId) {
 					MaterialId checkerboard = ((x & 0x1) ^ (y & 0x1) ^ (z & 0x1));
 					volume.setVoxel(x, y, z, background + checkerboard + 1);
 				});
@@ -746,13 +746,13 @@ void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background
 		// Note that the triangle order can matter when multiple triangles pass close to a voxel,
 		// and by drawing them in the user-supplied order we let the user control the result.
 		drawTriangles(mesh.triangles, mesh.materials, 1.0,
-			[&](int32 x, int32 y, int32 z, MaterialId matId) {
+			[&](i32 x, i32 y, i32 z, MaterialId matId) {
 				if (volume.voxel(x, y, z) != background || mesh.isThin) {
 					volume.setVoxel(x, y, z, matId);
 				}
 			});
 	} else { // Fall back to just drawing the shell of the object (in user-supplied order, as above)
-		auto draw = [&](int32 x, int32 y, int32 z, MaterialId matId) {
+		auto draw = [&](i32 x, i32 y, i32 z, MaterialId matId) {
 			volume.setVoxel(x, y, z, matId);
 			};
 		drawTriangles(mesh.triangles, mesh.materials, -1.0, draw);
@@ -792,7 +792,7 @@ void Mesh::build()
 	const float tolerance = 0.1f;
 
 	Cubiquity::Box3fSampler sampler(bounds);
-	for (uint32_t i = 0; i < sampleCount; i++)
+	for (u32 i = 0; i < sampleCount; i++)
 	{
 		vec3f point = sampler.next();
 

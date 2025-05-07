@@ -95,13 +95,13 @@ MaterialId FractalNoise::voronoiCell(int x, int y, int z)
 ivec3 FractalNoise::chooseCentre(ivec3 cell)
 {
 	// When hashing for centre we use a differnt seed than when hashing for material.
-	uint32_t cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
+	u32 cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
 
-	int32_t x = cellHash % mCellSize;
+	i32 x = cellHash % mCellSize;
 	cellHash = Cubiquity::Internals::mixBits(cellHash);
-	int32_t y = cellHash % mCellSize;
+	i32 y = cellHash % mCellSize;
 	cellHash = Cubiquity::Internals::mixBits(cellHash);
-	int32_t z = cellHash % mCellSize;
+	i32 z = cellHash % mCellSize;
 
 	return cell * mCellSize + ivec3({ x, y, z });
 }
@@ -109,12 +109,12 @@ ivec3 FractalNoise::chooseCentre(ivec3 cell)
 MaterialId FractalNoise::chooseMaterial(ivec3 cell)
 {
 	// When hashing for material we use a differnt seed than when hashing for centre.
-	uint32_t cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 65);
+	u32 cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 65);
 
-	const uint32_t limit = 50; // Increase this to get more cells which are clamped to max material.
+	const u32 limit = 50; // Increase this to get more cells which are clamped to max material.
 	cellHash %= limit; // Constrain to range 0 - (limit-1)
 	cellHash += 1;     // Constrain to range 1 - limit
-	cellHash = std::min(cellHash, uint32_t(7)); // Cells between 7 and limit get set to 7.
+	cellHash = std::min(cellHash, u32(7)); // Cells between 7 and limit get set to 7.
 
 	// Most cells get mat id of 7, with some getting a smaller id.
 	MaterialId material = cellHash;

@@ -1,5 +1,7 @@
 #include "test_base.h"
 
+#include "base/types.h"
+
 #include "framework.h"
 
 #include "storage.h"
@@ -11,11 +13,11 @@
 
 using namespace std;
 
-uint64_t mixPeriod()
+u64 mixPeriod()
 {
-	uint32_t initialState = 42;
-	uint32_t state = initialState;
-	uint64_t steps = 0;
+	u32 initialState = 42;
+	u32 state = initialState;
+	u64 steps = 0;
 	do
 	{
 		state = Cubiquity::mixBits(state);
@@ -43,7 +45,7 @@ bool testBase()
 	// Test data hashing
 	std::vector<int> data(1000000);
 	std::iota (std::begin(data), std::end(data), 0);
-	uint32_t dataHash = Cubiquity::Internals::murmurHash3(data.data(), sizeof(data[0]) * data.size(), 123);
+	u32 dataHash = Cubiquity::Internals::murmurHash3(data.data(), sizeof(data[0]) * data.size(), 123);
 	assert(dataHash == 0x6e894d1d);
 
 	return true;

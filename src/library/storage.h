@@ -28,12 +28,12 @@ namespace Cubiquity
 	{
 		constexpr MaterialId MinMaterial = std::numeric_limits< MaterialId>::min();
 		constexpr MaterialId MaxMaterial = std::numeric_limits< MaterialId>::max();
-		constexpr uint32     MaterialCount = static_cast<uint32>(MaxMaterial) + 1;
-		constexpr uint64     VolumeSideLength = UINT64_C(1) << 32;
+		constexpr u32     MaterialCount = static_cast<u32>(MaxMaterial) + 1;
+		constexpr u64     VolumeSideLength = UINT64_C(1) << 32;
 
-		bool isMaterialNode(uint32 nodeIndex);
+		bool isMaterialNode(u32 nodeIndex);
 
-		typedef std::array<uint32_t, 8> Node;
+		typedef std::array<u32, 8> Node;
 
 		class NodeStore
 		{
@@ -41,12 +41,12 @@ namespace Cubiquity
 			NodeStore() { mData = new Node[size()]; }
 			~NodeStore() { delete[] mData; }
 
-			const Node& operator[](uint32_t index) const { return mData[index]; }
+			const Node& operator[](u32 index) const { return mData[index]; }
 
-			void setNode(uint32 index, const Internals::Node& node);
-			void setNodeChild(uint32 nodeIndex, uint32 childId, uint32 newChildIndex);
+			void setNode(u32 index, const Internals::Node& node);
+			void setNodeChild(u32 nodeIndex, u32 childId, u32 newChildIndex);
 			Node* data() const { return mData; }
-			uint32 size() const { return 0x3FFFFFF; }
+			u32 size() const { return 0x3FFFFFF; }
 			
 		private:
 			Node* mData = nullptr;
@@ -57,21 +57,21 @@ namespace Cubiquity
 		public:
 			NodeDAG();
 
-			const Node& operator[](uint32_t index) const { return mNodes[index]; }
+			const Node& operator[](u32 index) const { return mNodes[index]; }
 
-			uint32 bakedNodesBegin() const { return MaterialCount; }
-			uint32 bakedNodesEnd() const { return mBakedNodesEnd; }
-			uint32 editNodesBegin() const { return mEditNodesBegin; }
-			uint32 editNodesEnd() const { return mNodes.size(); }
+			u32 bakedNodesBegin() const { return MaterialCount; }
+			u32 bakedNodesEnd() const { return mBakedNodesEnd; }
+			u32 editNodesBegin() const { return mEditNodesBegin; }
+			u32 editNodesEnd() const { return mNodes.size(); }
 
-			bool isBakedNode(uint32 index) const { return index >= bakedNodesBegin() && index < bakedNodesEnd(); }
-			bool isEditNode(uint32 index) const { return index >= editNodesBegin() && index < editNodesEnd(); }
+			bool isBakedNode(u32 index) const { return index >= bakedNodesBegin() && index < bakedNodesEnd(); }
+			bool isEditNode(u32 index) const { return index >= editNodesBegin() && index < editNodesEnd(); }
 
 			NodeStore& nodes() { return mNodes; }
 			const NodeStore& nodes() const { return mNodes; }
 
-			uint32 countNodes(uint32 startNodeIndex) const;
-			void countNodes(uint32 startNodeIndex, std::unordered_set<uint32>& usedIndices) const;
+			u32 countNodes(u32 startNodeIndex) const;
+			void countNodes(u32 startNodeIndex, std::unordered_set<u32>& usedIndices) const;
 
 			void read(std::ifstream& file);
 			void write(std::ofstream& file);
@@ -79,16 +79,16 @@ namespace Cubiquity
 
 			bool isPrunable(const Node& node) const;
 
-			uint32 insert(const Node& node);
-			uint32 updateNodeChild(uint32 nodeIndex, uint32 childId, uint32 newChildNodeIndex, bool forceCopy);
+			u32 insert(const Node& node);
+			u32 updateNodeChild(u32 nodeIndex, u32 childId, u32 newChildNodeIndex, bool forceCopy);
 
-			void merge(uint32 index);
-			uint32 mergeNode(uint32 nodeIndex, std::unordered_map<Internals::Node, uint32>& map, uint32& nextSpace);
+			void merge(u32 index);
+			u32 mergeNode(u32 nodeIndex, std::unordered_map<Internals::Node, u32>& map, u32& nextSpace);
 
 		private:
 			NodeStore mNodes;
-			uint32 mBakedNodesEnd = MaterialCount;
-			uint32 mEditNodesBegin = 0;
+			u32 mBakedNodesEnd = MaterialCount;
+			u32 mEditNodesBegin = 0;
 		};
 	}
 
@@ -121,7 +121,7 @@ namespace Cubiquity
 			float distY = point.y - mCentre.y;
 			float distZ = point.z - mCentre.z;
 
-			int64 distSq = (distX * distX + distY * distY + distZ * distZ);
+			i64 distSq = (distX * distX + distY * distY + distZ * distZ);
 
 			return distSq < mRadiusSquared;
 		}
@@ -148,8 +148,8 @@ namespace Cubiquity
 		/// Provides access to the raw node data.
 		NodeDAG& getNodes(Volume& volume);
 		const NodeDAG& getNodes(const Volume& volume);
-		//uint32& getRootNodeIndex(Volume& volume);
-		const uint32 getRootNodeIndex(const Volume& volume);
+		//u32& getRootNodeIndex(Volume& volume);
+		const u32 getRootNodeIndex(const Volume& volume);
 	}
 
 	class Volume
@@ -161,33 +161,33 @@ namespace Cubiquity
 
 		void fill(MaterialId matId);
 
-		uint32 rootNodeIndex() const;
-		void setRootNodeIndex(uint32 newRootNodeIndex);
+		u32 rootNodeIndex() const;
+		void setRootNodeIndex(u32 newRootNodeIndex);
 
 		void setTrackEdits(bool trackEdits);
 		bool undo();
 		bool redo();
 
-		void setVoxelRecursive(int32_t x, int32_t y, int32_t z, MaterialId matId);
-		uint32 setVoxelRecursive(uint32 ux, uint32 uy, uint32 uz, MaterialId matId, uint32 nodeIndex, int nodeHeight);
+		void setVoxelRecursive(i32 x, i32 y, i32 z, MaterialId matId);
+		u32 setVoxelRecursive(u32 ux, u32 uy, u32 uz, MaterialId matId, u32 nodeIndex, int nodeHeight);
 
 		template <typename ArrayType>
 		void setVoxel(const ArrayType& position, MaterialId matId);
-		void setVoxel(int32_t x, int32_t y, int32_t z, MaterialId matId);
+		void setVoxel(i32 x, i32 y, i32 z, MaterialId matId);
 
 		void fillBrush(const Brush& brush, MaterialId matId);
-		uint32 fillBrush(const Brush& brush, MaterialId matId, uint32 nodeIndex, int nodeHeight, int32 nodeLowerX, int32 nodeLowerY, int32 nodeLowerZ);
+		u32 fillBrush(const Brush& brush, MaterialId matId, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ);
 
 		void addVolume(const Volume& rhsVolume);
-		uint32 addVolume(const Volume& rhsVolume, uint32 rhsNodeIndex, uint32 nodeIndex, int nodeHeight, int32 nodeLowerX, int32 nodeLowerY, int32 nodeLowerZ);
+		u32 addVolume(const Volume& rhsVolume, u32 rhsNodeIndex, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ);
 
 		template <typename ArrayType>
 		MaterialId voxel(const ArrayType& position) const;
-		MaterialId voxel(int32_t x, int32_t y, int32_t z) const;
+		MaterialId voxel(i32 x, i32 y, i32 z) const;
 
 		void bake();
 
-		uint32 countNodes() const { return mDAG.countNodes(rootNodeIndex()); };
+		u32 countNodes() const { return mDAG.countNodes(rootNodeIndex()); };
 
 		bool load(const std::string& filename);
 		void save(const std::string& filename);
@@ -196,8 +196,8 @@ namespace Cubiquity
 
 		friend Internals::NodeDAG& Internals::getNodes(Volume& volume);
 		friend const Internals::NodeDAG& Internals::getNodes(const Volume& volume);
-		//friend uint32& Internals::getRootNodeIndex(Volume& volume);
-		friend const uint32 Internals::getRootNodeIndex(const Volume& volume);
+		//friend u32& Internals::getRootNodeIndex(Volume& volume);
+		friend const u32 Internals::getRootNodeIndex(const Volume& volume);
 		
 		Internals::NodeDAG mDAG;
 
@@ -206,8 +206,8 @@ namespace Cubiquity
 		// exists (it is jst unreferenced). But having such an undo history tree will probably be confusing
 		// for the user, moving forwards and backwards is probably enough.
 		bool mTrackEdits = false;
-		std::vector<uint32> mRootNodeIndices;
-		uint32 mCurrentRoot = 0;
+		std::vector<u32> mRootNodeIndices;
+		u32 mCurrentRoot = 0;
 	};
 
 	// Implementation of templatised accessors
@@ -227,7 +227,7 @@ namespace std
 	template<>
 	struct hash<Cubiquity::Internals::Node>
 	{
-		Cubiquity::uint32 seed = 0;
+		Cubiquity::u32 seed = 0;
 
 		std::size_t operator()(const Cubiquity::Internals::Node& node) const noexcept
 		{

@@ -206,8 +206,8 @@ struct Vec3
 };
 
 // Typedefs for basic vector types
-typedef Vec3<int32> vec3i;
-typedef Vec3<uint32> vec3u;
+typedef Vec3<i32> vec3i;
+typedef Vec3<u32> vec3u;
 typedef Vec3<bool> vec3b;
 typedef Vec3<float> vec3f;
 typedef Vec3<double> vec3d;
@@ -224,7 +224,7 @@ public:
 
 	template <typename CastType> explicit Ray3(const Ray3<CastType>& ray)
 	{
-		//for (uint32_t ct = 0; ct < Size; ++ct) { data[ct] = static_cast<Type>(vector.data[ct]); }
+		//for (u32 ct = 0; ct < Size; ++ct) { data[ct] = static_cast<Type>(vector.data[ct]); }
 		mOrigin = static_cast<VecType>(ray.mOrigin);
 		mDir = static_cast<VecType>(ray.mDir);
 	}
@@ -380,12 +380,12 @@ public:
 
 	// Note that these integer dimensions add one to include last voxel, and
 	// return integers types which are wider than the internal representation.
-	int64 width()  const { return static_cast<int64>(upper()[0]) - static_cast<int64>(lower()[0]) + 1; }
-	int64 height() const { return static_cast<int64>(upper()[1]) - static_cast<int64>(lower()[1]) + 1; }
-	int64 depth()  const { return static_cast<int64>(upper()[2]) - static_cast<int64>(lower()[2]) + 1; }
+	i64 width()  const { return static_cast<i64>(upper()[0]) - static_cast<i64>(lower()[0]) + 1; }
+	i64 height() const { return static_cast<i64>(upper()[1]) - static_cast<i64>(lower()[1]) + 1; }
+	i64 depth()  const { return static_cast<i64>(upper()[2]) - static_cast<i64>(lower()[2]) + 1; }
 
 	// FIXME - Handle overflow.
-	int64 voxelCount() const { return width() * height() * depth(); }
+	i64 voxelCount() const { return width() * height() * depth(); }
 };
 
 class Box3fSampler

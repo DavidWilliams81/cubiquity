@@ -37,7 +37,7 @@ namespace Cubiquity
 		void inc() { mValue++; }
 	private:
 		std::string mName;
-		uint64 mValue = 0;
+		u64 mValue = 0;
 	};
 
 	class Timer
@@ -84,9 +84,9 @@ namespace Cubiquity
 	void visitVolumeNodes(Cubiquity::Volume& volume, Functor&& callback)
 	{
 		Internals::NodeDAG& mDAG = Internals::getNodes(volume);
-		const uint32_t rootNodeIndex = Internals::getRootNodeIndex(volume);
+		const u32 rootNodeIndex = Internals::getRootNodeIndex(volume);
 
-		const uint32 rootHeight = 32; // FIXME - Make this a constant somewhere?
+		const u32 rootHeight = 32; // FIXME - Make this a constant somewhere?
 		const Box3i rootBounds = Box3i::max();
 
 		// Call the handler on the root.
@@ -102,16 +102,16 @@ namespace Cubiquity
 
 	// Call the callback on each child of the specified node.
 	template<typename Functor>
-	void visitChildNodes(Internals::NodeDAG& mDAG, uint32_t nodeIndex, const Box3i& bounds, uint32 height, Functor&& callback)
+	void visitChildNodes(Internals::NodeDAG& mDAG, u32 nodeIndex, const Box3i& bounds, u32 height, Functor&& callback)
 	{
 		// Determine which bit may need to be flipped
 		// to derive child bounds from parent bounds.
-		const uint32 childHeight = height - 1;
-		const uint32 bitToFlip = 0x01 << childHeight;
+		const u32 childHeight = height - 1;
+		const u32 bitToFlip = 0x01 << childHeight;
 
-		for(uint32 childId = 0; childId < 8; childId++)
+		for(u32 childId = 0; childId < 8; childId++)
 		{
-			const uint32 childNodeIndex = mDAG[nodeIndex][childId];
+			const u32 childNodeIndex = mDAG[nodeIndex][childId];
 
 			// Set the child bounds to be the same as the parent bounds and then collapse 
 			// three of the faces (selected via the child id). Note that we could actually
@@ -138,12 +138,12 @@ namespace Cubiquity
 		}
 	}
 	Cubiquity::Box3i computeBounds(Cubiquity::Volume& volume, MaterialId externalMaterial);
-	std::pair<uint16_t, Cubiquity::Box3i> estimateBounds(Cubiquity::Volume& volume);
+	std::pair<u16, Cubiquity::Box3i> estimateBounds(Cubiquity::Volume& volume);
 
 	struct HistogramEntry
 	{
 		bool overflow = false;
-		uint64 count = 0;
+		u64 count = 0;
 	};
 
 	typedef std::map<MaterialId, HistogramEntry> Histogram;

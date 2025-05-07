@@ -57,7 +57,7 @@ namespace Cubiquity
 	struct SubDAG
 	{
 		ivec3 lowerBound;
-		int32 nodeHeight;
+		i32 nodeHeight;
 
 		uint padding0;
 		uint nodeIndex;
@@ -66,7 +66,7 @@ namespace Cubiquity
 
 	typedef std::array<SubDAG, 8> SubDAGArray;
 
-	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex);
+	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, u32 rootNodeIndex);
 
 	const float MAX_FOOTPRINT_DISABLED = -1.0f;
 	RayVolumeIntersection intersectVolume(const Volume& volume, const SubDAGArray& subDAGs,

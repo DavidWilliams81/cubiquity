@@ -29,13 +29,13 @@ namespace Cubiquity
 	class NodeCounter
 	{
 	public:
-		void operator()(NodeDAG& /*nodes*/, uint32 nodeIndex, Box3i /*bounds*/)
+		void operator()(NodeDAG& /*nodes*/, u32 nodeIndex, Box3i /*bounds*/)
 		{
 			mUniqueNodes.insert(nodeIndex);
 		}
-		uint64_t count() { return mUniqueNodes.size(); }
+		u64 count() { return mUniqueNodes.size(); }
 	private:
-		std::set<uint32> mUniqueNodes;
+		std::set<u32> mUniqueNodes;
 	};
 
 	// FIXME - I think it probably makes sense to remove the usage of external material here, as it simplifies some code. 
@@ -50,7 +50,7 @@ namespace Cubiquity
 			mBounds.invalidate();
 		}
 
-		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			if (isMaterialNode(nodeIndex))
 			{
@@ -83,18 +83,18 @@ namespace Cubiquity
 
 	}
 
-	std::pair<uint16_t, Box3i> estimateBounds(Volume& volume)
+	std::pair<u16, Box3i> estimateBounds(Volume& volume)
 	{
 		// Take a guess at what the outside material is by looking at the most extreme voxels
 		// Note: This line could be shorter if we had a version of setVoxel which took a vec3i, should add that.
-		uint16_t mostNegativeVoxel = volume.voxel(std::numeric_limits<int32_t>::lowest(), std::numeric_limits<int32_t>::lowest(), std::numeric_limits<int32_t>::lowest());
-		uint16_t mostPositiveVoxel = volume.voxel(std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
+		u16 mostNegativeVoxel = volume.voxel(std::numeric_limits<i32>::lowest(), std::numeric_limits<i32>::lowest(), std::numeric_limits<i32>::lowest());
+		u16 mostPositiveVoxel = volume.voxel(std::numeric_limits<i32>::max(), std::numeric_limits<i32>::max(), std::numeric_limits<i32>::max());
 
 		if (mostNegativeVoxel != mostPositiveVoxel)
 		{
 			log_warning("Unable to accurately determine outside voxel");
 		}
-		uint16_t outsideMaterialId = mostPositiveVoxel;
+		u16 outsideMaterialId = mostPositiveVoxel;
 
 		std::stringstream ss;
 		ss << "Outside material = " << outsideMaterialId;
@@ -125,31 +125,31 @@ namespace Cubiquity
 		}
 
 		// Add with overflow handling (see https://stackoverflow.com/a/33948556)
-		bool add(uint64 a, uint64 b, uint64& result)
+		bool add(u64 a, u64 b, u64& result)
 		{
 			result = a + b;
 			return ((a + b) < a); // True in case of overflow
 		}
 
 		// Multiply with overflow handling (see https://stackoverflow.com/a/1815371)
-		bool multiply(uint64 a, uint64 b, uint64& result)
+		bool multiply(u64 a, u64 b, u64& result)
 		{
 			result = a * b;
 			return(a != 0) && (result / a != b); // True in case of overflow
 		}
 
-		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			if (isMaterialNode(nodeIndex))
 			{
 				MaterialId matId = static_cast<MaterialId>(nodeIndex);
 				HistogramEntry& histEntry = mHistogram[matId];
 
-				uint64 width  = static_cast<uint64>(std::max(bounds.width(),  INT64_C(0)));
-				uint64 height = static_cast<uint64>(std::max(bounds.height(), INT64_C(0)));
-				uint64 depth  = static_cast<uint64>(std::max(bounds.depth(),  INT64_C(0)));
+				u64 width  = static_cast<u64>(std::max(bounds.width(),  INT64_C(0)));
+				u64 height = static_cast<u64>(std::max(bounds.height(), INT64_C(0)));
+				u64 depth  = static_cast<u64>(std::max(bounds.depth(),  INT64_C(0)));
 
-				uint64 voxelsInNode = 0;
+				u64 voxelsInNode = 0;
 				histEntry.overflow |= multiply(width, height, voxelsInNode);
 				histEntry.overflow |= multiply(voxelsInNode, depth, voxelsInNode);
 				histEntry.overflow |= add(histEntry.count, voxelsInNode, histEntry.count);
@@ -181,14 +181,14 @@ namespace Cubiquity
 			if (entry.second.overflow)
 			{
 				std::stringstream ss;
-				ss << "Material " << static_cast<uint16_t>(entry.first) << ": Too many to count! (64-bit overflow)";
+				ss << "Material " << static_cast<u16>(entry.first) << ": Too many to count! (64-bit overflow)";
 				log_debug(ss.str());
 			}
 			else
 			{
 				std::stringstream ss;
 				// Static cast to avoid 8-bit matId being treated as ASCII char.
-				ss << "Material " << static_cast<uint16_t>(entry.first) << ": " << entry.second.count << " voxels";
+				ss << "Material " << static_cast<u16>(entry.first) << ": " << entry.second.count << " voxels";
 				log_debug(ss.str());
 			}
 		}

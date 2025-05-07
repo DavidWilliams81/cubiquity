@@ -19,9 +19,9 @@ public:
 
 private:
 	std::minstd_rand eng;
-	std::uniform_int_distribution<int32_t> dist_x;
-	std::uniform_int_distribution<int32_t> dist_y;
-	std::uniform_int_distribution<int32_t> dist_z;
+	std::uniform_int_distribution<i32> dist_x;
+	std::uniform_int_distribution<i32> dist_y;
+	std::uniform_int_distribution<i32> dist_z;
 };
 
 class uniform_vec3f_distribution

@@ -26,7 +26,7 @@ namespace Cubiquity
 {
 	using namespace Internals;
 
-	static const uint32_t EmptyNodeIndex = 0;
+	static const u32 EmptyNodeIndex = 0;
 
 	bool is_surrounded(const Volume& volume, const vec3i& pos)
 	{
@@ -62,14 +62,14 @@ namespace Cubiquity
 	class GlyphExtractor
 	{
 	public:
-		GlyphExtractor(const Volume& volume, bool subdivideMaterialNodes, Glyph* glyphs, uint32_t maxGlyphCount)
+		GlyphExtractor(const Volume& volume, bool subdivideMaterialNodes, Glyph* glyphs, u32 maxGlyphCount)
 			: volume(volume)
 			, glyphs(glyphs), glyphCount(0), maxGlyphCount(maxGlyphCount)
 			, mSubdivideMaterialNodes(subdivideMaterialNodes)
 		{
 		}
 
-		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			if ((isMaterialNode(nodeIndex)) && (nodeIndex > 0)) // Non-empty leaf node
 			{
@@ -131,12 +131,12 @@ namespace Cubiquity
 	public:
 		const Volume& volume;
 		Glyph* glyphs;
-		uint32_t glyphCount = 0;
-		uint32_t maxGlyphCount;
+		u32 glyphCount = 0;
+		u32 maxGlyphCount;
 		bool mSubdivideMaterialNodes;
 	};
 
-	uint32_t extractGlyphs(Volume& volume, bool subdivideMaterialNodes, Glyph* glyphs, uint32_t maxGlyphCount)
+	u32 extractGlyphs(Volume& volume, bool subdivideMaterialNodes, Glyph* glyphs, u32 maxGlyphCount)
 	{
 		GlyphExtractor glyphExtractor(volume, subdivideMaterialNodes, glyphs, maxGlyphCount);
 		visitVolumeNodes(volume, glyphExtractor);

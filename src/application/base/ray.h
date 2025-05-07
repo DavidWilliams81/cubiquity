@@ -16,7 +16,7 @@ public:
 
 	template <typename CastType> explicit Ray3(const Ray3<CastType>& ray)
 	{
-		//for (uint32_t ct = 0; ct < Size; ++ct) { data[ct] = static_cast<Type>(vector.data[ct]); }
+		//for (u32 ct = 0; ct < Size; ++ct) { data[ct] = static_cast<Type>(vector.data[ct]); }
 		mOrigin = static_cast<VecType>(ray.mOrigin);
 		mDir = static_cast<VecType>(ray.mDir);
 	}

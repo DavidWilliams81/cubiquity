@@ -74,7 +74,7 @@ namespace Cubiquity
 		return subDAG;
 	}
 
-	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, uint32 rootNodeIndex)
+	SubDAGArray findSubDAGs(const Internals::NodeStore& nodes, u32 rootNodeIndex)
 	{
 		SubDAGArray subDAGs;
 		for (uint childId = 0; childId < 8; childId++)
@@ -475,7 +475,7 @@ namespace Cubiquity
 			mIntersection.distance = DBL_MAX; // Note: Might change type to float in the future?
 		}
 
-		bool operator()(NodeDAG& nodes, uint32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			Box3d dilatedBounds = static_cast<Box3d>(bounds);
 			dilatedBounds.dilate(0.5);

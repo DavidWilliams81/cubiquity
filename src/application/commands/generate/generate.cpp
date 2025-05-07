@@ -15,6 +15,7 @@
 
 #include "base/logging.h"
 #include "base/metadata.h"
+#include "base/types.h"
 
 #include "storage.h"
 
@@ -63,7 +64,7 @@ bool generateVolume(const flags::args& args)
 	metadata.materials.push_back(Metadata::EmptySpace);
 	metadata.materials.push_back(Metadata::Default);
 
-	uint32_t size = 1;
+	u32 size = 1;
 	for (uint i = 0; i < sizeExp; i++)
 	{
 		size *= 3;

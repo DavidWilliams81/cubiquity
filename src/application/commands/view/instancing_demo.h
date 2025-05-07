@@ -41,7 +41,7 @@ public:
 	GLuint mPerInstanceDataBuffer;
 
 
-	uint32_t mGlyphCount;
+	u32 mGlyphCount;
 };
 
 #endif // CUBIQUITY_INSTANCING_DEMO_H

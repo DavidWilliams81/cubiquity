@@ -51,8 +51,8 @@ void Viewer::onInitialise()
 
 	Cubiquity::Timer timer;
 
-	uint8_t outside_material;
-	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	u8 outside_material;
+	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&mVolume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 
 	dvec3 lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });

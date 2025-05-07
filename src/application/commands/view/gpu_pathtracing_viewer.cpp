@@ -43,7 +43,7 @@ void GPUPathtracingViewer::onInitialise()
 	const Cubiquity::Internals::NodeStore& nodeStore = Cubiquity::Internals::getNodes(volume()).nodes();
 	Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(nodeStore, Cubiquity::getRootNodeIndex(volume()));
 
-	uint32_t nodeCount = Cubiquity::Internals::getNodes(volume()).bakedNodesEnd();
+	u32 nodeCount = Cubiquity::Internals::getNodes(volume()).bakedNodesEnd();
 
 	GLuint dagData;
 	glGenBuffers(1, &dagData);

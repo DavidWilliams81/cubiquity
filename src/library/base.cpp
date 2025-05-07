@@ -40,7 +40,7 @@ namespace Cubiquity
 			return reinterpret_cast<uintptr_t>(ptr) % alignment == 0;
 		}
 
-		bool isPowerOf2(uint32_t uInput)
+		bool isPowerOf2(u32 uInput)
 		{
 			if (uInput == 0)
 				return false;
@@ -50,7 +50,7 @@ namespace Cubiquity
 
 		// Impementation of GLSL's findMSB() for *unsigned* parameter.
 		// The behaviour of the signed version is more complex.
-		int findMSB(uint32 value)
+		int findMSB(u32 value)
 		{
 			int result = -1;
 			while (value) {
@@ -63,12 +63,12 @@ namespace Cubiquity
 		// Simple brute-force approach to computing the log base 2. There are
 		// faster but more complex approaches with public domain implementations
 		// at https://graphics.stanford.edu/~seander/bithacks.html if needed.
-		uint32 logBase2(uint64 value)
+		u32 logBase2(u64 value)
 		{
 			assert(value != 0); // Log of zero is undefined
 
-			uint32 result = 0;
-			while (value >>= static_cast<uint64>(1))
+			u32 result = 0;
+			while (value >>= static_cast<u64>(1))
 			{
 				result++;
 			}
@@ -77,7 +77,7 @@ namespace Cubiquity
 
 		// See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 		// Alternatively there are intrinsic instructions to count leading zeros.
-		uint32 roundUpToPowerOf2(uint32 value)
+		u32 roundUpToPowerOf2(u32 value)
 		{
 			value--;
 			value |= value >> 1;
@@ -137,12 +137,12 @@ namespace Cubiquity
 
 		#define	FORCE_INLINE inline __attribute__((always_inline))
 
-		inline uint32_t rotl32(uint32_t x, int8_t r)
+		inline u32 rotl32(u32 x, i8 r)
 		{
 			return (x << r) | (x >> (32 - r));
 		}
 
-		inline uint64_t rotl64(uint64_t x, int8_t r)
+		inline u64 rotl64(u64 x, i8 r)
 		{
 			return (x << r) | (x >> (64 - r));
 		}
@@ -158,12 +158,12 @@ namespace Cubiquity
 		// Block read - if your platform needs to do endian-swapping or can only
 		// handle aligned reads, do the conversion here
 
-		FORCE_INLINE uint32_t getblock32(const uint32_t * p, int i)
+		FORCE_INLINE u32 getblock32(const u32 * p, int i)
 		{
 			return p[i];
 		}
 
-		FORCE_INLINE uint64_t getblock64(const uint64_t * p, int i)
+		FORCE_INLINE u64 getblock64(const u64 * p, int i)
 		{
 			return p[i];
 		}
@@ -171,7 +171,7 @@ namespace Cubiquity
 		//-----------------------------------------------------------------------------
 		// Finalization mix - force all bits of a hash block to avalanche
 
-		FORCE_INLINE uint32_t fmix32(uint32_t h)
+		FORCE_INLINE u32 fmix32(u32 h)
 		{
 			h ^= h >> 16;
 			h *= 0x85ebca6b;
@@ -184,7 +184,7 @@ namespace Cubiquity
 
 		//----------
 
-		FORCE_INLINE uint64_t fmix64(uint64_t k)
+		FORCE_INLINE u64 fmix64(u64 k)
 		{
 			k ^= k >> 33;
 			k *= BIG_CONSTANT(0xff51afd7ed558ccd);
@@ -198,24 +198,24 @@ namespace Cubiquity
 		//-----------------------------------------------------------------------------
 
 		void MurmurHash3_x86_32(const void * key, int len,
-			uint32_t seed, void * out)
+			u32 seed, void * out)
 		{
-			const uint8_t * data = (const uint8_t*)key;
+			const u8 * data = (const u8*)key;
 			const int nblocks = len / 4;
 
-			uint32_t h1 = seed;
+			u32 h1 = seed;
 
-			const uint32_t c1 = 0xcc9e2d51;
-			const uint32_t c2 = 0x1b873593;
+			const u32 c1 = 0xcc9e2d51;
+			const u32 c2 = 0x1b873593;
 
 			//----------
 			// body
 
-			const uint32_t * blocks = (const uint32_t *)(data + nblocks * 4);
+			const u32 * blocks = (const u32 *)(data + nblocks * 4);
 
 			for (int i = -nblocks; i; i++)
 			{
-				uint32_t k1 = getblock32(blocks, i);
+				u32 k1 = getblock32(blocks, i);
 
 				k1 *= c1;
 				k1 = ROTL32(k1, 15);
@@ -229,9 +229,9 @@ namespace Cubiquity
 			//----------
 			// tail
 
-			const uint8_t * tail = (const uint8_t*)(data + nblocks * 4);
+			const u8 * tail = (const u8*)(data + nblocks * 4);
 
-			uint32_t k1 = 0;
+			u32 k1 = 0;
 
 			switch (len & 3)
 			{
@@ -248,7 +248,7 @@ namespace Cubiquity
 
 			h1 = fmix32(h1);
 
-			*(uint32_t*)out = h1;
+			*(u32*)out = h1;
 		}
 
 		// Restore warnings for our own code.
@@ -257,14 +257,14 @@ namespace Cubiquity
 #endif // __GNUC__
 
 		// Slightly nicer C++ wrapper functions (not part of the MurmurHash3 reference impementation)
-		uint32 mixBits(uint32 value)
+		u32 mixBits(u32 value)
 		{
 			return fmix32(value); // Force inlined
 		}
 
-		uint32 murmurHash3(const void * key, int len, uint32 seed)
+		u32 murmurHash3(const void * key, int len, u32 seed)
 		{
-			uint32 result;
+			u32 result;
 			MurmurHash3_x86_32(key, len, seed, &result);
 			return result;
 		}

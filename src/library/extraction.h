@@ -46,7 +46,7 @@ namespace Cubiquity
 
 	static_assert(sizeof(Glyph) == sizeof(float) * 8); // Check tightly packed
 
-	uint32_t extractGlyphs(Volume& volume, bool subdivideMaterialNodes, Glyph* glyphs, uint32_t maxGlyphCount);
+	u32 extractGlyphs(Volume& volume, bool subdivideMaterialNodes, Glyph* glyphs, u32 maxGlyphCount);
 
 }
 

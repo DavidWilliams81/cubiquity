@@ -23,8 +23,8 @@ using Cubiquity::Volume;
 
 void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::string& dirName)
 {
-	uint8_t outside_material;
-	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	u8 outside_material;
+	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 
 	// Expand the bounds in case we have a scene with a solid exterior, as in
@@ -42,7 +42,7 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 		std::snprintf(filepath, sizeof(filepath), "%s/%06d.png", dirName.c_str(), z - lower_z);
 
 		//Image image(width, height);
-		std::vector<uint8_t> imageData;
+		std::vector<u8> imageData;
 		for (int y = lower_y; y <= upper_y; y++)
 		{
 			for (int x = lower_x; x <= upper_x; x++)
@@ -56,9 +56,9 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 				base_color[1] = pow(base_color[1], gamma);
 				base_color[2] = pow(base_color[2], gamma);
 
-				uint8_t r = std::clamp(std::lround(base_color[0] * 255.0f), 0L, 255L);
-				uint8_t g = std::clamp(std::lround(base_color[1] * 255.0f), 0L, 255L);
-				uint8_t b = std::clamp(std::lround(base_color[2] * 255.0f), 0L, 255L);
+				u8 r = std::clamp(std::lround(base_color[0] * 255.0f), 0L, 255L);
+				u8 g = std::clamp(std::lround(base_color[1] * 255.0f), 0L, 255L);
+				u8 b = std::clamp(std::lround(base_color[2] * 255.0f), 0L, 255L);
 
 				imageData.push_back(r);
 				imageData.push_back(g);

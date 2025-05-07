@@ -28,7 +28,7 @@ bool checkIntegrity(Volume& volume)
 	const Cubiquity::Internals::NodeStore& nodes = Cubiquity::Internals::getNodes(volume).nodes();
 
 	// Reserved nodes always contain dummy data.
-	//for (uint32_t i = 0; i < MaterialCount; i++)
+	//for (u32 i = 0; i < MaterialCount; i++)
 	{
 		/*if (!nodes[i].refCount() == 0xFFFFFFFF)
 			return false;*/
@@ -42,7 +42,7 @@ bool checkIntegrity(Volume& volume)
 		return false;*/
 
 	// Now check the rest of the nodes.
-	//for (uint32_t nodeIndex = nodes.hashMapBegin() + 1; nodeIndex < nodes.hashMapEnd(); nodeIndex++)
+	//for (u32 nodeIndex = nodes.hashMapBegin() + 1; nodeIndex < nodes.hashMapEnd(); nodeIndex++)
 	{
 		// If a node is not referenced then it should not have any children. I'm not
 		// certain that we need to enforce this but it might get complex if we don't.
@@ -61,7 +61,7 @@ bool checkIntegrity(Volume& volume)
 		// checkerboard will be stored as a single chain of such nodes.
 		/*else
 		{
-			for (uint32_t material = 0; material < MaterialCount; material++)
+			for (u32 material = 0; material < MaterialCount; material++)
 			{
 				if (nodes[nodeIndex].allChildrenAre(material))
 					return false;
@@ -70,11 +70,11 @@ bool checkIntegrity(Volume& volume)
 	}
 
 	// Also check that no node points at itself.
-	/*for (uint32_t nodeIndex = nodes.hashMapBegin(); nodeIndex < nodes.hashMapEnd(); nodeIndex++)
+	/*for (u32 nodeIndex = nodes.hashMapBegin(); nodeIndex < nodes.hashMapEnd(); nodeIndex++)
 	{
-		for (uint32_t childId = 0; childId < 8; childId++)
+		for (u32 childId = 0; childId < 8; childId++)
 		{
-			uint32_t childIndex = nodes[nodeIndex][childId];
+			u32 childIndex = nodes[nodeIndex][childId];
 			if (childIndex == nodeIndex)
 				return false;
 		}
@@ -87,21 +87,21 @@ bool checkIntegrity(Volume& volume)
 
 	//FIXME - Used to use ref count, wht to do here?
 	/*bool allRefCountsCorrect = true;
-	uint32_t* correctRefCounts = new uint32_t[nodes.size()];
-	memset(correctRefCounts, 0, sizeof(uint32_t) * nodes.size());
+	u32* correctRefCounts = new u32[nodes.size()];
+	memset(correctRefCounts, 0, sizeof(u32) * nodes.size());
 
 	// Compute ref counts
-	for (uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodes.size(); nodeIndex++)
+	for (u32 nodeIndex = RootNodeIndex; nodeIndex < nodes.size(); nodeIndex++)
 	{
-		for(uint32_t childId = 0; childId < 8; childId++)
+		for(u32 childId = 0; childId < 8; childId++)
 		{
-			uint32_t childIndex = nodes[nodeIndex].child(childId);
+			u32 childIndex = nodes[nodeIndex].child(childId);
 			correctRefCounts[childIndex]++;
 		}
 	}
 
 	// Check ref counts
-	for(uint32_t nodeIndex = RootNodeIndex; nodeIndex < nodes.size(); nodeIndex++)
+	for(u32 nodeIndex = RootNodeIndex; nodeIndex < nodes.size(); nodeIndex++)
 	{
 		if (nodes[nodeIndex].mRefCount != correctRefCounts[nodeIndex])
 		{
@@ -116,46 +116,46 @@ bool checkIntegrity(Volume& volume)
 	return true;
 }
 
-std::set< std::pair<uint32_t, uint32_t> > mergeOpportunities(Volume& volume)
+std::set< std::pair<u32, u32> > mergeOpportunities(Volume& volume)
 {
 	Cubiquity::Internals::NodeDAG& nodes = Cubiquity::Internals::getNodes(volume);
 
-	std::set< std::pair<uint32_t, uint32_t> > result;
+	std::set< std::pair<u32, u32> > result;
 
 	// Early out until we fix use of ref count.
 	return result;
 
-	/*std::vector< std::vector<uint32_t> > hashTable;
+	/*std::vector< std::vector<u32> > hashTable;
 
 	hashTable.resize(100000);
 
 
 	// Skip empty and full nodes, as they contain identical (but dummy) data giving a false merge opportunity.
-	for (uint32_t index = nodes.mSharedEdits.mBegin; index <= nodes.mSharedEdits.mEnd; index++)
+	for (u32 index = nodes.mSharedEdits.mBegin; index <= nodes.mSharedEdits.mEnd; index++)
 	{
 		const Node& node = nodes.mNodes[index];
 
 		//FIXME - Used to use ref count, wht to do here?
 		//if (node.mRefCount == 0) continue;
 
-		uint32_t hash = std::hash<Node>{}(node);
+		u32 hash = std::hash<Node>{}(node);
 		hashTable[hash % hashTable.size()].push_back(index);
 	}
 
 	// Now find the matches in each bucket
-	for (uint32_t bucketIndex = 0; bucketIndex < hashTable.size(); bucketIndex++)
+	for (u32 bucketIndex = 0; bucketIndex < hashTable.size(); bucketIndex++)
 	{
-		const std::vector<uint32_t>& bucket = hashTable[bucketIndex];
+		const std::vector<u32>& bucket = hashTable[bucketIndex];
 
-		for (uint32_t outerIndex = 0; outerIndex < bucket.size(); outerIndex++)
+		for (u32 outerIndex = 0; outerIndex < bucket.size(); outerIndex++)
 		{
-			uint32_t outerNodeIndex = bucket[outerIndex];
+			u32 outerNodeIndex = bucket[outerIndex];
 			const Node& outerNode = nodes.mNodes[outerNodeIndex];
 			//assert(outerNode.mRefCount > 0);
 
-			for (uint32_t innerIndex = outerIndex + 1; innerIndex < bucket.size(); innerIndex++)
+			for (u32 innerIndex = outerIndex + 1; innerIndex < bucket.size(); innerIndex++)
 			{
-				uint32_t innerNodeIndex = bucket[innerIndex];
+				u32 innerNodeIndex = bucket[innerIndex];
 				const Node& innerNode = nodes.mNodes[innerNodeIndex];
 				//assert(innerNode.mRefCount > 0);
 
@@ -186,11 +186,11 @@ void applyFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Funct
 }
 
 template <typename PositionEnumeratorType, typename Function>
-std::pair<uint32_t, uint32_t> validateFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Function function, uint64_t maxTests = std::numeric_limits<uint64_t>::max())
+std::pair<u32, u32> validateFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Function function, u64 maxTests = std::numeric_limits<u64>::max())
 {
-	uint32_t matches = 0;
-	uint32_t mismatches = 0;
-    uint64_t testCount = 0;
+	u32 matches = 0;
+	u32 mismatches = 0;
+    u64 testCount = 0;
 
 	PositionEnumeratorType pe(lower, upper);
 
@@ -205,13 +205,13 @@ std::pair<uint32_t, uint32_t> validateFunction(Volume* volume, const ivec3& lowe
 	return std::make_pair(matches, mismatches);
 }
 
-uint8_t randomMaterial(uint32_t /*x*/, uint32_t /*y*/, uint32_t /*z*/)
+u8 randomMaterial(u32 /*x*/, u32 /*y*/, u32 /*z*/)
 {
 	return (rand() % 2 == 1) ? 2 : 7;
 }
 
 // FIXME - This should be a 3D checkerboard instead of a 2D one.
-uint8_t checkerboard(uint32_t x, uint32_t y, uint32_t /*z*/)
+u8 checkerboard(u32 x, u32 y, u32 /*z*/)
 {
 	return (x % 2 == y % 2) ? 8 : 3;
 }
@@ -234,8 +234,8 @@ bool testBounds()
 		ref_upper = max(pos, ref_upper);
 	}
 
-	uint8_t outside_material;
-	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	u8 outside_material;
+	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(volume.get(), &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 
 	log_info("Lower     = ({},{},{})", lower_x, lower_y, lower_z);
@@ -249,7 +249,7 @@ bool testBounds()
 
 bool testBasics()
 {
-	std::pair<uint32_t, uint32_t> result;
+	std::pair<u32, u32> result;
 
 	log_info("");
 	log_info("Basic tests:");
@@ -263,7 +263,7 @@ bool testBasics()
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Volume should start empty
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 0; });
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
 	log_info("Empty volume node count = {}", volume->countNodes());
 	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -273,8 +273,8 @@ bool testBasics()
 	}
 
 	// Fill it
-	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper,  [](uint32_t, uint32_t, uint32_t) { return 5; });
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 5; });
+	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper,  [](u32, u32, u32) { return 5; });
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 5; });
 	log_info("\nFull volume node count = {}", volume->countNodes());
 	log_info("Full volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -284,8 +284,8 @@ bool testBasics()
 	}
 
 	// Empty it again
-	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 0; });
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](uint32_t, uint32_t, uint32_t) { return 0; });
+	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
+	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
 	log_info("\nEmpty volume node count = {}", volume->countNodes());
 	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -301,7 +301,7 @@ bool testBasics()
 // cannot be pruned, but it can be aggressively merged.
 bool testCheckerboard()
 {
-	std::pair<uint32_t, uint32_t> result;
+	std::pair<u32, u32> result;
 
 	log_info("");
 	log_info("Checkerboard tests:");
@@ -514,18 +514,18 @@ bool testCSG()
 
 	building.save("../data/csg.dag");
 
-	uint8_t outside_material;
-	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	u8 outside_material;
+	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&building, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
 
-	int64_t histogram[256];
+	i64 histogram[256];
 	cubiquity_compute_histogram(&building, histogram);
 	for (int i = 0; i < 256; i++)
 	{
 		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow
 		{
-			log_info("Material {}: {} voxels", static_cast<uint16_t>(i), histogram[i]);
+			log_info("Material {}: {} voxels", static_cast<u16>(i), histogram[i]);
 		}
 	}
 

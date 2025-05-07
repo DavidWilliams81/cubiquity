@@ -23,15 +23,15 @@
 namespace Cubiquity
 {
 	// Integer typedefs
-	typedef int8_t  int8;
-	typedef int16_t int16;
-	typedef int32_t int32;
-	typedef int64_t int64;
+	typedef int8_t  i8;
+	typedef int16_t i16;
+	typedef int32_t i32;
+	typedef int64_t i64;
 
-	typedef uint8_t  uint8;
-	typedef uint16_t uint16;
-	typedef uint32_t uint32;
-	typedef uint64_t uint64;
+	typedef uint8_t  u8;
+	typedef uint16_t u16;
+	typedef uint32_t u32;
+	typedef uint64_t u64;
 
 	typedef unsigned int uint;
 
@@ -59,7 +59,7 @@ namespace Cubiquity
 
 		Note typedef should not be changed to differnt integer type.
 	*/
-	typedef uint8 MaterialId;
+	typedef u8 MaterialId;
 
 	typedef void (*LogFuncPtr)(const char* message);
 	void setLogDebugFunc(LogFuncPtr logDebugFunc);
@@ -72,21 +72,21 @@ namespace Cubiquity
 	{
 		// Utility functions
 		bool isAligned(const void *ptr, unsigned int alignment);
-		bool isPowerOf2(uint32_t uInput);
-		int findMSB(uint32 value);
-		uint32 logBase2(uint64 value);
-		uint32 roundUpToPowerOf2(uint32 value);
+		bool isPowerOf2(u32 uInput);
+		int findMSB(u32 value);
+		u32 logBase2(u64 value);
+		u32 roundUpToPowerOf2(u32 value);
 
 		// Hashing
-		uint32 mixBits(uint32 value);
-		uint32 murmurHash3(const void * key, int len, uint32 seed = 0);
+		u32 mixBits(u32 value);
+		u32 murmurHash3(const void * key, int len, u32 seed = 0);
 
 		// Function object to hash a given type with MurmurHash3, allowing it to be used with
 		// std::map. Should only be used on simple types as it does not follow pointers, etc.
 		template <typename Key>
         struct MurmurHash3
 		{
-			uint32 operator()(const Key& key) const
+			u32 operator()(const Key& key) const
 			{
 				return murmurHash3(&key, sizeof(key));
 			}

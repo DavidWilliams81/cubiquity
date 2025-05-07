@@ -30,7 +30,7 @@
 #include <functional>
 #include <random>
 
-uint32_t nextPointInUnitSphere = 17;
+u32 nextPointInUnitSphere = 17;
 
 // Return a small positive noise value
 float PathtracingDemo::positionBasedNoise(const vec3& position)
@@ -38,7 +38,7 @@ float PathtracingDemo::positionBasedNoise(const vec3& position)
 	// Because the intersectionl lies exactly between two voxels a proper round to
 	// nearest suffers from floating point problems. Therefore we apply a tiny offset.
 	ivec3 roundedIntesectionPosition = static_cast<ivec3>(position + vec3(0.499));
-	uint32_t hash = Cubiquity::murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
+	u32 hash = Cubiquity::murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
 	return (hash & 0xff) / 255.0f; // 0.0 to 1.0
 }
 

@@ -7,7 +7,7 @@
 
 #include "extraction.h"
 
-const uint32_t MaxGlyphCount = 10000000;
+const u32 MaxGlyphCount = 10000000;
 
 static const GLfloat gCubeVertices[] =
 {

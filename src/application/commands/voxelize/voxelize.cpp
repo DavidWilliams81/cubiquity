@@ -307,19 +307,19 @@ bool voxelize(const flags::args& args)
 	// In general the user should run cubiquity a second time to do the export.
 	//saveVolumeAsImages(volume, metadata, ".");
 
-	uint8_t outside_material;
-	int32_t lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	u8 outside_material;
+	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
 
-	int64_t histogram[256];
+	i64 histogram[256];
 	cubiquity_compute_histogram(&volume, histogram);
-	uint64_t total = 0;
+	u64 total = 0;
 	for(int i = 0; i < 256; i++)
 	{
 		if (histogram[i] != 0) // Note that -1 can occur to indicate overflow
 		{
-			log_info("Material {}: {} voxels", static_cast<uint16_t>(i), histogram[i]);
+			log_info("Material {}: {} voxels", static_cast<u16>(i), histogram[i]);
 		}
 
 		if (histogram[i] != -1) // FIXME - Handle overflow better

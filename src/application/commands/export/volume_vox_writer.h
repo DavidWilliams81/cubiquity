@@ -4,6 +4,7 @@
 #include "vox_writer/vox_writer.h"
 
 #include "base/metadata.h"
+#include "base/types.h"
 
 #include "storage.h"
 
@@ -14,7 +15,7 @@ public:
 
 protected:
 	box  bounds() override;
-	uint8_t voxel(const vec3i& position) override;
+	u8 voxel(const vec3i& position) override;
 
 	void    on_progress(int done, int total) override;
 
