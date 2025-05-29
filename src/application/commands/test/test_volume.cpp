@@ -1,6 +1,6 @@
 #include "test_volume.h"
 
-#include "position_enumerator.h"
+#include "position_generator.h"
 
 #include "base/logging.h"
 #include "base/random3d.h"
@@ -172,35 +172,68 @@ std::set< std::pair<u32, u32> > mergeOpportunities(Volume& volume)
 	return result;*/
 }
 
-template <typename PositionEnumeratorType, typename Function>
-void applyFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Function function)
+// Fractal noise geometry with materials assigned based on Voronoi cells.
+// Useful for producing detailed test volumes of potentially unlimited size. 
+class FractalWorleyNoise
 {
-	PositionEnumeratorType pe(lower, upper);
-
-	do
-	{
-		auto functionResult = function(pe.x(), pe.y(), pe.z());
-		volume->setVoxel(pe.x(), pe.y(), pe.z(), functionResult);
+public:
+	FractalWorleyNoise(int octaves,
+		               int offset_x = 0, int offset_y = 0, int offset_z = 0)
+		: m_octaves(octaves),
+		  m_offset_x(offset_x), m_offset_y(offset_y), m_offset_z(offset_z) {
 	}
-	while(pe.next());
+
+	u8 operator()(int x, int y, int z)
+	{
+		// Fractal noise determines whether voxel is occupied
+		if (fractal_noise(x + m_offset_x,
+			              y + m_offset_y,
+			              z + m_offset_z,
+			              m_octaves) >= 0.0f) {
+
+			// If occupied then assign material via Worley noise
+			return worley_noise(x, y, z, 32, 2);
+		}
+		else {
+			return 0;
+		}
+	}
+
+private:
+	int m_octaves  = 1;
+	int m_offset_x = 0;
+	int m_offset_y = 0;
+	int m_offset_z = 0;
+};
+
+template <typename Function>
+void applyFunction(Volume* volume,
+	               const ivec3& lower, const ivec3& upper,
+	               Function function,
+	               bool shuffle = false, u16 seed = 0)
+{
+	PositionGenerator cycle(lower, upper, shuffle, seed);
+	std::for_each(cycle.begin(), cycle.end(), [&](ivec3 pos) {
+		auto functionResult = function(pos.x, pos.y, pos.z);
+		volume->setVoxel(pos.x, pos.y, pos.z, functionResult);
+	});
 }
 
-template <typename PositionEnumeratorType, typename Function>
-std::pair<u32, u32> validateFunction(Volume* volume, const ivec3& lower, const ivec3& upper, Function function, u64 maxTests = std::numeric_limits<u64>::max())
+template <typename Function>
+std::pair<u32, u32> validateFunction(Volume* volume,
+	                                 const ivec3& lower, const ivec3& upper,
+	                                 Function function,
+	                                 bool shuffle = false, u16 seed = 0)
 {
 	u32 matches = 0;
 	u32 mismatches = 0;
-    u64 testCount = 0;
 
-	PositionEnumeratorType pe(lower, upper);
-
-	do
-	{
-		auto functionResult = function(pe.x(), pe.y(), pe.z());
-		volume->voxel(pe.x(), pe.y(), pe.z()) == functionResult ? matches++ : mismatches++;
-        testCount++;
-	}
-	while(pe.next() && (testCount < maxTests));
+	PositionGenerator cycle(lower, upper, shuffle, seed);
+	std::for_each(cycle.begin(), cycle.end(), [&](ivec3 pos) {
+		auto functionResult = function(pos.x, pos.y, pos.z);
+		volume->voxel(pos.x, pos.y, pos.z) == functionResult ?
+			matches++ : mismatches++;
+	});
 
 	return std::make_pair(matches, mismatches);
 }
@@ -215,6 +248,47 @@ u8 checkerboard(u32 x, u32 y, u32 /*z*/)
 {
 	return (x % 2 == y % 2) ? 8 : 3;
 }
+
+void print_positions(PositionGenerator pos_gen)
+{
+	std::vector<ivec3> buf;
+	std::for_each(pos_gen.begin(), pos_gen.end(), [&](ivec3 pos) {
+		buf.push_back(pos);
+	});
+
+	log_info("\t{}", buf[0]);
+	log_info("\t{}", buf[1]);
+	log_info("\t{}", buf[2]);
+	log_info("\t{}", buf[3]);
+	log_info("\t{}", buf[4]);
+	log_info("\t...");
+	log_info("\t{}", buf[buf.size() - 5]);
+	log_info("\t{}", buf[buf.size() - 4]);
+	log_info("\t{}", buf[buf.size() - 3]);
+	log_info("\t{}", buf[buf.size() - 2]);
+	log_info("\t{}", buf[buf.size() - 1]);
+	log_info("\tTotal positions = {}", buf.size());
+}
+
+bool testPositionGenerator()
+{
+	log_info("Testing PositionGenerator");
+	log_info("-------------------------");
+	ivec3 lower = { -101, -103, -107 };
+	ivec3 upper = { 109, 113, 127 };
+
+	log_info("Sequential generator:");
+	print_positions(PositionGenerator(lower, upper, false, 0));
+
+	for (u16 seed = 0; seed <= 4; seed++) {
+		log_info("\nShuffled generator (seed {}):", seed);
+		print_positions(PositionGenerator(lower, upper, true, seed));
+	}
+
+	log_info("");
+	return true;
+}
+
 
 bool testBounds()
 {
@@ -263,7 +337,7 @@ bool testBasics()
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Volume should start empty
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
+	result = validateFunction(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
 	log_info("Empty volume node count = {}", volume->countNodes());
 	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -273,8 +347,8 @@ bool testBasics()
 	}
 
 	// Fill it
-	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper,  [](u32, u32, u32) { return 5; });
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 5; });
+	applyFunction(volume.get(), lower, upper,  [](u32, u32, u32) { return 5; });
+	result = validateFunction(volume.get(), lower, upper, [](u32, u32, u32) { return 5; });
 	log_info("\nFull volume node count = {}", volume->countNodes());
 	log_info("Full volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -284,8 +358,8 @@ bool testBasics()
 	}
 
 	// Empty it again
-	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
+	applyFunction(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
+	result = validateFunction(volume.get(), lower, upper, [](u32, u32, u32) { return 0; });
 	log_info("\nEmpty volume node count = {}", volume->countNodes());
 	log_info("Empty volume has {} matches and {} mismatches", result.first, result.second);
 
@@ -314,8 +388,8 @@ bool testCheckerboard()
 	std::unique_ptr<Volume> volume(new Volume);
 
 	// Fill it
-	applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper,  checkerboard);
-	result = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, checkerboard);
+	applyFunction(volume.get(), lower, upper,  checkerboard);
+	result = validateFunction(volume.get(), lower, upper, checkerboard);
 
 	log_info("Node count before bake = {}", volume->countNodes());
 	volume->bake();
@@ -344,7 +418,7 @@ bool testRandomAccess()
 	Cubiquity::Timer timer;
 	for (int i = 0; i < 10; i++)
 	{
-		applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, randomMaterial);
+		applyFunction(volume.get(), lower, upper, randomMaterial);
 	}
 
 	if(!checkIntegrity(*volume))
@@ -372,14 +446,14 @@ bool testSerialization()
 	Volume* volume = new Volume;
 
 	// Write in simplex noise
-	FractalNoise fractalNoise(7, 0, 0, 0);
-	applyFunction<RandomPositionEnumerator>(volume, lower, upper, fractalNoise);
+	FractalWorleyNoise noise_func(7, 0, 0, 0);
+	applyFunction(volume, lower, upper, noise_func);
 
 	volume->save("testSerialization.dag");
 	delete volume;
 	volume = new Volume("testSerialization.dag");
 
-	auto validationResult = validateFunction<RandomPositionEnumerator>(volume, lower, upper, fractalNoise);
+	auto validationResult = validateFunction(volume, lower, upper, noise_func);
 
 	// Test the result
 	log_info("Serialization test gave {} matches and {} mismatches", validationResult.first, validationResult.second);
@@ -415,8 +489,8 @@ bool testFractalNoise()
 		int offset = i * 1000;
 
 		// Write in simplex noise
-		FractalNoise fractalNoise(7, offset, offset, offset);
-		applyFunction<RandomPositionEnumerator>(volume.get(), lower, upper, fractalNoise);
+		FractalWorleyNoise noise_func(6, offset, offset, offset);
+		applyFunction(volume.get(), lower, upper, noise_func, true, 1);
 
 		// Sometimes bake the octree
 		if (i % 2 == 0)
@@ -424,7 +498,8 @@ bool testFractalNoise()
 			volume->bake();
 		}
 
-		auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, fractalNoise);
+		auto validationResult =
+			validateFunction(volume.get(), lower, upper, noise_func, true, 2);
 
 		// Test the result
 		log_info("Simplex noise test gave {} matches and {} mismatches, node count = {}",
@@ -450,6 +525,8 @@ bool testMerging()
 	log_info("Merge test:");
 	log_info("-----------");
 
+	//test_position_generator();
+
 	// Create a volume for some simple tests
 	int sideLength = 256;
 	const ivec3 lower(ivec3(0));
@@ -459,27 +536,19 @@ bool testMerging()
 	Cubiquity::Timer timer;
 
 	// Write in simplex noise
-	FractalNoise fractalNoise(9);
+	FractalWorleyNoise noise_func(7);
 
-	MortonPositionEnumerator pe(lower, upper);
-
-	do
-	{
-		auto result = fractalNoise(pe.x(), pe.y(), pe.z());
-		if (result > 0)
-		{
-			volume->setVoxel(pe.x(), pe.y(), pe.z(), result);
-		}
-	} while (pe.next());
-
-	//applyFunction<MortonPositionEnumerator>(volume.get(), bounds, fractalNoise);
+	applyFunction(volume.get(), lower, upper, noise_func, true, 3);
 
 	log_info("{} : Wrote data", timer.elapsedTimeInSeconds());
 
 	volume->bake();
 	log_info("{} : Baked", timer.elapsedTimeInSeconds());
 
-	auto validationResult = validateFunction<RandomPositionEnumerator>(volume.get(), lower, upper, fractalNoise, 1000000);
+	volume->save("fractalNoise.dag");
+
+	auto validationResult =
+		validateFunction(volume.get(), lower, upper, noise_func, true, 4);
 
 	// Test the result
 	log_info("Merge test gave {} matches and {} mismatches, node count = {}",
@@ -536,15 +605,10 @@ bool testVolume()
 {
 	srand(12345);
 
-	// Slow test, so not usually run.
-	/*if(!PositionEnumerator::test())
-	{
-		log_error("PositionEnumerator::test() failed!");(
-	}*/
-
+	testPositionGenerator();
 	testBounds();
 	testBasics();
-	//testCSG();
+	testCSG();
 	testCheckerboard();
 	testRandomAccess();
 	testFractalNoise();

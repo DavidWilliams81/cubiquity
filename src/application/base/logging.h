@@ -7,6 +7,20 @@
 #include "fmt/format.h"
 #include "fmt/std.h"
 
+// Support for printing maths types
+#include "types.h"
+
+// According to the libfmt docs it should be possible to wrap a type's ostream
+// operator<< but I couldn't get it to compile on GCC (it worked on VS2022).
+// Providing these format_as() functions id the next easiest option.
+namespace linalg {
+    std::string format_as( vec3 v);
+    std::string format_as(dvec3 v);
+    std::string format_as(ivec3 v);
+    std::string format_as(uvec3 v);
+    std::string format_as(bvec3 v);
+}
+
 enum class log_level { debug, info, note, warning, error };
 void set_verbosity(log_level threshold);
 

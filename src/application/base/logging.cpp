@@ -2,6 +2,24 @@
 
 #include "base.h"
 
+namespace linalg {
+    std::string format_as( vec3 v) {
+        return fmt::format("({},{},{})", v.x, v.y, v.z);
+    }
+    std::string format_as(dvec3 v) {
+        return fmt::format("({},{},{})", v.x, v.y, v.z);
+    }
+    std::string format_as(ivec3 v) {
+        return fmt::format("({},{},{})", v.x, v.y, v.z);
+    }
+    std::string format_as(uvec3 v) {
+        return fmt::format("({},{},{})", v.x, v.y, v.z);
+    }
+    std::string format_as(bvec3 v) {
+        return fmt::format("({},{},{})", v.x, v.y, v.z);
+    }
+}
+
 log_level g_threshold = log_level::info;
 
 void set_verbosity(log_level threshold) { g_threshold = threshold; }

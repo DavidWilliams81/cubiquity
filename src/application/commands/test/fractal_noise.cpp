@@ -1,122 +1,122 @@
 #include "fractal_noise.h"
 
-#include "storage.h"
-
-using Cubiquity::MaterialId;
-
 extern "C"
 {
 	#include "simplexnoise1234.h"
 }
 
-FractalNoise::FractalNoise(int octaves, int offsetX, int offsetY, int offsetZ)
-	: mOctaves(octaves), mOffsetX(offsetX), mOffsetY(offsetY), mOffsetZ(offsetZ) {}
+#include "storage.h"
 
-MaterialId  FractalNoise::operator()(int x, int y, int z)
+#include <cfloat>
+#include <climits>
+
+using Cubiquity::MaterialId;
+
+// Based on 'stb_perlin_fbm_noise3' (public domain).
+float fractal_noise(int x, int y, int z, int octaves)
 {
-	MaterialId material = 0;
+	const float lacunarity = 0.5;
+	const float gain = 2.0;
 
-	if (fractalNoise(x, y, z) > 0.0f)
-	{
-		material = voronoiCell(x, y, z);
-	}
-
-	return material;
-}
-
-// Derived from stb_perlin.h, but modified to use Simplex noise instead. Note that the stb_perlin docs state:
-//
-//		Typical values to start playing with:
-//			octaves    =   6     -- number of "octaves" of noise3() to sum
-//			lacunarity = ~ 2.0   -- spacing between successive octaves (use exactly 2.0 for wrapping output)
-//			gain       =   0.5   -- relative weighting applied to each successive octave
-//
-// However, the suggested values for gain and lacunarity appear to be the wrong way around.
-// The code generates the base layer first (frequency and amplitude are 1.0) and each successive
-// layer need to have lower frequency and bigger amplitude.
-float FractalNoise::fractalNoise(int x, int y, int z)
-{
-	float lacunarity = 0.5;
-	float gain = 2.0;
-
-	int i;
-	float frequency = 2.0f; // Possibly higher than needed, but catches the high-freq comonents.
+	float frequency = 1.0f;
 	float amplitude = 1.0f;
+
 	float sum = 0.0f;
-
-	x += mOffsetX;
-	y += mOffsetY;
-	z += mOffsetZ;
-
-	for (i = 0; i < mOctaves; i++)
+	// High frequency components first
+	for (int i = 0; i < octaves; i++)
 	{
 		sum += snoise3(x*frequency, y*frequency, z*frequency)*amplitude;
 		frequency *= lacunarity;
 		amplitude *= gain;
 	}
 
-	// The return value is not normalised, but this doesn't matter
-	// as long as we only test whether it is above or below zero.
+	// Not normalised, but we (usually) only care about the sign
 	return sum;
 }
 
-MaterialId FractalNoise::voronoiCell(int x, int y, int z)
+ivec3 centre(ivec3 cell, int cell_size)
 {
-	ivec3 pos({ x, y, z });
-	const ivec3 cell = pos / mCellSize;
+	// Pick a random position within the cell to become its centre
+	std::minstd_rand rng(std::hash<ivec3>{}(cell));
+	ivec3 local_pos = ivec3(rng(), rng(), rng()) % cell_size;
+	ivec3 global_pos = (cell * cell_size) + local_pos;
+	return global_pos;
+}
 
-	MaterialId closestMaterial = 0;
-	int closestCellDistanceSquared = 1000000000;
+u8 material(ivec3 cell)
+{
+	// Pick a random material for the cell (material 1 reserved for border)
+	return std::hash<ivec3>{}(cell) % 254 + 2; // Range 2 - 255
+}
 
-	for (int nz = -1; nz <= 1; nz++)
-	{
-		for (int ny = -1; ny <= 1; ny++)
-		{
-			for (int nx = -1; nx <= 1; nx++)
-			{
-				ivec3 neighbourCellOffset({ nx, ny, nz });
-				ivec3 neighbourCell = cell + neighbourCellOffset;
-				ivec3 neighbourCentre = chooseCentre(neighbourCell);
-				ivec3 toNeighbour = neighbourCentre - pos;
-				int neighbourDistSquared = dot(toNeighbour, toNeighbour);
+// Worley noise is also known as Voronoi Noise.
+// See https://www.ronja-tutorials.com/post/028-voronoi-noise/
+u8 worley_noise(int x, int y, int z, int cell_size, int border)
+{
+	// Current position and cell
+	const ivec3 sample_pos({ x, y, z });
+	const ivec3 sample_cell = sample_pos / cell_size;
 
-				if (neighbourDistSquared < closestCellDistanceSquared)
-				{
-					closestCellDistanceSquared = neighbourDistSquared;
-					closestMaterial = chooseMaterial(neighbourCell);
+	// Best values found so far
+	int closest_cell_dist_sq = INT_MAX;
+	MaterialId closest_cell_material = 0;
+	ivec3 closest_cell_centre;
+
+	// Iterate over surrounding cells
+	for (int nz = -1; nz <= 1; nz++) {
+		for (int ny = -1; ny <= 1; ny++) {
+			for (int nx = -1; nx <= 1; nx++) {
+
+				// Determine the cell's centre
+				ivec3 cell = sample_cell + ivec3({ nx, ny, nz });
+				ivec3 cell_centre = centre(cell, cell_size);
+
+				// Find distance from sample point to centre of cell
+				ivec3 sample_to_centre = cell_centre - sample_pos;
+				int cell_dist_sq = dot(sample_to_centre, sample_to_centre);
+
+				// Use this cell if it is the closest.
+				if (cell_dist_sq < closest_cell_dist_sq) {
+					closest_cell_dist_sq = cell_dist_sq;
+					closest_cell_material = material(cell);
+					closest_cell_centre = cell_centre;
 				}
 			}
 		}
 	}
 
-	return closestMaterial;
-}
+	float min_dist_to_edge = FLT_MAX;
 
-ivec3 FractalNoise::chooseCentre(ivec3 cell)
-{
-	// When hashing for centre we use a differnt seed than when hashing for material.
-	u32 cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 17);
+	// Iterate over surrounding cells again
+	for (int nz = -1; nz <= 1; nz++) {
+		for (int ny = -1; ny <= 1; ny++) {
+			for (int nx = -1; nx <= 1; nx++) {
 
-	i32 x = cellHash % mCellSize;
-	cellHash = Cubiquity::Internals::mixBits(cellHash);
-	i32 y = cellHash % mCellSize;
-	cellHash = Cubiquity::Internals::mixBits(cellHash);
-	i32 z = cellHash % mCellSize;
+				// Cell centre is the same as in previous pass above
+				ivec3 cell = sample_cell + ivec3({ nx, ny, nz });
+				ivec3 cell_centre = centre(cell, cell_size);
 
-	return cell * mCellSize + ivec3({ x, y, z });
-}
+				// Skip comparing cell with itself
+				if (cell_centre == closest_cell_centre) continue;
 
-MaterialId FractalNoise::chooseMaterial(ivec3 cell)
-{
-	// When hashing for material we use a differnt seed than when hashing for centre.
-	u32 cellHash = Cubiquity::Internals::murmurHash3(&(cell[0]), sizeof(cell), 65);
+				// Distance calculation most easily done with floats
+				vec3 midpoint =
+					(vec3(cell_centre) + vec3(closest_cell_centre)) * 0.5f;
+				vec3 closest_to_current =
+					normalize(vec3(cell_centre) - vec3(closest_cell_centre));
+				vec3 sample_pos_to_midpoint = midpoint - vec3(sample_pos);
+				float dist_to_edge =
+					dot(closest_to_current, sample_pos_to_midpoint);
 
-	const u32 limit = 50; // Increase this to get more cells which are clamped to max material.
-	cellHash %= limit; // Constrain to range 0 - (limit-1)
-	cellHash += 1;     // Constrain to range 1 - limit
-	cellHash = std::min(cellHash, u32(7)); // Cells between 7 and limit get set to 7.
+				// Use edge from this cell if it is the closest.
+				min_dist_to_edge = std::min(dist_to_edge, min_dist_to_edge);
+			}
+		}
+	}
 
-	// Most cells get mat id of 7, with some getting a smaller id.
-	MaterialId material = cellHash;
-	return material;
+	// Apply border if wanted
+	u8 border_material = 1;
+	float half_border = static_cast<float>(border) * 0.5f;
+	return min_dist_to_edge < half_border ?
+		border_material : closest_cell_material;
 }
