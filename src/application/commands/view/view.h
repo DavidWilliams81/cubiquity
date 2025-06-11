@@ -6,9 +6,16 @@
 #error "CUBIQUITY_APP_ENABLE_VIEW should be set when building view command"
 #endif
 
-#include "flags.h"
+#include <filesystem>
+#include <string>
 
-bool viewVolume(const flags::args& args);
+enum class ViewMode {
+	cpu_pathtracing,
+	gpu_pathtracing,
+	instancing
+};
+
+bool viewVolume(ViewMode mode, const std::filesystem::path& input_path);
 
 #endif // CUBIQUITY_VIEW_H
 

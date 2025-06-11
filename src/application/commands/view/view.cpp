@@ -6,30 +6,25 @@
 #include "base/logging.h"
 #include "base/paths.h"
 
-bool viewVolume(const flags::args& args)
+bool viewVolume(ViewMode mode, const std::filesystem::path& input_path)
 {
-	std::filesystem::path inputPath(args.positional().at(1));
-	if (!checkInputFileIsValid(inputPath)) return false;
+	if (!checkInputFileIsValid(input_path)) return false;
 
-	const auto mode = args.get<std::string>("mode", "gpu-pathtracing");
-	if (mode == "instancing")
+	if (mode == ViewMode::instancing)
 	{
-		InstancingDemo app(inputPath.string());
+		InstancingDemo app(input_path.string());
 		app.show(1600, 1200);
 	}
-	else if (mode == "gpu-pathtracing")
+	else if (mode == ViewMode::cpu_pathtracing)
 	{
-		GPUPathtracingViewer gpuPathtracingViewer(inputPath.string());
-		gpuPathtracingViewer.show(1200, 900);
-	}
-	else if (mode == "pathtracing")
-	{
-		PathtracingDemo pathtracingDemo(inputPath.string());
+		PathtracingDemo pathtracingDemo(input_path.string());
 		pathtracingDemo.show(800, 600);
 	}
-	else
+	else if (mode == ViewMode::gpu_pathtracing)
 	{
-		log_error("Unrecognised value '{}' for --mode", mode);
+		GPUPathtracingViewer gpuPathtracingViewer(input_path.string());
+		gpuPathtracingViewer.show(1200, 900);
 	}
+
 	return true;
 }

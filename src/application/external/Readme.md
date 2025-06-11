@@ -6,11 +6,11 @@ released into the public domain. For full details see the list below.
 
 Cubiquity uses the following open source libraries:
 
-* Flags
-    - Simple, extensible, header-only C++17 argument parser released into
-      the public domain
-    - Public domain
-    - https://github.com/sailormoon/flags
+* CLI11
+    - Command line parser for C++11 and beyond that provides a rich feature set
+      with a simple and intuitive interface.
+    - BSD license
+    - https://github.com/CLIUtils/CLI11
 
 * {fmt}
     - A modern formatting library

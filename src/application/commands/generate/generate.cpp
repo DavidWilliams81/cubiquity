@@ -52,12 +52,8 @@ bool mengerSponge(int x, int y, int z)
 	return occupied;
 }
 
-bool generateVolume(const flags::args& args)
+bool generateVolume(const std::filesystem::path& output_path, uint size_exp)
 {
-	//const auto type{ args.positional().at(1) };
-	const auto outputPath = args.get<std::filesystem::path>("output", "output.dag");
-	const auto sizeExp = args.get<uint>("size_exp", 5);
-
 	Volume volume;
 	Cubiquity::MaterialId matId = 1;
 	Metadata metadata;
@@ -65,7 +61,7 @@ bool generateVolume(const flags::args& args)
 	metadata.materials.push_back(Metadata::Default);
 
 	u32 size = 1;
-	for (uint i = 0; i < sizeExp; i++)
+	for (uint i = 0; i < size_exp; i++)
 	{
 		size *= 3;
 	}
@@ -84,9 +80,9 @@ bool generateVolume(const flags::args& args)
 	}	
 
 	// Save the result
-	log_info("Saving volume as '{}'", outputPath);
-	volume.save(outputPath.string());
-	saveMetadataForVolume(metadata, outputPath);
+	log_info("Saving volume as '{}'", output_path);
+	volume.save(output_path.string());
+	saveMetadataForVolume(metadata, output_path);
 
 	return true;
 }

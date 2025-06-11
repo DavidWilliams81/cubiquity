@@ -1,13 +1,15 @@
 #ifndef CUBIQUITY_EXPORT_H
 #define CUBIQUITY_EXPORT_H
 
-#include "base/metadata.h"
+#include <filesystem>
 
-#include "utility.h"
+enum class ExportFormat {
+	vox, // MagicaVoxel
+	pngs // PNG slices
+};
 
-#include "flags.h"
-
-bool exportVolume(const flags::args& args);
-void saveVolumeAsImages(Cubiquity::Volume& volume, const Metadata& metadata, const std::string& filename);
+bool exportVolume(ExportFormat           format,
+	        const std::filesystem::path& input_path,
+	              std::filesystem::path  output_path);
 
 #endif // CUBIQUITY_EXPORT_H

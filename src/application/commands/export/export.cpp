@@ -6,6 +6,7 @@
 
 #include "cubiquity.h"
 #include "storage.h"
+#include "utility.h"
 
 #include "volume_vox_writer.h"
 
@@ -21,7 +22,8 @@
 
 using Cubiquity::Volume;
 
-void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::string& dirName)
+void saveVolumeAsImages(Volume& volume, const Metadata& metadata,
+	                    const std::filesystem::path& output_path)
 {
 	u8 outside_material;
 	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
@@ -39,7 +41,7 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 		// at least because when sorting by name the OS lists '+' before'-', and also larger-magnitiude negative number after
 		// smaller-magnitude negative numbers. This makes it more difficult to scroll through the slices.
 		char filepath[256];
-		std::snprintf(filepath, sizeof(filepath), "%s/%06d.png", dirName.c_str(), z - lower_z);
+		std::snprintf(filepath, sizeof(filepath), "%s/%06d.png", output_path.string().c_str(), z - lower_z);
 
 		//Image image(width, height);
 		std::vector<u8> imageData;
@@ -80,7 +82,8 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata, const std::str
 	}
 }
 
-void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::filesystem::path& output_path)
+void saveVolumeAsVox(Volume& volume, const Metadata& metadata,
+	                 const std::filesystem::path& output_path)
 {	
 	// Hack for testing example code from main project
 	/*run_vox_writer_example();
@@ -96,38 +99,24 @@ void saveVolumeAsVox(Volume& volume, const Metadata& metadata, const std::filesy
 	}
 }
 
-bool exportVolume(const flags::args& args)
+bool exportVolume(ExportFormat           format,
+	        const std::filesystem::path& input_path,
+	              std::filesystem::path  output_path)
 {
-	if(args.positional().size() < 3) {
-		log_error("Not enough positional parameters");
-		std::string usage = R"(
-Export usage:
+	Volume volume(input_path.string());
+	Metadata metadata = loadMetadataForVolume(input_path);
 
-	cubiquity export vox input_file [--output=output_file] [--quiet] [--verbose]
-
-Examples:
-
-	cubiquity export vox shapes.dag --output=shapes.vox
-)";
-		print("{}", usage);
-		exit(EXIT_SUCCESS);
-	}
-	std::string format(args.positional().at(1));
-
-	std::filesystem::path inputPath(args.positional().at(2));
-	if (!checkInputFileIsValid(inputPath)) return false;
-
-	Volume volume(inputPath.string());
-	Metadata metadata = loadMetadataForVolume(inputPath);
-
-	if(format == "vox") {
-		std::filesystem::path defOutputPath = inputPath.filename().replace_extension(".vox");
-		const auto outputPath = args.get<std::filesystem::path >("output", defOutputPath.string());
-		saveVolumeAsVox(volume, metadata, outputPath);
-	} else if(format == "pngs") { // PNG slices
-		// Note - Output path ignored for now.
-		//if (!checkOutputDirIsValid(outputPath)) return false;
-		saveVolumeAsImages(volume, metadata, ".");
+	if(format == ExportFormat::vox) {
+		if (output_path.empty()) {
+			output_path = input_path.filename().replace_extension(".vox");
+		}
+		saveVolumeAsVox(volume, metadata, output_path);
+	} else if(format == ExportFormat::pngs) {
+		if (output_path.empty()) {
+			output_path = ".";
+		}
+		if (!checkOutputDirIsValid(output_path)) return false;
+		saveVolumeAsImages(volume, metadata, output_path);
 	} else {
 		log_error("Unknown export format");
 	}

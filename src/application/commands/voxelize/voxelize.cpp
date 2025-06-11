@@ -55,7 +55,9 @@ void voxelizeSurface(Mesh& mesh, Volume& volume)
 	log_info("");
 }
 
-bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metadata& metadata, std::optional<float> scale, std::optional<int> size)
+bool voxelizeMesh(const std::filesystem::path& inputPath,
+	              Volume& volume, Metadata& metadata,
+	              std::optional<float> scale, std::optional<int> size)
 {
 	/* ==== Configuration ==== */
 	tinyobj::ObjReaderConfig objReaderConfig;
@@ -98,12 +100,15 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 			 lower.x, lower.y, lower.z,
 			 upper.x, upper.y, upper.z);
 
-	// If scale is not specified then compute it from desired size
-	log_warning_if(scale && size, "Ignoring --size as --scale also specified");
-	if(!scale) {
-		// If size is also not specified then use a default
-		if(!size) {
-			size = 500; // Default size if not specified
+	// Resolve size/scaling parameters. If scale is set it is applied directly,
+	// otherwise it is computed from size (using a default size if needed).
+	if (scale && size) {
+		throw std::invalid_argument(
+			"Size and scale parameters cannot be used together");
+	}
+	if(!scale) { // No scale, compute it from size
+		if(!size) { // Also no size, use a default
+			size = VoxelizeDefaultSize;
 			log_debug("Using default size of {}", size);
 
 		}
@@ -111,7 +116,7 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 		vec3 mesh_dims = upper - lower;
 		float mesh_size = *(std::max_element(begin(mesh_dims), end(mesh_dims)));
 		scale = static_cast<float>(*size) / mesh_size;
-		log_debug("Using scale factor to {} to achieve size of {} voxels",
+		log_debug("Using scale factor of {} to achieve size of {} voxels",
 		          *scale, *size);
 	}
 
@@ -265,29 +270,29 @@ bool voxelizeMesh(const std::filesystem::path& inputPath, Volume& volume, Metada
 	return true;
 }
 
-bool voxelize(const flags::args& args)
+bool voxelize(const std::filesystem::path& in_path,
+	          const std::filesystem::path& out_path,
+	          std::optional<float> scale, std::optional<int> size)
 {
-	const std::filesystem::path inputPath(args.positional().at(1));
-
-	if (!std::filesystem::exists(inputPath))
+	if (!std::filesystem::exists(in_path))
 	{
-		log_error("Path '{}' does not exist!", inputPath);
+		log_error("Path '{}' does not exist!", in_path);
 		return false;
 	}
 
-	std::filesystem::path defOutputPath = inputPath.filename().replace_extension(".dag");
-	const auto outputPath = args.get<std::filesystem::path >("output", defOutputPath.string());
+	std::filesystem::path defOutputPath = in_path.filename().replace_extension(".dag");
+	std::filesystem::path outputPath = out_path.empty() ? defOutputPath : out_path;
 
 	// Perform the voxelization
 	Cubiquity::Timer timer;
 	Volume volume;
 	Metadata metadata;
 
-	std::string extension = inputPath.extension().string();
+	std::string extension = in_path.extension().string();
 
 	if(extension == ".obj")
 	{ 
-		voxelizeMesh(inputPath, volume, metadata, args.get<float>("scale"), args.get<int>("size"));
+		voxelizeMesh(in_path, volume, metadata, scale, size);
 	}
 	else
 	{

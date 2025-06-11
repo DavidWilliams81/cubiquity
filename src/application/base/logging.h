@@ -21,6 +21,8 @@ namespace linalg {
     std::string format_as(bvec3 v);
 }
 
+void set_color_enabled(bool color_enabled);
+
 enum class log_level { debug, info, note, warning, error };
 void set_verbosity(log_level threshold);
 

@@ -7,33 +7,32 @@
 
 #include "base/logging.h"
 
-bool test(const flags::args& args)
+bool test(const Test& tests)
 {
-	const std::string feature{ args.positional().at(0) };
-	//testBase();
+	if ((tests == Test::all) || (tests == Test::base)) {
+		testBase();
+	}
 
 	//testLinearAlgebra();
 
-	/*if (!testRasterization())
-	{
-		log_error("TEST FAILED!");
-	}*/
-
-	if (!testRaytracingBehaviour())
-	{
-		log_error("TEST FAILED!");
-	}
-
-	if (!testRaytracingPerformance())
-	{
-		log_error("TEST FAILED!");
-	}
-
 	//testVoxelization();
 
-	testVolume();
 
-	//testMerge();
+	if ((tests == Test::all) || (tests == Test::volume)) {
+		testVolume();
+	}
+
+	if ((tests == Test::all) || (tests == Test::raytracing)) {
+		if (!testRaytracingBehaviour())
+		{
+			log_error("TEST FAILED!");
+		}
+
+		if (!testRaytracingPerformance())
+		{
+			log_error("TEST FAILED!");
+		}
+	}
 
 	return true;
 }
