@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <sstream>
 
 // Work around missing std::execution support.
 // Note that this involves including a header from the application folder.

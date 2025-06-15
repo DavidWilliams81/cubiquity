@@ -9,46 +9,87 @@ on:
   pull_request:
     branches:
       - master
+      
+env:
+  # Shared between all platforms.
+  CMAKE_BUILD_AND_INSTALL: |
+    cmake . -DCMAKE_BUILD_TYPE=Release
+    cmake --build . --config Release
+    cmake --install .  --prefix cubiquity-install
 
 jobs:
     build:
-        runs-on: ${{ matrix.platform.os }}
-        name: ${{ matrix.platform.name }}
+        runs-on: ${{ matrix.os }}
+        name: ${{ matrix.platform }}
 
         steps:
+        
+        #### Checkout ####
         - uses: actions/checkout@v4
+        
+        #### Install dependencies ####
 
-        - name: Install dependencies
-          if: ${{ matrix.platform.name == 'Ubuntu' }}
-          run: |
-            sudo apt-get install -y libsdl2-dev libtbb-dev ninja-build
+        # Windows build uses GCC because SDL2 is easily available. Using native
+        # toolchain (Visual C++) would require downloading SDL2 separately, and
+        # the official prebuilts don't include static libraries so we'd have to
+        # build them. Which would be fine, but this is easier.
+        - name: Install Windows dependencies
+          if: ${{ matrix.platform == 'windows' }}
+          uses: msys2/setup-msys2@v2
+          with:
+            msystem: MINGW64
+            update: true
+            install: >-
+              mingw-w64-x86_64-cmake
+              mingw-w64-x86_64-toolchain
+              mingw-w64-x86_64-SDL2
 
-        - name: Install dependencies
-          if: ${{ matrix.platform.name == 'MacOS' }}
+        - name: Install Linux dependencies
+          if: ${{ matrix.platform == 'linux' }}
           run: |
-            brew install sdl2 tbb ninja
+            sudo apt-get update
+            sudo apt-get install -y libsdl2-dev libtbb-dev
 
-        - name: Install dependencies
-          if: ${{ matrix.platform.name == 'Windows' }}
+        - name: Install MacOS dependencies
+          if: ${{ matrix.platform == 'macos' }}
           run: |
-            choco install ninja --yes
+            brew install sdl2 tbb
+            
+        #### Build all platforms ####
 
-        - name: Build
-          run: |
-            cmake . -G Ninja
-            cmake --build . --config Release
-            cmake --install .  --prefix cubiquity-install
+        - name: Build and install on Windows using MSYS2
+          if: ${{ matrix.platform == 'windows' }}
+          shell: msys2 {0}
+          run: ${{ env.CMAKE_BUILD_AND_INSTALL }}
+          
+        - name: Build and install on Unix using default shell
+          if: ${{ matrix.platform != 'windows' }}
+          run: ${{ env.CMAKE_BUILD_AND_INSTALL }}
+
+        #### Upload ####
 
         - name: Upload the build artifacts
           uses: actions/upload-artifact@v4
           with:
-            name: cubiquity-${{ matrix.platform.name }}
+            name: cubiquity-${{ matrix.platform }}-${{ matrix.arch }}
             path: cubiquity-install
 
         strategy:
           fail-fast: false
           matrix:
-            platform:
-            - { name: Windows,  os: windows-2022 }
-            - { name: Ubuntu,   os: ubuntu-latest }
-            - { name: MacOS,    os: macos-latest }
+            include:
+              - platform: windows
+                os: windows-2022
+                arch: x64
+                
+              - platform: linux
+                os: ubuntu-22.04
+                arch: amd64
+                
+              - platform: macos
+                os: macos-13
+                arch: x64
+
+              - platform: macos
+                os: macos-13
+                arch: arm64
