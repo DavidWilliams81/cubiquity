@@ -1,6 +1,7 @@
 #include "viewer.h"
 
 #include "base/logging.h"
+#include "base/serialize.h"
 
 #include "cubiquity.h"
 #include "extraction.h"
@@ -11,15 +12,20 @@
 #include <fstream>
 #include <vector>
 
-Viewer::Viewer(const std::string& filename, WindowType windowType)
+Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 	: Window(windowType)
 {
-	log_info("Opening volume '{}'", filename);
-	if (!mVolume.load(filename))
+	// FIXME - Change this to use the loadVolume()
+	// function once we have that returning by value
+	log_info("Opening volume '{}'", volume_path);
+	if (!mVolume.load(volume_path))
 	{
 		log_error("Failed to open volume!");
 		exit(EXIT_FAILURE);
 	}
+
+	Metadata metadata;
+	metadata.load(getMetadataPath(volume_path));
 	log_info("Done");
 
 	// FIXME - This cube doesn't pathtrace properly
@@ -34,12 +40,11 @@ Viewer::Viewer(const std::string& filename, WindowType windowType)
 		}
 	}*/
 
-	Metadata metadata = loadMetadataForVolume(filename);
-
 	// Build an array of colours from the material data for uploading to the GPU.
-	std::fill(begin(mColours), end(mColours), Metadata::Warning.base_color);
-	for (int i = 0; i < metadata.materials.size(); i++) {
-		mColours[i] = metadata.materials[i].base_color;
+	vec3 purple = { 1.0f, 0.0f, 1.0f };
+	std::fill(begin(mColours), end(mColours),purple ); // Purple
+	for (int i = 0; i < metadata.material_count(); i++) {
+		mColours[i] = metadata.material_base_color(i);
 	}
 }
 

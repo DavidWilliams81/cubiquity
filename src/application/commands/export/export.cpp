@@ -1,8 +1,8 @@
 #include "export.h"
 
-#include "base/paths.h"
 #include "base/logging.h"
 #include "base/progress.h"
+#include "base/serialize.h"
 
 #include "cubiquity.h"
 #include "storage.h"
@@ -51,7 +51,7 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata,
 			{
 				Cubiquity::MaterialId matId = volume.voxel(x, y, z);
 
-				Col base_color = metadata.materials.at(matId).base_color;
+				vec3 base_color = metadata.material_base_color(matId);
 
 				float gamma = 1.0f / 2.2f;
 				base_color[0] = pow(base_color[0], gamma);
@@ -103,20 +103,19 @@ bool exportVolume(ExportFormat           format,
 	        const std::filesystem::path& input_path,
 	              std::filesystem::path  output_path)
 {
-	Volume volume(input_path.string());
-	Metadata metadata = loadMetadataForVolume(input_path);
+	auto [volume, metadata] = loadVolume(input_path.string());
 
 	if(format == ExportFormat::vox) {
 		if (output_path.empty()) {
 			output_path = input_path.filename().replace_extension(".vox");
 		}
-		saveVolumeAsVox(volume, metadata, output_path);
+		saveVolumeAsVox(*volume, metadata, output_path);
 	} else if(format == ExportFormat::pngs) {
 		if (output_path.empty()) {
 			output_path = ".";
 		}
 		if (!checkOutputDirIsValid(output_path)) return false;
-		saveVolumeAsImages(volume, metadata, output_path);
+		saveVolumeAsImages(*volume, metadata, output_path);
 	} else {
 		log_error("Unknown export format");
 	}

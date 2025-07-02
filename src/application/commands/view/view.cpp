@@ -4,7 +4,7 @@
 #include "pathtracing_demo.h"
 
 #include "base/logging.h"
-#include "base/paths.h"
+#include "base/serialize.h"
 
 bool viewVolume(ViewMode mode, const std::filesystem::path& input_path)
 {

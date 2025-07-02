@@ -11,18 +11,19 @@ using Cubiquity::Volume;
 volume_vox_writer::volume_vox_writer(Volume& vol, const Metadata& metadata)
 	:m_vol(vol), m_metadata(metadata)
 {
+	// FIXME - Restore this test? Check opacity is zero?
 	// MagicaVoxel assumes that palette index 0 is empty space, so we
 	// can only write a valid .vox file if our volume does the same.
-	if (metadata.materials[0].name != Metadata::EmptySpace.name) {
-		log_warning("Material '{}' found in slot zero (it should be empty space "
-		            "and will be treated as such)", metadata.materials[0].name);
-	}
+	//if (metadata.name(0) != Metadata::EmptySpace.name) {
+	//	log_warning("Material '{}' found in slot zero (it should be empty space "
+	//	            "and will be treated as such)", metadata.name(0));
+	//}
 
 	for (int i = 1; i < 256; i++)
 	{
-		if (i < metadata.materials.size())
+		if (i < metadata.material_count())
 		{
-			Col base_color = metadata.materials.at(i).base_color;
+			vec3 base_color = metadata.material_base_color(i);
 
 			float gamma = 1.0f / 2.2f;
 			base_color[0] = pow(base_color[0], gamma);

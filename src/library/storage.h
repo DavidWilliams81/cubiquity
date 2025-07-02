@@ -41,6 +41,10 @@ namespace Cubiquity
 			NodeStore() { mData = new Node[size()]; }
 			~NodeStore() { delete[] mData; }
 
+			// Non-copyable (deleted)
+			NodeStore(const NodeStore&) = delete;
+			NodeStore& operator=(const NodeStore&) = delete;
+
 			const Node& operator[](u32 index) const { return mData[index]; }
 
 			void setNode(u32 index, const Internals::Node& node);
@@ -56,6 +60,10 @@ namespace Cubiquity
 		{
 		public:
 			NodeDAG();
+
+			// Non-copyable (deleted)
+			NodeDAG(const NodeDAG&) = delete;
+			NodeDAG& operator=(const NodeDAG&) = delete;
 
 			const Node& operator[](u32 index) const { return mNodes[index]; }
 
@@ -158,6 +166,17 @@ namespace Cubiquity
 
 		Volume();
 		Volume(const std::string& filename);
+
+		// Non-copyable (deleted)
+		Volume(const Volume&) = delete;
+		Volume& operator=(const Volume&) = delete;
+
+		// FIXME - Default move constructor doesn't work, I think because there
+		// is no move constructor on NodeStore (which manages a raw pointer) and
+		// so it falls back on the copy constructor. 
+		// But moveable (defaulted)
+		//Volume(Volume&& vol) = default;
+		//Volume& operator=(Volume&& vol) = default;
 
 		void fill(MaterialId matId);
 

@@ -9,7 +9,7 @@
 
 #include "base/metadata.h"
 
-typedef std::array<Col, 256> ColourArray;
+typedef std::array<vec3, 256> ColourArray;
 
 class Viewer : public Window
 {

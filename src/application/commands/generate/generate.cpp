@@ -15,6 +15,7 @@
 
 #include "base/logging.h"
 #include "base/metadata.h"
+#include "base/serialize.h"
 #include "base/types.h"
 
 #include "storage.h"
@@ -57,8 +58,8 @@ bool generateVolume(const std::filesystem::path& output_path, uint size_exp)
 	Volume volume;
 	Cubiquity::MaterialId matId = 1;
 	Metadata metadata;
-	metadata.materials.push_back(Metadata::EmptySpace);
-	metadata.materials.push_back(Metadata::Default);
+	metadata.set_material_to_empty_space(0);
+	metadata.set_material_to_default(matId);
 
 	u32 size = 1;
 	for (uint i = 0; i < size_exp; i++)
@@ -81,9 +82,9 @@ bool generateVolume(const std::filesystem::path& output_path, uint size_exp)
 
 	// Save the result
 	log_info("Saving volume as '{}'", output_path);
-	volume.save(output_path.string());
-	saveMetadataForVolume(metadata, output_path);
+	//volume.save(output_path.string());
+	//metadata.save(output_path);
+	saveVolume(output_path, volume, metadata, true);
 
 	return true;
 }
-

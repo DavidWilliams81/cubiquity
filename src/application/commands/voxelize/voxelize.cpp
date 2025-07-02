@@ -16,6 +16,7 @@
 #include "base/logging.h"
 #include "base/metadata.h"
 #include "base/ray.h"
+#include "base/serialize.h"
 
 #include "stb_image.h"
 
@@ -122,7 +123,8 @@ bool voxelizeMesh(const std::filesystem::path& inputPath,
 
 
 	/* ==== Setup Materials ==== */
-	const size_t max_obj_materials = 254; // Leave space for empty space and default material
+	const size_t reserved_materials = 2; // Empty space and default material
+	const size_t max_obj_materials  = 256 - reserved_materials;
 	auto& obj_materials = objReader.GetMaterials();
 
 	// Lack of materials isn't necessarily an problem (there may have been no 'mtllib' directive).
@@ -137,22 +139,23 @@ bool voxelizeMesh(const std::filesystem::path& inputPath,
 	}
 
 	// The first material is always empty space, and is not used by any objects.
-	metadata.materials.push_back(Metadata::EmptySpace);
+	metadata.set_material_to_empty_space(0);
 	const int matBegin = 1; // Our real (non-empty) materials start here.
 
 	// Copy as many materials as possible from the .mtl file.	
 	const size_t materials_to_copy = std::min(obj_materials.size(), max_obj_materials);
 	for (size_t i = 0; i < materials_to_copy; i++) {
 		// Note - We can simplify with std::to_array from C++20 onwards.
-		Material material = { obj_materials[i].name,
-			{obj_materials[i].diffuse[0], obj_materials[i].diffuse[1], obj_materials[i].diffuse[2]} };
-		metadata.materials.push_back(material);
+		metadata.set_material(matBegin + i, obj_materials[i].name,
+		                     {obj_materials[i].diffuse[0],
+			                  obj_materials[i].diffuse[1],
+			                  obj_materials[i].diffuse[2]});
 	}
 
-	// Default material is used by objects whose material was dropped because there were
-	// too many materials, and by objects which don't actually have a material assigned.
-	metadata.materials.push_back(Metadata::Default); // Last occupied material slot
-	const int default_material = metadata.materials.size() - 1;
+	// Default material is used by objects without a material assigned, and by
+	// objects whose material was dropped because there were too many materials.
+	const int default_material = metadata.material_count(); // Next empty slot
+	metadata.set_material_to_default(default_material);
 	
 
 	/* ==== Process each shape in the file ==== */
@@ -304,8 +307,7 @@ bool voxelize(const std::filesystem::path& in_path,
 
 	// Save the result
 	log_info("Saving volume as '{}'...", outputPath);
-	volume.save(outputPath.string());
-	saveMetadataForVolume(metadata, outputPath);
+	saveVolume(outputPath, volume, metadata, true);
 	log_info("Done");
 
 	// FIXME - Temporary hack to automatically do image export after voxelisation.
