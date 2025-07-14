@@ -22,36 +22,61 @@
 
 using Cubiquity::Volume;
 
-void saveVolumeAsImages(Volume& volume, const Metadata& metadata,
-	                    const std::filesystem::path& output_path)
+void export_as_bin(Volume& volume, const Metadata& metadata,
+                   const std::filesystem::path& output_path)
 {
-	u8 outside_material;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+	std::ofstream file(output_path, std::ios::out | std::ios::binary);
 
-	// Expand the bounds in case we have a scene with a solid exterior, as in
-	// this case it is useful to see some of the exterior in the image slices.
+	ivec3 lower_bound = metadata.find_lower_bound();
+	ivec3 upper_bound = metadata.find_upper_bound();
+
+	for (int z = lower_bound.z; z <= upper_bound.z; z++)
+	{
+		for (int y = lower_bound.y; y <= upper_bound.y; y++)
+		{
+			for (int x = lower_bound.x; x <= upper_bound.x; x++)
+			{
+				Cubiquity::MaterialId matId = volume.voxel(x, y, z);
+				file.write(reinterpret_cast<const char*>(&matId), sizeof(matId));
+			}
+		}
+
+		// A bit cheeky, but we can directly call our Cubiquity progress handling code for progress bar. 
+		cubiquityProgressHandler("Saving volume as raw 3D array",
+			lower_bound.z, z, upper_bound.z);
+	}
+}
+
+void export_as_images(Volume& volume, const Metadata& metadata,
+	                  const std::filesystem::path& output_path)
+{
+	// Including a border gives useful context and is aesthetically pleasing.
+	// It makes it clear that the whole object has been exported (not clipped),
+	// and if the exterior is solid then some of that is captured too.
+	// We only offer this border for image export (not other export types)
+	// because this is intended for debug and visualisation, whereas other types
+	// might be reimported and tampering with the bounds might complicate this.
 	const int border = 5;
-	lower_x -= border; lower_y -= border; lower_z -= border;
-	upper_x += border; upper_y += border; upper_z += border;
+	ivec3 lower_bound = metadata.find_lower_bound() - ivec3(border);
+	ivec3 upper_bound = metadata.find_upper_bound() + ivec3(border);
 
-	for (int z = lower_z; z <= upper_z; z += 1)
+	for (int z = lower_bound.z; z <= upper_bound.z; z += 1)
 	{
 		// Note that the filenames start at zero (they are never negative). Using +/- symbols in the filenames is problematic,
 		// at least because when sorting by name the OS lists '+' before'-', and also larger-magnitiude negative number after
 		// smaller-magnitude negative numbers. This makes it more difficult to scroll through the slices.
 		char filepath[256];
-		std::snprintf(filepath, sizeof(filepath), "%s/%06d.png", output_path.string().c_str(), z - lower_z);
+		std::snprintf(filepath, sizeof(filepath), "%s/%06d.png", output_path.string().c_str(), z - lower_bound.z);
 
 		//Image image(width, height);
 		std::vector<u8> imageData;
-		for (int y = lower_y; y <= upper_y; y++)
+		for (int y = lower_bound.y; y <= upper_bound.y; y++)
 		{
-			for (int x = lower_x; x <= upper_x; x++)
+			for (int x = lower_bound.x; x <= upper_bound.x; x++)
 			{
 				Cubiquity::MaterialId matId = volume.voxel(x, y, z);
 
-				vec3 base_color = metadata.material_base_color(matId);
+				vec3 base_color = metadata.find_material_base_color(matId);
 
 				float gamma = 1.0f / 2.2f;
 				base_color[0] = pow(base_color[0], gamma);
@@ -69,8 +94,8 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata,
 			}
 		}
 
-		int width  = (upper_x - lower_x) + 1;
-		int height = (upper_y - lower_y) + 1;
+		int width  = (upper_bound.x - lower_bound.x) + 1;
+		int height = (upper_bound.y - lower_bound.y) + 1;
 		int result = stbi_write_png(filepath, width, height, 4, imageData.data(), width * 4);
 		if (result == 0)
 		{
@@ -78,12 +103,13 @@ void saveVolumeAsImages(Volume& volume, const Metadata& metadata,
 		}
 
 		// A bit cheeky, but we can directly call our Cubiquity progress handling code for progress bar. 
-		cubiquityProgressHandler("Saving volume as images", lower_z, z, upper_z);
+		cubiquityProgressHandler("Saving volume as images",
+		                         lower_bound.z, z, upper_bound.z);
 	}
 }
 
-void saveVolumeAsVox(Volume& volume, const Metadata& metadata,
-	                 const std::filesystem::path& output_path)
+void export_as_vox(Volume& volume, const Metadata& metadata,
+	               const std::filesystem::path& output_path)
 {	
 	// Hack for testing example code from main project
 	/*run_vox_writer_example();
@@ -99,24 +125,34 @@ void saveVolumeAsVox(Volume& volume, const Metadata& metadata,
 	}
 }
 
-bool exportVolume(ExportFormat           format,
-	        const std::filesystem::path& input_path,
-	              std::filesystem::path  output_path)
+bool export_as(ExportFormat           format,
+         const std::filesystem::path& input_path,
+               std::filesystem::path  output_path)
 {
 	auto [volume, metadata] = loadVolume(input_path.string());
 
-	if(format == ExportFormat::vox) {
+	switch (format)
+	{
+	case ExportFormat::bin:
 		if (output_path.empty()) {
-			output_path = input_path.filename().replace_extension(".vox");
+			output_path = input_path.filename().replace_extension(".bin");
 		}
-		saveVolumeAsVox(*volume, metadata, output_path);
-	} else if(format == ExportFormat::pngs) {
+		export_as_bin(*volume, metadata, output_path);
+		break;
+	case ExportFormat::pngs:
 		if (output_path.empty()) {
 			output_path = ".";
 		}
 		if (!checkOutputDirIsValid(output_path)) return false;
-		saveVolumeAsImages(*volume, metadata, output_path);
-	} else {
+		export_as_images(*volume, metadata, output_path);
+		break;
+	case ExportFormat::vox:
+		if (output_path.empty()) {
+			output_path = input_path.filename().replace_extension(".vox");
+		}
+		export_as_vox(*volume, metadata, output_path);
+		break;
+	default:
 		log_error("Unknown export format");
 	}
 

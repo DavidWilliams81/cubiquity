@@ -21,8 +21,7 @@ std::pair<std::unique_ptr<Cubiquity::Volume>, Metadata>
     loadVolume(const std::filesystem::path& vol_path);
 
 void saveVolume(const std::filesystem::path& volume_path, 
-                Cubiquity::Volume& volume,
-                Metadata& metadata, bool update_bounds);
+                Cubiquity::Volume& volume, Metadata& metadata);
 
 #endif // CUBIQUITY_PATHS_H
 

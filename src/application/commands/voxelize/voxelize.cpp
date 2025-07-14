@@ -305,19 +305,26 @@ bool voxelize(const std::filesystem::path& in_path,
 	log_info("Voxelized in {} seconds", timer.elapsedTimeInSeconds());
 	log_info("Node count before merging = {}", volume.countNodes());
 
+	log_info("Calculating volume bounds... ");
+	timer.start();
+	u8 outside_material = 0;
+	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
+	cubiquity_estimate_bounds(&volume, &outside_material,
+		&lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+	log_info("Calculated bounds in {} seconds", timer.elapsedTimeInSeconds());
+	metadata.set_lower_bound({ lower_x, lower_y, lower_z });
+	metadata.set_upper_bound({ upper_x, upper_y, upper_z });
+	log_info("\tLower bound = {}", metadata.find_lower_bound());
+	log_info("\tUpper bound = {}", metadata.find_upper_bound());
+
 	// Save the result
 	log_info("Saving volume as '{}'...", outputPath);
-	saveVolume(outputPath, volume, metadata, true);
+	saveVolume(outputPath, volume, metadata);
 	log_info("Done");
 
 	// FIXME - Temporary hack to automatically do image export after voxelisation.
 	// In general the user should run cubiquity a second time to do the export.
-	//saveVolumeAsImages(volume, metadata, ".");
-
-	u8 outside_material;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(&volume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
-	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
+	//export_as_images(volume, metadata, ".");
 
 	i64 histogram[256];
 	cubiquity_compute_histogram(&volume, histogram);

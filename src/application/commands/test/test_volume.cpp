@@ -583,6 +583,7 @@ bool testCSG()
 
 	building.save("../data/csg.dag");
 
+	// Bounds may have changed as a result of CSG, so find and print them.
 	u8 outside_material;
 	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
 	cubiquity_estimate_bounds(&building, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);

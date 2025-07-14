@@ -49,6 +49,7 @@ private:
 
 	Camera mCamera;
 	Cubiquity::Volume mVolume;
+	Metadata mMetadata;
 	ColourArray mColours;
 
 	int mFrameNumber;

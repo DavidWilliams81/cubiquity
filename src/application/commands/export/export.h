@@ -4,12 +4,13 @@
 #include <filesystem>
 
 enum class ExportFormat {
-	vox, // MagicaVoxel
-	pngs // PNG slices
+    bin,  // Raw 3D array
+    pngs, // PNG slices
+	vox,  // MagicaVoxel
 };
 
-bool exportVolume(ExportFormat           format,
-	        const std::filesystem::path& input_path,
-	              std::filesystem::path  output_path);
+bool export_as(ExportFormat           format,
+         const std::filesystem::path& input_path,
+               std::filesystem::path  output_path);
 
 #endif // CUBIQUITY_EXPORT_H

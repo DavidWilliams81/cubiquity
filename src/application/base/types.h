@@ -31,6 +31,9 @@ typedef uint64_t u64;
 
 typedef unsigned int uint;
 
+// Integer limits
+const i32 I32_MAX = 2147483647;
+
 // GLSL-like vector and matrix typedefs.
 using  vec3 = linalg::vec<float,  3>;
 using dvec3 = linalg::vec<double, 3>;

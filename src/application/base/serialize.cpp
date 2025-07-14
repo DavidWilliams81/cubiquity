@@ -50,19 +50,8 @@ std::pair<std::unique_ptr<Cubiquity::Volume>, Metadata> loadVolume(const std::fi
 }
 
 void saveVolume(const std::filesystem::path& volume_path,
-	            Cubiquity::Volume& volume,
-                Metadata& metadata, bool update_bounds)
+	            Cubiquity::Volume& volume, Metadata& metadata)
 {
 	volume.save(volume_path.string());
-
-	if (update_bounds) {
-		u8 outside_material = 0;
-		i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-		cubiquity_estimate_bounds(&volume, &outside_material,
-			&lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
-		metadata.set_lower_bound({ lower_x, lower_y, lower_z });
-		metadata.set_upper_bound({ upper_x, upper_y, upper_z });
-	}
-
 	metadata.save(getMetadataPath(volume_path));
 }

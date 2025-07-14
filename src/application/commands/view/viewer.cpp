@@ -24,8 +24,7 @@ Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 		exit(EXIT_FAILURE);
 	}
 
-	Metadata metadata;
-	metadata.load(getMetadataPath(volume_path));
+	mMetadata.load(getMetadataPath(volume_path));
 	log_info("Done");
 
 	// FIXME - This cube doesn't pathtrace properly
@@ -43,8 +42,8 @@ Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 	// Build an array of colours from the material data for uploading to the GPU.
 	vec3 purple = { 1.0f, 0.0f, 1.0f };
 	std::fill(begin(mColours), end(mColours),purple ); // Purple
-	for (int i = 0; i < metadata.material_count(); i++) {
-		mColours[i] = metadata.material_base_color(i);
+	for (int i = 0; i < mMetadata.material_count(); i++) {
+		mColours[i] = mMetadata.find_material_base_color(i);
 	}
 }
 
@@ -56,17 +55,11 @@ void Viewer::onInitialise()
 
 	Cubiquity::Timer timer;
 
-	u8 outside_material;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(&mVolume, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
-
-	dvec3 lower({ static_cast<float>(lower_x), static_cast<float>(lower_y), static_cast<float>(lower_z) });
-	dvec3 upper({ static_cast<float>(upper_x), static_cast<float>(upper_y), static_cast<float>(upper_z) });
-	log_info("Lower bound = ({},{},{})", lower.x, lower.y, lower.z);
-	log_info("Upper bound = ({},{},{})", upper.x, upper.y, upper.z);
-	log_info("Bounds estimation took {} seconds", timer.elapsedTimeInSeconds());
-
+	ivec3 lower = mMetadata.find_lower_bound();
+	ivec3 upper = mMetadata.find_upper_bound();
 	dvec3 centre = (lower + upper) * 0.5;
+
+	u8 outside_material = mVolume.voxel(I32_MAX, I32_MAX, I32_MAX); // Corner
 
 	if (outside_material == 0) // Solid object, point camera at centre and move it back
 	{

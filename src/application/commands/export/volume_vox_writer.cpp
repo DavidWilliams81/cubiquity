@@ -23,7 +23,7 @@ volume_vox_writer::volume_vox_writer(Volume& vol, const Metadata& metadata)
 	{
 		if (i < metadata.material_count())
 		{
-			vec3 base_color = metadata.material_base_color(i);
+			vec3 base_color = metadata.find_material_base_color(i);
 
 			float gamma = 1.0f / 2.2f;
 			base_color[0] = pow(base_color[0], gamma);
@@ -41,20 +41,11 @@ volume_vox_writer::volume_vox_writer(Volume& vol, const Metadata& metadata)
 
 vox_writer::box volume_vox_writer::bounds()
 {
-	u8 outside_material;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(&m_vol, &outside_material,
-		                      &lower_x, &lower_y, &lower_z,
-		                      &upper_x, &upper_y, &upper_z);
+	ivec3 lower_bound = m_metadata.find_lower_bound();
+	ivec3 upper_bound = m_metadata.find_upper_bound();
 
-	// Including a border lets the user see the objects have not been
-	// clipped, and if the outside  material is solid then it makes
-	// sense to include some of it as part of the scene anyway.
-	const int border = 1;
-	lower_x -= border; lower_y -= border; lower_z -= border;
-	upper_x += border; upper_y += border; upper_z += border;
-
-	return{ { lower_x, lower_y, lower_z }, { upper_x, upper_y, upper_z } };
+	return { { lower_bound.x, lower_bound.y, lower_bound.z }, 
+	         { upper_bound.x, upper_bound.y, upper_bound.z } };
 }
 
 u8 volume_vox_writer::voxel(const vec3i& position)

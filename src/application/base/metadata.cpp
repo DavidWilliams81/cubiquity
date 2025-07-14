@@ -34,7 +34,7 @@ R"(# Overview
 const std::string bounds_comment =
 R"(# Bounds
 # ------
-# These are *inclusive* bounds, so add one when computing the dimensions:
+# These are *inclusive* bounds, so add one when computing the volume dimensions:
 # 
 #     dimensions[0] = (upper_bound[0] - lower_bound[0]) + 1
 #     dimensions[1] = (upper_bound[1] - lower_bound[1]) + 1
@@ -63,15 +63,46 @@ Metadata::~Metadata()
 	delete m_toml_data;
 }
 
+Metadata::Metadata(Metadata&& rhs) noexcept
+	: m_toml_data{ std::exchange(rhs.m_toml_data, nullptr) }
+{
+}
+
+Metadata& Metadata::operator=(Metadata&& rhs) noexcept
+{
+	if (this != &rhs) {
+		delete m_toml_data;
+		m_toml_data = std::exchange(rhs.m_toml_data, nullptr);
+	}
+	return *this;
+}
+
 /* ============================= Serialisation ============================== */
+
+void Metadata::validate() const
+{
+	// We require that bounds information is always present in the metadata. It
+	// is used by most algorithms and we don't want them to have to individually
+	// handle the case of missing bounds. 
+	// We simply error if the bounds information is missing. We could instead
+	// try to calculate the bounds, but that can only be done for a DAG (not a
+	// raw binary array) and needs assumptions about which materials are empty
+	// space. It might also confuse the user if their bounds were discarded in
+	// the case of a simple typo, and we would have to decide (or ask the user)
+	// whether to write the newly-calculated bounds back out.
+	find_lower_bound(); // These accessors throw exceptions
+	find_upper_bound(); // for missing or invalid data
+}
 
 void Metadata::load(const std::filesystem::path& path)
 {
 	*(m_toml_data) = toml::parse<toml::ordered_type_config>(path);
+	validate();
 }
 
 void Metadata::save(const std::filesystem::path& path) const
 {
+	validate();
 	std::ofstream file(path);
 	file.exceptions(~std::ofstream::goodbit); // Enable exceptions
 	file << toml::format(*(m_toml_data));
@@ -79,7 +110,7 @@ void Metadata::save(const std::filesystem::path& path) const
 
 /* ================================= Bounds ================================= */
 
-void Metadata::ensure_bounds_exists()
+void Metadata::ensure_bounds_table_exists()
 {
 	// This is a bit of a hack! The issue is that the 'toml11' library we are
 	// using can store values in a toml::table (in which the order gets
@@ -128,29 +159,27 @@ void Metadata::ensure_bounds_exists()
 	}
 }
 
-std::optional<std::array<int, 3>> Metadata::lower_bound() const
+ivec3 Metadata::find_lower_bound() const
 {
-	// Return std::optional as no sensible default.
-	return toml::find<std::optional<std::array<int, 3>>>(
-		*m_toml_data, "bounds", "lower_bound");
+	// Throws on failure as not considered optional and has no sensible default
+	return toml::find<array3i>(*m_toml_data, "bounds", "lower_bound");
 }
 
 void Metadata::set_lower_bound(const std::array<int, 3>& lower_bound)
 {
-	ensure_bounds_exists();
+	ensure_bounds_table_exists();
 	(*m_toml_data)["bounds"]["lower_bound"] = lower_bound;
 }
 
-std::optional<std::array<int, 3>> Metadata::upper_bound() const
+ivec3 Metadata::find_upper_bound() const
 {
-	// Return std::optional as no sensible default.
-	return toml::find<std::optional<std::array<int, 3>>>(
-		*m_toml_data, "bounds", "upper_bound");
+	// Throws on failure as not considered optional and has no sensible default
+	return toml::find<array3i>(*m_toml_data, "bounds", "upper_bound");
 }
 
 void Metadata::set_upper_bound(const std::array<int, 3>& upper_bound)
 {
-	ensure_bounds_exists();
+	ensure_bounds_table_exists();
 	(*m_toml_data)["bounds"]["upper_bound"] = upper_bound;
 }
 
@@ -219,7 +248,7 @@ void Metadata::resize_materials(int size)
 	}
 }
 
-void Metadata::ensure_material_exists(int index)
+void Metadata::ensure_material_table_exists(int index)
 {
 	// When populating a material array I find it useful to be able to write to
 	// any material index and assume it is valid. However, I don't want to
@@ -233,7 +262,7 @@ void Metadata::ensure_material_exists(int index)
 
 void Metadata::clear_material(int index)
 {
-	ensure_material_exists(index);
+	ensure_material_table_exists(index);
 
 	// Create an empty table for the material
 	(*(m_toml_data))["materials"][index] = toml::ordered_table();
@@ -246,7 +275,7 @@ void Metadata::set_material(int index, std::string name, vec3 base_color)
 	set_material_base_color(index, base_color);
 }
 
-std::string Metadata::material_name(int index) const
+std::string Metadata::find_material_name(int index) const
 {
 	return toml::find_or< std::string >(
 		*(m_toml_data), "materials", index, "name", "");
@@ -254,11 +283,11 @@ std::string Metadata::material_name(int index) const
 
 void Metadata::set_material_name(int index, std::string name)
 {
-	ensure_material_exists(index);
+	ensure_material_table_exists(index);
 	(*(m_toml_data))["materials"][index]["name"] = name;
 }
 
-vec3 Metadata::material_base_color(int index) const
+vec3 Metadata::find_material_base_color(int index) const
 {
 	return toml::find_or< array3f >(
 		*(m_toml_data), "materials", index, "base_color", DefaultColor);
@@ -266,7 +295,7 @@ vec3 Metadata::material_base_color(int index) const
 
 void Metadata::set_material_base_color(int index, vec3 color)
 {
-	ensure_material_exists(index);
+	ensure_material_table_exists(index);
 	(*(m_toml_data))["materials"][index]["base_color"] = array3f(color);
 }
 

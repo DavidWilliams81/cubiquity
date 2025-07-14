@@ -29,10 +29,26 @@ namespace toml
 // (rather than being specified) so that we could avoid writing them out,
 // otherwise a terse input file might turn into a verbose output file. We'd also
 // lose additional information (such as comments or other pieces of data) if
-// the user had hand-crafted a TOML file.
+// the user had hand-crafted a TOML file. Therefore we instead keep the data as
+// TOML types and convert on demand.
 //
-// Therefore we instead keep the data as TOML types and convert on demand. I'm
-// not really sure how valuable this but it does address the concerns above.
+// Looking back, I'm not sure this was the right decision. Manipulating the TOML
+// on-the-fly has required the use of 'ensure_xxx_table_exists()' (see below)
+// and is overall a bit complex and clunky. We could probably have just used
+// e.g. std::optional to track which values were not actually present in the
+// input file (and then returned default values if they were requested) to avoid
+// writing them back out. And the comment handling provided by our chosen
+// library is limited in terms of formatting options (e.g. it can't add comments
+// at the end of a line), so it might have been easier to just write these
+// out ourself.
+// 
+// Also, it seems unlikely that a user would be adding additional properties or
+// comments anyway, and even if they were, would they really expect us to
+// preserve them? And even if they did, we don't often actually read and then
+// write the same TOML file. We either read and use (e.g. when viewing) or
+// generate and save (e.g. when voxelising). Conversion between .dag and .bin
+// doesn't actually touch the metadata. The only usecase I can think of would be
+// a proper voxel editor, but we don't have that.
 class Metadata
 {
 public:
@@ -43,31 +59,31 @@ public:
 	Metadata(const Metadata&) = delete;
 	Metadata& operator=(const Metadata&) = delete;
 
-	// But moveable (defaulted)
-	Metadata(Metadata&& m) = default;
-	Metadata& operator=(Metadata&& m) = default;
+	// But moveable
+	Metadata(Metadata&& rhs) noexcept;
+	Metadata& operator=(Metadata&& rhs) noexcept;
 
 	void load(const std::filesystem::path& path);
 	void save(const std::filesystem::path& path) const;
 
 	// Bounds
-	std::optional<std::array<int, 3>> lower_bound() const;
-	void set_lower_bound(const std::array<int, 3>& lower_bound);
+	ivec3 find_lower_bound() const;
+	void  set_lower_bound(const std::array<int, 3>& lower_bound);
 
-	std::optional<std::array<int, 3>> upper_bound() const;
-	void set_upper_bound(const std::array<int, 3>& upper_bound);
+	ivec3 find_upper_bound() const;
+	void  set_upper_bound(const std::array<int, 3>& upper_bound);
 
 	// Materials
-	int material_count() const;
+	int  material_count() const;
 	void clear_all_materials();
 
 	void clear_material(int index);
 	void set_material(int index, std::string name, vec3 base_color);
 
-	std::string material_name(int index) const;
+	std::string find_material_name(int index) const;
 	void set_material_name(int index, std::string name);
 
-	vec3 material_base_color(int index) const;
+	vec3 find_material_base_color(int index) const;
 	void set_material_base_color(int index, vec3 color);
 
 	// Explicitly adding enties for these makes the files more readable
@@ -77,8 +93,10 @@ public:
 
 private:
 
-	void ensure_bounds_exists();
-	void ensure_material_exists(int index);
+	void validate() const;
+
+	void ensure_bounds_table_exists();
+	void ensure_material_table_exists(int index);
 
 	// It should not be necessary to call this externally
 	// as the materials array is resized on demand.

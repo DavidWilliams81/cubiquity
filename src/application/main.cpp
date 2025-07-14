@@ -116,8 +116,9 @@ try
 
 	ExportFormat exp_fmt;
 	std::map<std::string, ExportFormat> exp_fmt_map{
-		{"vox", ExportFormat::vox},
-		{"pngs", ExportFormat::pngs}
+		{"bin",  ExportFormat::bin},
+		{"pngs", ExportFormat::pngs},
+		{"vox",  ExportFormat::vox}
 	};
 	exp_cmd->add_option("format", exp_fmt, "Output format to export as")
 		   ->required()
@@ -136,7 +137,7 @@ try
 			            "Path to the exported file");
 
 	exp_cmd->final_callback([&]() {
-		exportVolume(exp_fmt, exp_in_path, exp_out_path); });
+		export_as(exp_fmt, exp_in_path, exp_out_path); });
 
 	// ------------------------ Generate ------------------------
 	CLI::App* gen_cmd = app.add_subcommand("generate",
