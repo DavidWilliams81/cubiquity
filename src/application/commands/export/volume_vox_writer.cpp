@@ -1,6 +1,8 @@
 #include "volume_vox_writer.h"
 
+#include "base/bounds.h"
 #include "base/logging.h"
+
 
 #include "base.h"
 
@@ -21,9 +23,9 @@ volume_vox_writer::volume_vox_writer(Volume& vol, const Metadata& metadata)
 
 	for (int i = 1; i < 256; i++)
 	{
-		if (i < metadata.material_count())
+		if (i < metadata.materials.size())
 		{
-			vec3 base_color = metadata.find_material_base_color(i);
+			vec3 base_color = metadata.materials[i].base_color();
 
 			float gamma = 1.0f / 2.2f;
 			base_color[0] = pow(base_color[0], gamma);
@@ -41,8 +43,7 @@ volume_vox_writer::volume_vox_writer(Volume& vol, const Metadata& metadata)
 
 vox_writer::box volume_vox_writer::bounds()
 {
-	ivec3 lower_bound = m_metadata.find_lower_bound();
-	ivec3 upper_bound = m_metadata.find_upper_bound();
+	auto [lower_bound, upper_bound] = find_bounds(m_vol);
 
 	return { { lower_bound.x, lower_bound.y, lower_bound.z }, 
 	         { upper_bound.x, upper_bound.y, upper_bound.z } };

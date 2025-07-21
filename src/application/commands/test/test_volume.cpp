@@ -2,8 +2,10 @@
 
 #include "position_generator.h"
 
+#include "base/bounds.h"
 #include "base/logging.h"
 #include "base/random3d.h"
+
 
 #include "cubiquity.h"
 #include "utility.h"
@@ -308,14 +310,12 @@ bool testBounds()
 		ref_upper = max(pos, ref_upper);
 	}
 
-	u8 outside_material;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(volume.get(), &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+	auto [lower, upper] = find_bounds(*volume);
 
-	log_info("Lower     = ({},{},{})", lower_x, lower_y, lower_z);
+	log_info("Lower     = ({})", lower);
 	log_info("Ref Lower = ({},{},{})", ref_lower.x, ref_lower.y, ref_lower.z);
 
-	log_info("Upper     = ({},{},{})", upper_x, upper_y, upper_z);
+	log_info("Upper     = ({})", upper);
 	log_info("Ref Upper = ({},{},{})", ref_upper.x, ref_upper.y, ref_upper.z);
 
 	return true;
@@ -584,10 +584,8 @@ bool testCSG()
 	building.save("../data/csg.dag");
 
 	// Bounds may have changed as a result of CSG, so find and print them.
-	u8 outside_material;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(&building, &outside_material, &lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
-	log_info("({},{},{}) ({},{},{})", lower_x, lower_y, lower_z, upper_x, upper_y, upper_z);
+	auto [lower, upper] = find_bounds(building);
+	log_info("({}) ({})", lower, upper);
 
 	i64 histogram[256];
 	cubiquity_compute_histogram(&building, histogram);

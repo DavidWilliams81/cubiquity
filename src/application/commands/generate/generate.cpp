@@ -62,13 +62,12 @@ bool generateVolume(const std::filesystem::path& output_path, uint size_exp)
 	}
 
 	Volume volume;
-	Cubiquity::MaterialId matId = 1;
 	Metadata metadata;
-	metadata.set_material_to_empty_space(0);
-	metadata.set_material_to_default(matId);
-	metadata.set_lower_bound(ivec3(0));
-	metadata.set_upper_bound(ivec3(size-1));
+	metadata.materials.push_back(Material::EmptySpace);
+	metadata.materials.push_back(Material::Default);
+	metadata.dimensions = ivec3(size);
 
+	Cubiquity::MaterialId matId = 1;
 	for (int z = 0; z < size; z++)
 	{
 		log_info("{} of {}", z+1, size);

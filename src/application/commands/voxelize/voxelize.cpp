@@ -13,6 +13,7 @@
 
 #include "voxelize.h"
 
+#include "base/bounds.h"
 #include "base/logging.h"
 #include "base/metadata.h"
 #include "base/ray.h"
@@ -139,23 +140,25 @@ bool voxelizeMesh(const std::filesystem::path& inputPath,
 	}
 
 	// The first material is always empty space, and is not used by any objects.
-	metadata.set_material_to_empty_space(0);
+	metadata.materials.push_back(Material::EmptySpace);
 	const int matBegin = 1; // Our real (non-empty) materials start here.
 
 	// Copy as many materials as possible from the .mtl file.	
 	const size_t materials_to_copy = std::min(obj_materials.size(), max_obj_materials);
 	for (size_t i = 0; i < materials_to_copy; i++) {
+		Material material;
+		material.set_name(obj_materials[i].name);
 		// Note - We can simplify with std::to_array from C++20 onwards.
-		metadata.set_material(matBegin + i, obj_materials[i].name,
-		                     {obj_materials[i].diffuse[0],
-			                  obj_materials[i].diffuse[1],
-			                  obj_materials[i].diffuse[2]});
+		material.set_base_color(vec3( obj_materials[i].diffuse[0],
+							      obj_materials[i].diffuse[1],
+							      obj_materials[i].diffuse[2] ));
+		metadata.materials.push_back(material);
 	}
 
 	// Default material is used by objects without a material assigned, and by
 	// objects whose material was dropped because there were too many materials.
-	const int default_material = metadata.material_count(); // Next empty slot
-	metadata.set_material_to_default(default_material);
+	metadata.materials.push_back(Material::Default);
+	const int default_material = metadata.materials.size() - 1; // Last entry
 	
 
 	/* ==== Process each shape in the file ==== */
@@ -307,15 +310,12 @@ bool voxelize(const std::filesystem::path& in_path,
 
 	log_info("Calculating volume bounds... ");
 	timer.start();
-	u8 outside_material = 0;
-	i32 lower_x, lower_y, lower_z, upper_x, upper_y, upper_z;
-	cubiquity_estimate_bounds(&volume, &outside_material,
-		&lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
+	auto [lower, upper] = find_bounds(volume);
 	log_info("Calculated bounds in {} seconds", timer.elapsedTimeInSeconds());
-	metadata.set_lower_bound({ lower_x, lower_y, lower_z });
-	metadata.set_upper_bound({ upper_x, upper_y, upper_z });
-	log_info("\tLower bound = {}", metadata.find_lower_bound());
-	log_info("\tUpper bound = {}", metadata.find_upper_bound());
+	log_info("\tLower bound = {}", lower);
+	log_info("\tUpper bound = {}", upper);
+
+	metadata.dimensions = (upper - lower) + ivec3(1);
 
 	// Save the result
 	log_info("Saving volume as '{}'...", outputPath);

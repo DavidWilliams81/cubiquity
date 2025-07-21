@@ -1,6 +1,7 @@
 #include "test_rendering.h"
 
 #include "framework.h"
+#include "base/bounds.h"
 #include "base/random3d.h"
 #include "base/ray.h"
 #include "base/serialize.h"
@@ -23,8 +24,7 @@ bool testRaytracingBehaviour()
 {
 	auto [volume, metadata] = loadVolume("../data/tests/axis.dag");
 
-	ivec3 lower = metadata.find_lower_bound();
-	ivec3 upper = metadata.find_upper_bound();
+	auto [lower, upper] = find_bounds(*volume);
 
 	uniform_vec3f_distribution rand_vec3f(vec3(lower.x, lower.y, lower.z),
 		vec3(upper.x, upper.y, upper.z));
@@ -81,8 +81,7 @@ bool testRaytracingPerformance()
 {
 	auto [volume, metadata] = loadVolume("../data/tests/axis.dag");
 
-	ivec3 lower = metadata.find_lower_bound();
-	ivec3 upper = metadata.find_upper_bound();
+	auto [lower, upper] = find_bounds(*volume);
 
 	uniform_vec3f_distribution random_vec3(vec3(lower.x, lower.y, lower.z),
 		vec3(upper.x, upper.y, upper.z));

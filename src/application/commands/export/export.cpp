@@ -1,5 +1,6 @@
 #include "export.h"
 
+#include "base/bounds.h"
 #include "base/logging.h"
 #include "base/progress.h"
 #include "base/serialize.h"
@@ -27,8 +28,7 @@ void export_as_bin(Volume& volume, const Metadata& metadata,
 {
 	std::ofstream file(output_path, std::ios::out | std::ios::binary);
 
-	ivec3 lower_bound = metadata.find_lower_bound();
-	ivec3 upper_bound = metadata.find_upper_bound();
+	auto [lower_bound, upper_bound] = find_bounds(volume);
 
 	for (int z = lower_bound.z; z <= upper_bound.z; z++)
 	{
@@ -57,8 +57,9 @@ void export_as_images(Volume& volume, const Metadata& metadata,
 	// because this is intended for debug and visualisation, whereas other types
 	// might be reimported and tampering with the bounds might complicate this.
 	const int border = 5;
-	ivec3 lower_bound = metadata.find_lower_bound() - ivec3(border);
-	ivec3 upper_bound = metadata.find_upper_bound() + ivec3(border);
+	auto [lower_bound, upper_bound] = find_bounds(volume);
+	lower_bound -= ivec3(border);
+	upper_bound += ivec3(border);
 
 	for (int z = lower_bound.z; z <= upper_bound.z; z += 1)
 	{
@@ -76,7 +77,7 @@ void export_as_images(Volume& volume, const Metadata& metadata,
 			{
 				Cubiquity::MaterialId matId = volume.voxel(x, y, z);
 
-				vec3 base_color = metadata.find_material_base_color(matId);
+				vec3 base_color = metadata.materials[matId].base_color();
 
 				float gamma = 1.0f / 2.2f;
 				base_color[0] = pow(base_color[0], gamma);

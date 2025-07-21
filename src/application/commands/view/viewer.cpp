@@ -1,5 +1,6 @@
 #include "viewer.h"
 
+#include "base/bounds.h"
 #include "base/logging.h"
 #include "base/serialize.h"
 
@@ -42,8 +43,8 @@ Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 	// Build an array of colours from the material data for uploading to the GPU.
 	vec3 purple = { 1.0f, 0.0f, 1.0f };
 	std::fill(begin(mColours), end(mColours),purple ); // Purple
-	for (int i = 0; i < mMetadata.material_count(); i++) {
-		mColours[i] = mMetadata.find_material_base_color(i);
+	for (int i = 0; i < mMetadata.materials.size(); i++) {
+		mColours[i] = mMetadata.materials[i].base_color();
 	}
 }
 
@@ -55,8 +56,8 @@ void Viewer::onInitialise()
 
 	Cubiquity::Timer timer;
 
-	ivec3 lower = mMetadata.find_lower_bound();
-	ivec3 upper = mMetadata.find_upper_bound();
+	auto [lower, upper] = find_bounds(mVolume);
+
 	dvec3 centre = (lower + upper) * 0.5;
 
 	u8 outside_material = mVolume.voxel(I32_MAX, I32_MAX, I32_MAX); // Corner
