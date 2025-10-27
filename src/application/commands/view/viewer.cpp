@@ -25,7 +25,9 @@ Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 		exit(EXIT_FAILURE);
 	}
 
-	mMetadata.load(getMetadataPath(volume_path));
+	std::filesystem::path metadata_path = volume_path;
+	metadata_path.replace_extension(".toml");
+	mMetadata.load(metadata_path);
 	log_info("Done");
 
 	// FIXME - This cube doesn't pathtrace properly

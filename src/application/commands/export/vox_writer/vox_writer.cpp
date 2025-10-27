@@ -370,6 +370,10 @@ void vox_writer::write_main()
 	// Write root transform and group (nodes 0 and 1). We have to
 	// offset by half the model size to align with the MagicaVoxel
 	// origin, which I find a little strange but it seesm to work.
+	//
+	// FIXME - Under Wine I have noticed MagicaVoxel print:
+	//     "vox error: root transform is not identity"
+	// So it looks like I'm not allowed to do this.'
 	write_ntrn(0, 1, { model_size / 2, model_size / 2, model_size / 2 });
 	write_ngrp(1, transform_ids);
 

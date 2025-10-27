@@ -107,6 +107,7 @@ file(GLOB APPLICATION_SRCS
     src/application/commands/export/*
     src/application/commands/export/vox_writer/vox_writer.* # Skip example.cpp
     src/application/commands/generate/*
+    src/application/commands/import/*
     src/application/commands/test/*
     src/application/commands/voxelize/*
     src/application/external/*)

@@ -308,14 +308,12 @@ bool voxelize(const std::filesystem::path& in_path,
 	log_info("Voxelized in {} seconds", timer.elapsedTimeInSeconds());
 	log_info("Node count before merging = {}", volume.countNodes());
 
-	log_info("Calculating volume bounds... ");
+	log_info("Calculating volume dimensions... ");
 	timer.start();
-	auto [lower, upper] = find_bounds(volume);
-	log_info("Calculated bounds in {} seconds", timer.elapsedTimeInSeconds());
-	log_info("\tLower bound = {}", lower);
-	log_info("\tUpper bound = {}", upper);
-
-	metadata.dimensions = (upper - lower) + ivec3(1);
+	metadata.dimensions = find_dimensions(volume);
+	log_info("Calculated volume dimensions in {} seconds",
+		timer.elapsedTimeInSeconds());
+	log_info("\tDimensions = {}", metadata.dimensions.value());
 
 	// Save the result
 	log_info("Saving volume as '{}'...", outputPath);

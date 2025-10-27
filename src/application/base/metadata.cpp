@@ -15,23 +15,6 @@
 const Material Material::Default = { "Default", DefaultColor };
 const Material Material::EmptySpace = { "EmptySpace", std::nullopt };
 
-const std::string root_comment =
-R"(# Overview
-# --------
-# This text file stores volume metadata such as dimensions and materials, using 
-# the TOML markup format (see https://toml.io for specs and parsers). The actual
-# voxels are stored in a separate binary file with a '.bin' or '.dag' extension:
-#
-#   - The format of a .bin file is very simple. The voxels are stored as a raw 
-#     3D array of 8-bit unsigned integers. The array dimensions are given below.
-#     The array is laid out with the 'x' component changing most quickly and the
-#     'z' component changing most slowly. Each voxel represents an index (0-255)
-#     into the material array (also given below) describing the voxel.
-#
-#   - A .dag file is more complex but it can be converted to a .bin file using
-#     the Cubiquity voxel engine. See https://cubiquity.net for details.
-#)";
-
 const std::string dimensions_comment =
 R"(# Dimensions
 # ----------
@@ -57,6 +40,10 @@ void Metadata::load(const std::filesystem::path& path)
 
 	toml::value toml_data = toml::parse(path);
 
+	// We don't read the header - it's just a comment string so not someting
+	// we can access easily. But we don't need to pass it trhrough anyway.
+	header = "";
+
 	dimensions = toml::find<std::optional<array3i>>(toml_data, "dimensions");
 
 	if (toml_data.contains("materials")) {
@@ -77,31 +64,33 @@ void Metadata::load(const std::filesystem::path& path)
 	}
 }
 
-void Metadata::save(const std::filesystem::path& path) const
+void Metadata::save(std::ostream& os) const
 {
-	std::ofstream file(path);
-	fmt::print(file, "{}\n", root_comment);
+	// Write out the header if present
+	if (!header.empty()) {
+		fmt::print(os, "{}\n", header);
+	}
 
 	// Write out dimensions if present
 	if (dimensions.has_value())	{
-		fmt::print(file, "{}\n\n", dimensions_comment);
-		fmt::print(file, "dimensions = [{}, {}, {}]\n\n",
+		fmt::print(os, "{}\n\n", dimensions_comment);
+		fmt::print(os, "dimensions = [{}, {}, {}]\n\n",
 		    dimensions->x, dimensions->y, dimensions->z);
 	}
 
 	// Write out any materials
 	if (materials.empty() == false) {
-		fmt::print(file, "{}\n\n", materials_comment);
+		fmt::print(os, "{}\n\n", materials_comment);
 	}
 
 	for (int i = 0; i < materials.size(); i++)
 	{
-		fmt::print(file, "[[materials]] # Material index {}\n", i);
+		fmt::print(os, "[[materials]] # Material index {}\n", i);
 
 		if (materials[i].m_name.has_value()) {
 			std::string name = materials[i].m_name.value();
-			//file << "name = \"" << name << "\"" << std::endl;
-			fmt::print(file, "name = \"{}\"\n", name);
+			//os << "name = \"" << name << "\"" << std::endl;
+			fmt::print(os, "name = \"{}\"\n", name);
 		}
 
 		// Fixed precision formatting prevents scientific notation (which
@@ -109,10 +98,10 @@ void Metadata::save(const std::filesystem::path& path) const
 		// This ensures a TOML parser reads it back as a float (not an int).
 		if (materials[i].m_base_color.has_value()) {
 			vec3 base_color = materials[i].m_base_color.value();
-			fmt::print(file, "base_color = [{:.4f}, {:.4f}, {:.4f}]\n",
+			fmt::print(os, "base_color = [{:.4f}, {:.4f}, {:.4f}]\n",
 				base_color.x, base_color.y, base_color.z);
 		}
 
-		fmt::print(file, "\n");
+		fmt::print(os, "\n");
 	}
 }

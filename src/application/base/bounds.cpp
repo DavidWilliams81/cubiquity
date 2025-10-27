@@ -8,3 +8,9 @@ std::pair<ivec3, ivec3> find_bounds(Cubiquity::Volume& volume)
 		&lower_x, &lower_y, &lower_z, &upper_x, &upper_y, &upper_z);
 	return { {lower_x, lower_y, lower_z}, {upper_x, upper_y, upper_z} };
 }
+
+ivec3 find_dimensions(Cubiquity::Volume& volume)
+{
+	auto [lower, upper] = find_bounds(volume);
+	return (upper - lower) + ivec3(1); // Inclusive bounds
+}

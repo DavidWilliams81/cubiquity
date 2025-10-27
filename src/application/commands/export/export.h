@@ -11,6 +11,7 @@ enum class ExportFormat {
 
 bool export_as(ExportFormat           format,
          const std::filesystem::path& input_path,
-               std::filesystem::path  output_path);
+               std::filesystem::path  output_path,
+               std::filesystem::path  output_metadata_path);
 
 #endif // CUBIQUITY_EXPORT_H

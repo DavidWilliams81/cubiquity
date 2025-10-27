@@ -1,4 +1,6 @@
-#include "fractal_noise.h"
+#include "noise.h"
+
+#include "hash.h"
 
 extern "C"
 {
@@ -37,7 +39,7 @@ float fractal_noise(int x, int y, int z, int octaves)
 ivec3 centre(ivec3 cell, int cell_size)
 {
 	// Pick a random position within the cell to become its centre
-	std::minstd_rand rng(std::hash<ivec3>{}(cell));
+	std::minstd_rand rng(fnv1a_64(cell));
 	ivec3 local_pos = ivec3(rng(), rng(), rng()) % cell_size;
 	ivec3 global_pos = (cell * cell_size) + local_pos;
 	return global_pos;
@@ -46,7 +48,7 @@ ivec3 centre(ivec3 cell, int cell_size)
 u8 material(ivec3 cell)
 {
 	// Pick a random material for the cell (material 1 reserved for border)
-	return std::hash<ivec3>{}(cell) % 254 + 2; // Range 2 - 255
+	return fnv1a_64(cell) % 254 + 2; // Range 2 - 255
 }
 
 // Worley noise is also known as Voronoi Noise.

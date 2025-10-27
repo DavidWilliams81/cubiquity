@@ -41,9 +41,10 @@ public:
 	Metadata(const std::filesystem::path& path) { load(path); };
 
 	void load(const std::filesystem::path& path);
-	void save(const std::filesystem::path& path) const;
+	void save(std::ostream& os) const;
 
 public:
+	std::string           header;
 	std::optional<ivec3>  dimensions;
 	std::vector<Material> materials;
 };

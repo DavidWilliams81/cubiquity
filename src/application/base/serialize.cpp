@@ -31,30 +31,20 @@ bool checkOutputDirIsValid(const std::filesystem::path& outputDir)
 	return true;
 }
 
-std::filesystem::path getMetadataPath(std::filesystem::path volumePath)
-{
-	return volumePath.replace_extension(".txt");
-}
-
 std::pair<std::unique_ptr<Cubiquity::Volume>, Metadata> loadVolume(const std::filesystem::path& volume_path)
 {
 	std::unique_ptr<Cubiquity::Volume> volume =
 		std::make_unique<Cubiquity::Volume>(volume_path.string());
 
-	Metadata metadata;
-	metadata.load(getMetadataPath(volume_path));
+	std::filesystem::path metadata_path = volume_path;
+	metadata_path.replace_extension(".toml");
+	Metadata metadata(metadata_path);
 
-	// A .dag file does not need dimensions in the metadata and will ignore any
-	// that are present. However, they usually *are* present to facilitate
-	// sharing metadata between .dag and .bin files. It seems prudent to at
-	// least warn the user if the values do not appear to be correct (though
-	// perhaps there is a valid reason, such as a border of empty voxels?).
+	// Metadata for a DAG should not contain dimensions.
 	if (metadata.dimensions.has_value()) {
-		auto [lower, upper] = find_bounds(*volume);
-		ivec3 real_dimensions = (upper - lower) + ivec3(1);
-		log_warning_if(metadata.dimensions != real_dimensions,
-			"Dimensions in metadata {} do not match computed values {}",
-			metadata.dimensions.value(), real_dimensions);
+		log_warning("Metadata for a DAG should not contain dimensions. "
+			        "They will be ignored");
+		metadata.dimensions.reset();
 	}
 
 	// TODO - We could potentially check that a material has been found for each
@@ -67,16 +57,17 @@ std::pair<std::unique_ptr<Cubiquity::Volume>, Metadata> loadVolume(const std::fi
 void saveVolume(const std::filesystem::path& volume_path,
 	            Cubiquity::Volume& volume, Metadata& metadata)
 {
-	// A .dag file does not actually need dimensions to be known as they can
-	// easily be computed. However, they are needed for a .bin file. We choose
-	// to require them for a .dag file anyway because it simplifies the process
-	// of exporting a .dag to a .bin (otherwise the dimensions need to be added,
-	// overwritting the TOML file with the same name, and we should prompt the
-	// user as to whether this is what they really wanted).
-	if (metadata.dimensions.has_value() == false) {
-		throw std::runtime_error("Metadata is missing dimensions.");
+	// Metadata for a DAG should not contain dimensions. Throw an exception as
+	// this function is only called by our own code, which should be fixed.
+	if (metadata.dimensions.has_value()) {
+		throw std::runtime_error(
+			"Metadata for a DAG should not contain dimensions.");
 	}
 
+	std::filesystem::path metadata_path = volume_path;
+	metadata_path.replace_extension(".toml");
+
 	volume.save(volume_path.string());
-	metadata.save(getMetadataPath(volume_path));
+	std::ofstream file(metadata_path);
+	metadata.save(file);
 }

@@ -17,6 +17,7 @@ this software. If not, see http://creativecommons.org/publicdomain/zero/1.0/.
 #include "base/progress.h"
 #include "commands/export/export.h"
 #include "commands/generate/generate.h"
+#include "commands/import/import.h"
 #include "commands/test/test.h"
 #include "commands/voxelize/voxelize.h"
 
@@ -112,7 +113,7 @@ try
 
 	// ------------------------ Export ------------------------
 	CLI::App* exp_cmd = app.add_subcommand("export",
-		"Export a Cubiquity volume in the specified format");
+		"Export a Cubiquity volume as the specified format");
 
 	ExportFormat exp_fmt;
 	std::map<std::string, ExportFormat> exp_fmt_map{
@@ -121,35 +122,80 @@ try
 		{"vox",  ExportFormat::vox}
 	};
 	exp_cmd->add_option("format", exp_fmt, "Output format to export as")
-		   ->required()
-		   ->transform(CLI::CheckedTransformer(exp_fmt_map, CLI::ignore_case));
+		->required()
+		->transform(CLI::CheckedTransformer(exp_fmt_map, CLI::ignore_case));
 
 	std::filesystem::path exp_in_path;
-	exp_cmd->add_option("--input,input", exp_in_path, 
-			            "Path to the '.dag' file to export")
-		   ->required()
-		   ->check(CLI::ExistingFile);
+	exp_cmd->add_option("--input,input", exp_in_path,
+		"Path to the '.dag' file to export")
+		->required()
+		->check(CLI::ExistingFile);
 
 	// No default value as it will depend on the export file format. If not
 	// specified it is also desirable to derive it from the input filename.
 	std::filesystem::path exp_out_path;
 	exp_cmd->add_option("--output,output", exp_out_path,
-			            "Path to the exported file");
+		"Path to the resulting file "
+		"(derived from input path if not specified)");
+
+	std::filesystem::path exp_out_meta_path;
+	exp_cmd->add_option("--output-metadata", exp_out_meta_path,
+		"Path to the resulting metadata file (when applicable)."
+		"If not specified then this is derived from output path, "
+		"unless writing to stdout (in which case it must be specified).");
 
 	exp_cmd->final_callback([&]() {
-		export_as(exp_fmt, exp_in_path, exp_out_path); });
+		export_as(exp_fmt, exp_in_path, exp_out_path, exp_out_meta_path); });
 
 	// ------------------------ Generate ------------------------
 	CLI::App* gen_cmd = app.add_subcommand("generate",
 		"Generate volume procedurally");
 
+	Algorithm gen_algo;
+	std::map<std::string, Algorithm> gen_algo_map{
+		{"fractal_noise",  Algorithm::fractal_noise},
+		{"menger_sponge",  Algorithm::menger_sponge},
+		{"worley_noise",   Algorithm::worley_noise }
+	};
+	gen_cmd->add_option("algorithm", gen_algo, "Algorithm to use")
+		->required()
+		->transform(CLI::CheckedTransformer(gen_algo_map, CLI::ignore_case));
+
 	std::filesystem::path gen_out_path = "output.dag";
 	gen_cmd->add_option("--output,output", gen_out_path, "Output file name");
 
-	uint size_exp = 5;
-	gen_cmd->add_option("--size-exp", size_exp, "Size exponent");
+	int size = 500;
+	gen_cmd->add_option("--size", size, "Volume side length in voxels");
 
-	gen_cmd->final_callback([&]() { generateVolume(gen_out_path, size_exp); });
+	gen_cmd->final_callback([&]() {
+		generateVolume(gen_algo, gen_out_path, size); });
+
+	// ------------------------ Import ------------------------
+	CLI::App* imp_cmd = app.add_subcommand("import",
+		"Import a Cubiquity volume from the specified format");
+
+	ImportFormat imp_fmt;
+	std::map<std::string, ImportFormat> imp_fmt_map{
+		{"bin",  ImportFormat::bin}
+	};
+	imp_cmd->add_option("format", imp_fmt, "Input format to import from")
+		->required()
+		->transform(CLI::CheckedTransformer(imp_fmt_map, CLI::ignore_case));
+
+	std::filesystem::path imp_in_path;
+	imp_cmd->add_option("--input,input", imp_in_path,
+		"Path to the file to import")
+		->required()
+		->check(CLI::ExistingFile);
+
+	// If not specified it will be derived from the input filename.
+	std::filesystem::path imp_out_path;
+	imp_cmd->add_option("--output,output", imp_out_path,
+		"Path to the resulting '.dag' file "
+		"(derived from input path if not specified)");
+
+	imp_cmd->final_callback([&]() {
+		import_from(imp_fmt, imp_in_path, imp_out_path); });
 
 	// ------------------------ Test ------------------------
 	CLI::App* test_cmd = app.add_subcommand("test", "Run tests");

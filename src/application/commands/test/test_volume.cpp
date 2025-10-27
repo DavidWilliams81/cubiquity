@@ -3,6 +3,7 @@
 #include "position_generator.h"
 
 #include "base/bounds.h"
+#include "base/noise.h"
 #include "base/logging.h"
 #include "base/random3d.h"
 
@@ -10,8 +11,6 @@
 #include "cubiquity.h"
 #include "utility.h"
 #include "storage.h"
-
-#include "fractal_noise.h"
 
 #include <algorithm>
 #include <cassert>
