@@ -102,8 +102,8 @@ void export_as_images(Volume& volume, const Metadata& metadata,
 	// might be reimported and tampering with the bounds might complicate this.
 	const int border = 5;
 	auto [lower_bound, upper_bound] = find_bounds(volume);
-	lower_bound -= ivec3(border);
-	upper_bound += ivec3(border);
+	lower_bound -= ivec3(border, border, 0);
+	upper_bound += ivec3(border, border, 0);
 
 	for (int z = lower_bound.z; z <= upper_bound.z; z += 1)
 	{

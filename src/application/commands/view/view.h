@@ -15,7 +15,8 @@ enum class ViewMode {
 	instancing
 };
 
-bool viewVolume(ViewMode mode, const std::filesystem::path& input_path);
+bool viewVolume(ViewMode mode, const std::filesystem::path& input_path,
+	            int width, int height, int duration);
 
 #endif // CUBIQUITY_VIEW_H
 

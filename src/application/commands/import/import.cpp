@@ -1,6 +1,7 @@
 #include "import.h"
 
 #include "base/logging.h"
+#include "base/progress.h"
 #include "base/serialize.h"
 
 #include <fstream>
@@ -16,9 +17,14 @@ std::pair<std::unique_ptr<Cubiquity::Volume>, Metadata> import_from_bin(const st
 	metadata_path.replace_extension(".txt");
 	Metadata metadata(metadata_path);
 
-    std::ifstream file(in_bin_path, std::ios::in | std::ios::binary);
+    std::ifstream file = make_safe_ifstream(
+		in_bin_path.string(), std::ios::in | std::ios::binary);
 
+	// Copy dimensions for the loop, after which they are no longer wanted for the DAG.
     ivec3 dims = metadata.dimensions.value();
+	metadata.dimensions.reset();
+
+
     for (int z = 0; z < dims.z; z++) {
         for (int y = 0; y < dims.y; y++) {
             for (int x = 0; x < dims.x; x++) {
@@ -27,6 +33,10 @@ std::pair<std::unique_ptr<Cubiquity::Volume>, Metadata> import_from_bin(const st
                 volume->setVoxel(x, y, z, matId);
             }
         }
+
+        // A bit cheeky, but we can directly call our Cubiquity progress handling code for progress bar.
+		cubiquityProgressHandler("Importing volume from raw 3D array",
+			0, z, dims.z-1);
     }
 
 	return { std::move(volume), metadata };

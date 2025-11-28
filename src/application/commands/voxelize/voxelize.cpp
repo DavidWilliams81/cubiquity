@@ -310,10 +310,10 @@ bool voxelize(const std::filesystem::path& in_path,
 
 	log_info("Calculating volume dimensions... ");
 	timer.start();
-	metadata.dimensions = find_dimensions(volume);
+	auto dimensions = find_dimensions(volume);
 	log_info("Calculated volume dimensions in {} seconds",
 		timer.elapsedTimeInSeconds());
-	log_info("\tDimensions = {}", metadata.dimensions.value());
+	log_info("\tDimensions = {}", dimensions);
 
 	// Save the result
 	log_info("Saving volume as '{}'...", outputPath);

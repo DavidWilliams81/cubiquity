@@ -148,6 +148,7 @@ bool generateVolume(Algorithm algorithm,
 	std::for_each(std::execution::par, z_vals.begin(), z_vals.end(), [&](int z) {
 
 		auto slice = std::make_unique<u8[]>(size * size);
+		// FIXME - We need to think how do drive a proper progress bar from a parallel for loop.
 		log_info("{} of {}", z + 1, size);
 		for (int y = 0; y < size; y++)
 		{
@@ -169,10 +170,6 @@ bool generateVolume(Algorithm algorithm,
 	});
 	log_info("Generated in {} seconds", timer.elapsedTimeInSeconds());
 
-	// Save the result
-	log_info("Saving volume as '{}'", output_path);
-	//volume.save(output_path.string());
-	//metadata.save(output_path);
 	saveVolume(output_path, volume, metadata);
 
 	return true;

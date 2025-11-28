@@ -55,6 +55,18 @@ private:
 	std::unique_ptr<std::ofstream> m_stream;
 };
 
+// Create ifstream with exceptions enabled prior to opening
+std::ifstream make_safe_ifstream(const std::string& path,
+								 std::ios::openmode mode = std::ios::in,
+								 std::ios_base::iostate except_flags =
+									std::ifstream::failbit | std::ifstream::badbit);
+
+// Create ofstream with exceptions enabled prior to opening
+std::ofstream make_safe_ofstream(const std::string& path,
+								 std::ios::openmode mode = std::ios::out,
+								 std::ios_base::iostate except_flags =
+									std::ofstream::failbit | std::ofstream::badbit);
+
 bool checkInputFileIsValid(const std::filesystem::path& inputFile);
 bool checkOutputDirIsValid(const std::filesystem::path& outputDir);
 

@@ -8,7 +8,7 @@
 // Include standard headers
 #include <cassert>
 
-void Window::show(int width, int height)
+void Window::show(int width, int height, int duration)
 {
 	SDL_Init(SDL_INIT_VIDEO);
 	Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
@@ -57,7 +57,8 @@ void Window::show(int width, int height)
 	// or shown, but perhaps OpenGL wouldn't have been initilised by then anyway. Do it manually.
 	onWindowSizeChanged(width, height);
 
-	Uint32 previousUpdateStartTimeMs = SDL_GetTicks();
+	Uint32 windowShownTimeMs = SDL_GetTicks();
+	Uint32 previousUpdateStartTimeMs = windowShownTimeMs;
 
 	while(mRunning)
 	{
@@ -97,6 +98,15 @@ void Window::show(int width, int height)
 		Uint32 updateStartTimeMs = SDL_GetTicks();
 		float deltaTimeSeconds = static_cast<float>(updateStartTimeMs - previousUpdateStartTimeMs) / 1000.0f;
 		previousUpdateStartTimeMs = updateStartTimeMs;
+
+		// Exit after requested duration if specified
+		if (duration > 0) {
+			int durationMs = duration * 1000; // Seconds to milliseconds
+			if (updateStartTimeMs - windowShownTimeMs > durationMs) {
+				log_info("Closing viewer as requested duration has elapsed");
+				close();
+			}
+		}
 
 		// Run user-provided update code
 		onUpdate(deltaTimeSeconds);

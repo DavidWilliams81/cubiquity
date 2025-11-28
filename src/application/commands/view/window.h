@@ -31,7 +31,7 @@ public:
 		: mWindowType(windowType) {}
 
 	// Main interface
-	void show(int width, int height);
+	void show(int width, int height, int duration);
 	void close();
 
 	// Dimensions

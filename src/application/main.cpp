@@ -231,7 +231,19 @@ try
 			->transform(CLI::CheckedTransformer(
 				view_mode_map, CLI::ignore_case));
 
-	view_cmd->final_callback([&]() { viewVolume(view_mode, view_in_path	); });
+	int width = 1200;
+	view_cmd->add_option("--width", width, "Viewport width in pixels");
+
+	int height = 900;
+	view_cmd->add_option("--height", height, "Viewport height in pixels");
+
+	int duration = 900;
+	view_cmd->add_option("--duration", duration,
+		"If greater than zero, then the viewer will be automatically closed "
+		"once this duration has elapsed.");
+
+	view_cmd->final_callback([&]() {
+		viewVolume(view_mode, view_in_path, width, height, duration); });
 #else
 	view_cmd->final_callback([&]() {
 		log_error("Subcommand 'view' not available (built without SDL support)");
@@ -305,10 +317,10 @@ try
 	return EXIT_SUCCESS;
 }
 catch (const std::exception& e) {
-	log_error("{}", e.what());
+	log_error("\nUnhandled std::exception:\n\t{}", e.what());
 	return EXIT_FAILURE;
 }
 catch (...) {
-	log_error("Unhandled exception!");
+	log_error("\nUnhandled exception!");
 	return EXIT_FAILURE;
 }

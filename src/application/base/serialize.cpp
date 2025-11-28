@@ -5,6 +5,27 @@
 
 #include "cubiquity.h"
 
+std::ifstream make_safe_ifstream(const std::string& path,
+								 std::ios::openmode mode,
+								 std::ios_base::iostate except_flags)
+{
+	std::ifstream file;
+	file.exceptions(except_flags);
+	file.open(path, mode);
+	return file;
+}
+
+std::ofstream make_safe_ofstream(const std::string& path,
+								 std::ios::openmode mode,
+								 std::ios_base::iostate except_flags)
+{
+	std::ofstream file;
+	file.exceptions(except_flags);
+	file.open(path, mode);
+	return file;
+}
+
+
 bool checkInputFileIsValid(const std::filesystem::path& inputFile)
 {
 	if (!std::filesystem::exists(inputFile)) {
