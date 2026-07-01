@@ -11,52 +11,181 @@
 * If not, see http://creativecommons.org/publicdomain/zero/1.0/.                                   *
 ***************************************************************************************************/
 #include "storage.h"
+#include "utility.h"
 
 #include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
+#include <numeric>
+#include <unordered_set>
+
+#ifdef CUBIQUITY_USE_POOLSTL
+#define POOLSTL_STD_SUPPLEMENT
+#define POOLSTL_STD_SUPPLEMENT_FORCE
+#include "poolstl.hpp"
+#else
+#include <execution>
+#endif // CUBIQUITY_USE_POOLSTL
+
+namespace std
+{
+	template<>
+	struct hash<Cubiquity::Internals::Node>
+	{
+		Cubiquity::u32 seed = 0;
+
+		std::size_t operator()(const Cubiquity::Internals::Node& node) const noexcept
+		{
+			//Cubiquity::u32 hash = Cubiquity::Internals::murmurHash3(&(node[0]), sizeof(uint32_t) * 8, seed);
+			//return hash;
+
+			//auto ptr = &(node[0]);
+			//return fnv1a_64((Cubiquity::u8*)ptr, sizeof(uint32_t) * 8);
+
+			// Constants with good avalanche properties picked from popular hashes.
+			Cubiquity::u32 hash = 0;
+			hash ^= (node[0] * 0x9e3779b9);
+			hash ^= (node[1] * 0x85ebca6b);
+			hash ^= (node[2] * 0xc2b2ae35);
+			hash ^= (node[3] * 0x27d4eb2f);
+			hash ^= (node[4] * 0x165667b1);
+			hash ^= (node[5] * 0xd3a2646c);
+			hash ^= (node[6] * 0xcc9e2d51);
+			hash ^= (node[7] * 0x1b873593);
+
+			return hash;
+
+			/*const uint64_t* k64 = (const uint64_t*)node.data();
+			uint64_t h = k64[0];
+			h = (h ^ k64[1]) * 0x87c37b91114253d5ULL;
+			h = (h ^ k64[2]) * 0x4cf5ad432745937fULL;
+			h = (h ^ k64[3]) * 0xff51afd7ed558ccdULL;
+			// final avalanche
+			h ^= h >> 31;
+			h *= 0xc4ceb9fe1a85ec53ULL;
+			h ^= h >> 31;
+			return h;*/
+		}
+	};
+}
 
 namespace Cubiquity
 {
 	using namespace Internals;
 
-	bool Internals::isMaterialNode(u32 nodeIndex) { return nodeIndex < MaterialCount; }
-
-	// See https://stackoverflow.com/a/57796299
-	constexpr Node makeNode(u32 value)
+	// It is desirable for the spatial relationship between child nodes to be consistent
+	// throughout the tree, as this makes it easier to e.g compute normals from children
+	// and to compute intersections during ray traversal. However, the use of signed integers
+	// for positions results in a different spatial relationship for children of the root
+	// node due to the the sign bit being set for negative numbers.
+	//
+	// Therefore we map the signed ints to unsigned ints. The offset is required because 
+	// otherwise negative ints get mapped to large unsigned values, inverting the spatial
+	// relationship between negative and positive positions.
+	void make_position_unsigned(i32 ix, i32 iy, i32 iz, u32& ux, u32& uy, u32& uz)
 	{
-		Node node{};
-		for (auto& x : node) { x = value; }
-		return node;
+		ux = static_cast<u32>(ix) + UINT32_C(0x80000000);
+		uy = static_cast<u32>(iy) + UINT32_C(0x80000000);
+		uz = static_cast<u32>(iz) + UINT32_C(0x80000000);
 	}
 
-	void NodeStore::setNode(u32 index, const Node& newNode)
+	// Potentially optimise this by bit-interleaving these three ints into a
+	// larger  96-bit int (std::bitset or 2x u64) in advance of the loop calling
+	// this function. Then we would just have one shift-by-three and a mask on
+	// each iteration. Shorter/simpler loop body but some setup cost. SIMD on 
+	// three variables could be an alternative optimisation.
+	u32 extract_next_child_id(u32& ux, u32& uy, u32& uz)
 	{
-		assert(!isMaterialNode(index) && "Error - Cannot modify material nodes");
+		u32 childX = ux & 0x80000000;
+		ux = ux << 1;
+		u32 childY = uy & 0x80000000;
+		uy = uy << 1;
+		u32 childZ = uz & 0x80000000;
+		uz = uz << 1;
 
-		for (const u32& childIndex : newNode)
+		return childZ >> 29 | childY >> 30 | childX >> 31;
+	}
+
+	bool Internals::isMaterialNode(const Node& node)
+	{
+		// Less than MaterialCount and all matching
+		return isMaterialNode(node[0]) &&
+			std::all_of(node.begin(), node.end(),
+				[&](int x) { return x == node[0]; });
+	}
+
+	// We populate the node vector with material nodes in which the children
+	// point at themselves. This has a few uses:
+	// 
+	//   1. It lets us recurse to a single voxel even if the tree has been
+	//      pruned (used when setting a voxel).
+	//   2. New material nodes can be created by copying these (rather than
+	//      needing to call 'make_node(...)') which reduces conditional
+	//      logic during traversal.
+	//   3. During merging they can be inserted into the map in the same way as
+	//      non-material nodes (as they have a valid location in the vector).
+	NodeVector Internals::make_node_vector(u32 count)
+	{
+		// Init with invalid nodes
+		Node invalid_node = make_node(InvalidNodeIndex);
+		NodeVector nodeVector(count, invalid_node);
+
+		// Set material nodes
+		assert(count >= MaterialCount);
+		for (u32 i = 0; i < MaterialCount; i++) {
+			nodeVector[i] = make_node(i);
+		}
+		return nodeVector;
+	}
+
+	NodeStore::NodeStore()
+		:mNodeVector(make_node_vector())
+		,mSharedNodesEnd(mNodeVector.size())
+	{
+		/*std::mt19937 rng;
+		rng.seed(42);
+		std::uniform_int_distribution<u32> u32_dist;
+
+		NodeVector test_vec;
+		int count = 100000000;
+		for (int i = 0; i < count; i++)
 		{
-			assert(childIndex != index && "Error - Child points at parent");
+			test_vec.push_back(Node{ u32_dist(rng), u32_dist(rng),  u32_dist(rng),  u32_dist(rng),  u32_dist(rng),  u32_dist(rng),  u32_dist(rng),  u32_dist(rng) });
 		}
 
-		mData[index] = newNode;
+		NodeLookupSorted node_lookup(test_vec, count);
+		exit(0);*/
 	}
 
-	void NodeStore::setNodeChild(u32 nodeIndex, u32 childId, u32 newChildIndex)
+	u32 NodeStore::getNodeChild(u32 nodeIndex, u32 childId) const
 	{
-		assert(!isMaterialNode(nodeIndex));
-		assert(newChildIndex != nodeIndex && "Error - Node points at self");
-
-		mData[nodeIndex][childId] = newChildIndex;
+		if (nodeIndex < MaterialCount) { // Can bypass memory access
+			return nodeIndex;
+		} else {
+			return mNodeVector[nodeIndex][childId];
+		}
 	}
 
-	NodeDAG::NodeDAG()
+	u32 NodeStore::setNodeChild(u32 nodeIndex, u32 childId, u32 value)
 	{
-		mEditNodesBegin = mNodes.size();
+		// Sanity checks
+		//assert(!isMaterialNode(nodeIndex) && "Can't modify material nodes");
+		assert(value != nodeIndex && "New child points at parent");
+		assert(value != mNodeVector[nodeIndex][childId] && "Self-assignment");
+
+		// Copy the existing node if it is shared
+		if (isShared(nodeIndex)) {
+			nodeIndex = append(mNodeVector[nodeIndex]);
+		}
+
+		// Update the child
+		mNodeVector[nodeIndex][childId] = value;
+		return nodeIndex;
 	}
 
-	u32 NodeDAG::countNodes(u32 startNodeIndex) const
+	u32 NodeStore::countNodes(u32 startNodeIndex) const
 	{
 		std::unordered_set<u32> usedIndices;
 		countNodes(startNodeIndex, usedIndices);
@@ -66,179 +195,150 @@ namespace Cubiquity
 	// Counts the number of nodes at distinct locations (node indices).
 	// A tree which is not fully merged will contain idetical nodes at different
 	// locations in memory, and these will be counted seperately.
-	void NodeDAG::countNodes(u32 startNodeIndex, std::unordered_set<u32>& usedIndices) const
+	void NodeStore::countNodes(u32 startNodeIndex, std::unordered_set<u32>& usedIndices) const
 	{
 		// It may have been more efficient to have done this test before calling
 		// into this function, but the implementation is simpler this way around.
 		if (isMaterialNode(startNodeIndex)) { return; }
 
 		usedIndices.insert(startNodeIndex);
-		for (const u32& childNodeIndex : mNodes[startNodeIndex])
+		for (const u32& childNodeIndex : mNodeVector[startNodeIndex])
 		{
 			countNodes(childNodeIndex, usedIndices);
 		}
 	}
 
-	void NodeDAG::read(std::ifstream& file)
+	void NodeStore::read(std::ifstream& file)
 	{
 		u32 nodeCount;
 		file.read(reinterpret_cast<char*>(&nodeCount), sizeof(nodeCount));
-		for (u32 ct = 0; ct < nodeCount; ct++)
-		{
-			Node node;
-			file.read(reinterpret_cast<char*>(&node), sizeof(node));
-			mNodes.setNode(bakedNodesBegin() + ct, node);
-		}
-		mBakedNodesEnd = bakedNodesBegin() + nodeCount;
+		mNodeVector.resize(MaterialCount + nodeCount);
+		file.read(reinterpret_cast<char*>(&(mNodeVector[sharedNodesBegin()])), sizeof(Node) * nodeCount);
+		mSharedNodesEnd = mNodeVector.size(); // One past end, no unshared nodes.
 	}
 
-	void NodeDAG::write(std::ofstream& file)
+	void NodeStore::write(std::ofstream& file)
 	{
-		u32 nodeCount = bakedNodesEnd() - bakedNodesBegin();
+		u32 nodeCount = sharedNodesEnd() - sharedNodesBegin();
 		file.write(reinterpret_cast<const char*>(&nodeCount), sizeof(nodeCount));
-		for (u32 ct = 0; ct < nodeCount; ct++)
-		{
-			file.write(reinterpret_cast<const char*>(&mNodes[bakedNodesBegin() + ct]), sizeof(Node));
-		}
-		
-	}
+		file.write(reinterpret_cast<const char*>(&mNodeVector[sharedNodesBegin()]), sizeof(Node) * nodeCount);
+	}	
 
-	bool NodeDAG::isPrunable(const Node& node) const
+	u32 NodeStore::merge(u32 index)
 	{
-		if (!isMaterialNode(node[0])) { return false; }
-		for (u32 i = 1; i < 8; i++)
-		{
-			if (node[i] != node[0]) { return false; }
-		}
+		// Destination used as hashmap and bigger than source to reduce collisions
+		NodeVector merged_node_vector = make_node_vector((mNodeVector.size() * 12) / 10);
 
-		// All children represent the same solid material, so this node can be pruned.
-		return true;
-	}
+		// Perform the recursive merge
+		u32 mergedRoot = merge_node(index, merged_node_vector);
 
-	void NodeDAG::merge(u32 index)
-	{
-		std::unordered_map<Node, u32> map;
-		u32 mergedEnd = mEditNodesBegin;
-		u32 nextSpace = mergedEnd - 1;
+		// Compact in-place, tracking how nodes move.
+		std::vector<u32> moves(merged_node_vector.size());
 
-		if (isMaterialNode(index))
-		{
-			mBakedNodesEnd = bakedNodesBegin();
-		}
-		else
-		{
-			u32 mergedRoot = mergeNode(index, map, nextSpace);
-
-			u32 actualNodeCount = mergedEnd - mergedRoot;
-
-			mBakedNodesEnd = bakedNodesBegin() + actualNodeCount;
-
-			// FIXME - This offset value seems to get large. Is the logic backwards
-			// but we ar wrapping around the array so it happens to work?
-			u32 offset = bakedNodesBegin() - mergedRoot;
-			for (u32 nodeIndex = bakedNodesBegin(); nodeIndex < bakedNodesEnd(); nodeIndex++)
-			{
-				Node node = mNodes[nodeIndex - offset];
-				for (u32& childIndex : node)
-				{
-					if (childIndex > MaxMaterial)
-					{
-						childIndex += offset;
-					}
-				}
-				mNodes.setNode(nodeIndex, node);
+		size_t write = 0;
+		for (size_t read = 0; read < merged_node_vector.size(); ++read) {
+			if (merged_node_vector[read][0] != InvalidNodeIndex) { // Occupied
+				merged_node_vector[write] = std::move(merged_node_vector[read]);
+				moves[read] = write;
+				write++;
 			}
 		}
+		merged_node_vector.resize(write);
+
+		// Update node children based on how they moved during compacting.
+		for (int i = 0; i < merged_node_vector.size(); i++)	{
+			for (int childId = 0; childId < 8; childId++) {
+				merged_node_vector[i][childId] = moves[merged_node_vector[i][childId]];
+			}
+		}
+		mergedRoot = moves[mergedRoot];
+
+		mNodeVector = std::move(merged_node_vector);
+		mSharedNodesEnd = mNodeVector.size(); // Everything is now potentially shared
+
+		return mergedRoot;
 	}
 
-	u32 NodeDAG::mergeNode(u32 nodeIndex, std::unordered_map<Node, u32>& map, u32& nextSpace)
+	u32 NodeStore::merge_node(u32 nodeIndex, NodeVector& merged_node_vector)
 	{
 		assert(!isMaterialNode(nodeIndex));
-		const Node& oldNode = mNodes[nodeIndex];
-		Node newNode;
-		for (int i = 0; i < 8; i++)
-		{
-			u32 oldChildIndex = oldNode[i];
-			if (!isMaterialNode(oldChildIndex))
-			{
-				newNode[i] = mergeNode(oldChildIndex, map, nextSpace);
-			}
-			else
-			{
-				newNode[i] = oldNode[i];
+		Node& node = mNodeVector[nodeIndex]; // By ref, modify in-place
+
+		// In a DAG we might hit the same node more than once due to multiple 
+		// parents. Handle this case to avoid reprocessing the node.
+		const int Visited = 0, NewPos = 1; // Channel identifiers, not flags.
+		if (node[Visited] == InvalidNodeIndex) return node[NewPos];
+
+		// Merge the children if needed
+		for (int i = 0; i < 8; i++) {
+			if (!isMaterialNode(node[i])) {
+				node[i] = merge_node(node[i], merged_node_vector);
 			}
 		}
 
 		u32 newNodeIndex = 0;
-		auto iter = map.find(newNode);
-		if (iter == map.end())
-		{
-			//newNodeIndex = insertNode(newNode)
-			//newNodeIndex = mDAG.mInitialNodes.insert(newNode);
-
-			mNodes.setNode(nextSpace, newNode);
-			newNodeIndex = nextSpace;
-			nextSpace--;
-
-			map.insert({ newNode, newNodeIndex });
+		if (isMaterialNode(node)) {
+			newNodeIndex = node[0]; // Any element works here, they are all the same
 		}
-		else
-		{
-			newNodeIndex = iter->second;
+		else {
+			// Determine first index (skipping material node slots)
+			newNodeIndex = std::hash<Node>{}(node);
+			newNodeIndex %= (merged_node_vector.size() - MaterialCount);
+			newNodeIndex += MaterialCount;
+
+			while (true) {
+				if (merged_node_vector[newNodeIndex] == node) break; // Already present
+
+				if (merged_node_vector[newNodeIndex][0] == InvalidNodeIndex) { // Empty space
+					merged_node_vector[newNodeIndex] = node;
+					break;
+				}
+
+				if (++newNodeIndex == merged_node_vector.size()) { // Move to next slot
+					newNodeIndex = MaterialCount; // Wrap around, skip material nodes.
+				}
+			}
 		}
+
+		// Mark node as visited and note where it went. Making these changes
+		// invalidates the node but we have already copied it to the destination.
+		node[Visited] = InvalidNodeIndex;
+		node[NewPos] = newNodeIndex;
+
 		return newNodeIndex;
-		//return nodes.insert(newNode);
 	}
 
-	u32 NodeDAG::insert(const Node& node)
+	u32 NodeStore::append(const Node& node)
 	{
-		if (mEditNodesBegin > bakedNodesEnd())
-		{
-			mEditNodesBegin--;
-			u32 index = mEditNodesBegin;
-			mNodes.setNode(index, node);
-			return index;
-		}
-
-		assert(false && "Out of space for unshared edits!");
-		log_warning("Out of space for unshared edits!");
-		exit(1);
-		return 0; // Indicates error (we don't use this function to allocate the zeroth node).
+		mNodeVector.push_back(node);
+		return mNodeVector.size() - 1; // Index of new node
 	}
 
-	// Update the child of a node. If a copy needs to be made then this is returned,
-	// otherwise the return value is empty to indicate that the update was done in-place.
-	u32 NodeDAG::updateNodeChild(u32 nodeIndex, u32 childId, u32 newChildNodeIndex, bool forceCopy)
+	u32 NodeStore::cloneRoot(u32 rootIndex)
 	{
-		assert(newChildNodeIndex != mNodes[nodeIndex][childId]); // Watch for self-assignment (wasteful)
-		assert(newChildNodeIndex != nodeIndex); // Don't let child point to parent.
+		mSharedNodesEnd = mNodeVector.size(); // Mark everything as potentially shared
+		mNodeVector.push_back(mNodeVector[rootIndex]); // Append unshared copy of root
+		return mNodeVector.size() - 1; // Return position of new node
+	}
 
-		// Edit nodes can be modified in-place as they are unshared, unless the users
-		// requests they are copied (e.g. for the purpose of maintaining an undo history).
-		const bool modifyInPlace = isEditNode(nodeIndex) && (!forceCopy);
-
-		if(modifyInPlace)
+	void NodeStore::print(std::ostream& os)
+	{
+		for (u32 i = 0; i < mNodeVector.size(); i++)
 		{
-			// Modify the existing node in-place by updating only the relevant child.
-			mNodes.setNodeChild(nodeIndex, childId, newChildNodeIndex);
+			if (i == mSharedNodesEnd)
+			{
+				os << "\n-------------------- Shared nodes end / unshared nodes begin -------------------\n\n";
+			}
 
-			// The modification may have made the node prunable. If so it must have taken on the value
-			// of the new child so return that, otherwise return the updated node that we were given.
-			return isPrunable(mNodes[nodeIndex]) ? newChildNodeIndex : nodeIndex;
+			os << std::setw(4) << i << ": ";
+			for (int c = 0; c < 8; c++)
+			{
+				os << std::setw(4) << mNodeVector[i][c] << " ";
+			}
+			os << "\n";
 		}
-		else
-		{
-			const bool nodeIsMaterial = isMaterialNode(nodeIndex);
 
-			// Make a copy of the existing node and then update the child.
-			Node newNode = nodeIsMaterial ? makeNode(nodeIndex) : mNodes[nodeIndex];
-			newNode[childId] = newChildNodeIndex;
-
-			// If the copy becomes prunable as a result of the modification
-			// then we can skip inserting it, which saves time and space.
-			return isPrunable(newNode) ? newChildNodeIndex : insert(newNode);
-		}
-		
+		os << "\nShared Nodes end = " << mSharedNodesEnd << "\n";
 	}
 
 	////////////////////////////////////////////////////////////////////////////////
@@ -271,382 +371,128 @@ namespace Cubiquity
 
 	void Volume::setRootNodeIndex(u32 newRootNodeIndex)
 	{
-		if (mTrackEdits)
-		{
-			// When tracking edits a root node should not be set to itself. However, this
-			// might happen when *not* tracking edits because we are then modifying in-place.
-			assert(newRootNodeIndex != mRootNodeIndices[mCurrentRoot]);
-
-			mCurrentRoot++;
-			if (mCurrentRoot >= mRootNodeIndices.size())
-			{
-				mRootNodeIndices.resize(mCurrentRoot + 1);
-			}
-		}
-
 		mRootNodeIndices[mCurrentRoot] = newRootNodeIndex;
 	}
 
-	void Volume::setTrackEdits(bool trackEdits)
+	void Volume::checkpoint()
 	{
-		mTrackEdits = trackEdits;
-		if (!mTrackEdits)
-		{
-			mRootNodeIndices[0] = mRootNodeIndices[mCurrentRoot];
-			mRootNodeIndices.resize(1);
-			mCurrentRoot = 0;
-		}
+		// If we 'undo' a few times and then create a checkpoint then the 'redo'
+		// checkpoints are invalidated. Discard them by cropping the vector.
+		mRootNodeIndices.resize(mCurrentRoot + 1); // Clear any 'redo' items
+
+		// Clone the current root
+		u32 root = mRootNodeIndices[mCurrentRoot];
+		u32 newRoot = mNodeStore.cloneRoot(root);
+
+		// Store it
+		mRootNodeIndices.push_back(newRoot);
+		mCurrentRoot++;
 	}
 
-	bool Volume::undo()
+	void Volume::undo()
 	{
-		if (mCurrentRoot > 0)
-		{
+		if (mCurrentRoot > 0) {
 			mCurrentRoot--;
-			return true;
 		}
-
-		return false; // Nothing to undo
 	}
 
-	bool Volume::redo()
+	void Volume::redo()
 	{
-		if (mCurrentRoot < mRootNodeIndices.size() - 1)
-		{
+		if (mCurrentRoot < mRootNodeIndices.size() - 1)	{
 			mCurrentRoot++;
-			return true;
 		}
-
-		return false; // Nothing to redo
 	}
 
 	void Volume::bake()
 	{
-		mDAG.merge(rootNodeIndex());
-		setRootNodeIndex(mDAG.bakedNodesBegin());
+		Cubiquity::Timer timer;
+		u32 newRootIndex = mNodeStore.merge(rootNodeIndex());
+		setRootNodeIndex(newRootIndex);
+		std::stringstream ss;
+		ss << std::endl << "Baked " << mNodeStore.unsharedNodesEnd() <<
+			" nodes in " << timer.elapsedTimeInSeconds() << " seconds";
+		log_debug(ss.str());
 	}
 
-	void Volume::setVoxelRecursive(i32 x, i32 y, i32 z, MaterialId matId)
+	void Volume::setVoxel(i32 x, i32 y, i32 z, MaterialId matId)
 	{
-		// Do we need this mapping to unsiged space? Or could we eliminate it in both voxel()/
-		//setVoxel() and get the same behaviour? Or is that confusing, e.g. with raycasting?
-		u32 ux = static_cast<u32>(x) ^ (1UL << 31);
-		u32 uy = static_cast<u32>(y) ^ (1UL << 31);
-		u32 uz = static_cast<u32>(z) ^ (1UL << 31);
+		// Map to unsigned positions
+		u32 ux, uy, uz;
+		make_position_unsigned(x, y, z, ux, uy, uz);
 
 		const int rootHeight = logBase2(VolumeSideLength);
-		u32 newRootNodeIndex = setVoxelRecursive(ux, uy, uz, matId, rootNodeIndex(), rootHeight);
+		u32 newRootNodeIndex = setVoxel(ux, uy, uz, matId, rootNodeIndex(), rootHeight);
 		setRootNodeIndex(newRootNodeIndex);
 	}
 
-	u32 Volume::setVoxelRecursive(u32 ux, u32 uy, u32 uz, MaterialId matId, u32 nodeIndex, int nodeHeight)
+	// I previously had iterative versions of ths function which do perform
+	// better but are a little harder to reason about. One version gives the
+	// same behaviour but is faster (possibly due to easier handling of the
+	// early out), and another version writes nodes on the way down the tree
+	// (it assumes the voxel isn't already set) rather on the way back up - this
+	// is faster still. But I don't want to maintain differnt versions at the
+	// moment, and the recursive version is easier. The others can be found in
+	// the commit history on the NodeStore branch (present in Jan 2026).
+	u32 Volume::setVoxel(u32 ux, u32 uy, u32 uz, MaterialId matId, u32 nodeIndex, int nodeHeight)
 	{
-		assert(nodeHeight > 0);
-		u32 childHeight = nodeHeight - 1;
-		
-		// We could possibly remove these variable bitshifts, but I'm not sure it's worth the effort.
-		u32 childX = (ux >> childHeight) & 0x01;
-		u32 childY = (uy >> childHeight) & 0x01;
-		u32 childZ = (uz >> childHeight) & 0x01;
-		u32 childId = childZ << 2 | childY << 1 | childX;
+		// Get the relevant child node
+		u32 childId = extract_next_child_id(ux, uy, uz); // Modifies params
+		u32 childNodeIndex = mNodeStore.getNodeChild(nodeIndex, childId);
 
-		const bool nodeIsMaterial = isMaterialNode(nodeIndex);
-
-		// If current node is a material then just propergate it. Otherwise get the true child.
-		u32 childNodeIndex = nodeIsMaterial ? nodeIndex : mDAG[nodeIndex][childId];
-
-		// If the child node is set to the desired material then the voxel is 
-		// already set. Return invalid node indicating nothing to update.
+		// Check if already set to desired material
 		if (childNodeIndex == matId) { return nodeIndex; }
 
 		// Recusively process the child node until we reach a just-above-leaf node (height of 1).
 		if (nodeHeight > 1)
 		{
-			u32 newChildNodeIndex = setVoxelRecursive(ux, uy, uz, matId, childNodeIndex, nodeHeight - 1);
+			u32 newChildNodeIndex = setVoxel(ux, uy, uz, matId, childNodeIndex, nodeHeight - 1);
 
 			// If the child hasn't changed then we don't need to update the current node.
 			if (newChildNodeIndex == childNodeIndex) { return nodeIndex; }
 
-			return mDAG.updateNodeChild(nodeIndex, childId, newChildNodeIndex, mTrackEdits);
+			return mNodeStore.setNodeChild(nodeIndex, childId, newChildNodeIndex);
 		}
 		else
 		{
-			return mDAG.updateNodeChild(nodeIndex, childId, matId, mTrackEdits);
+			return mNodeStore.setNodeChild(nodeIndex, childId, matId);
 		}
 	}
 
-	void Volume::setVoxel(i32 x, i32 y, i32 z, MaterialId matId)
+	void Volume::combine(const Volume& rhsVolume, const MaterialCombiner& combiner)
 	{
-		//return setVoxelRecursive(x, y, z, matId);
-
-		struct NodeState
-		{
-			u32 mIndex;
-			bool mProcessedNode;
-		};
-
-		// Note that the first two elements of this stack never actually get used.
-		// Leaf and almost-leaf nodes(heights 0 and 1) never get put on the stack.
-		// We accept this wasted space, rather than subtracting two on every access.
-		const int maxStackDepth = 33;
-		NodeState nodeStateStack[maxStackDepth];
-
-		const int rootHeight = logBase2(VolumeSideLength);
-		int nodeHeight = rootHeight;
-		nodeStateStack[nodeHeight].mIndex = rootNodeIndex();
-		nodeStateStack[nodeHeight].mProcessedNode = false;
-
-		while (true)
-		{
-			// This loop does not go right down to leaf nodes, it stops one level above. But for any
-			// given node it manipulates it's children, which means leaf nodes can get modified.
-			assert(nodeHeight >= 1);
-
-			NodeState& nodeState = nodeStateStack[nodeHeight];
-			//const Node* node = &(mDAG[nodeState.mIndex]);
-
-			// Find which subtree we are in.
-			u32 childHeight = nodeHeight - 1;
-			int tx = (x ^ (1UL << 31)); // Could precalculte these.
-			int ty = (y ^ (1UL << 31));
-			int tz = (z ^ (1UL << 31));
-			u32 childX = (tx >> childHeight) & 0x01;
-			u32 childY = (ty >> childHeight) & 0x01;
-			u32 childZ = (tz >> childHeight) & 0x01;
-			u32 childId = childZ << 2 | childY << 1 | childX;
-
-			if (nodeState.mProcessedNode == false) // Executed the first time we see a node - i.e. as we move *down* the tree.
-			{
-				const bool nodeIsMaterial = isMaterialNode(nodeState.mIndex);
-
-				// If current node is a material then just propergate it. Otherwise get the true child.
-				u32 childNodeIndex = nodeIsMaterial ? nodeState.mIndex : mDAG[nodeState.mIndex][childId];
-
-				// If the child node is set to the desired material then the voxel is already set. 
-				if (childNodeIndex == matId) { return; }
-
-				if (nodeHeight >= 2)
-				{
-					NodeState& childNodeState = nodeStateStack[nodeHeight - 1];
-					childNodeState.mIndex = childNodeIndex;
-					childNodeState.mProcessedNode = false;
-
-					nodeHeight -= 1;
-				}
-
-				nodeState.mProcessedNode = true;
-			}
-			else // Executed the second time we see a node - i.e. as we move *up* the tree.
-			{
-				if (nodeHeight > 1)
-				{
-					// If the child has changed then we need to update the current node.
-					const NodeState& childNodeState = nodeStateStack[nodeHeight - 1];
-					if (mDAG[nodeState.mIndex][childId] != childNodeState.mIndex)
-					{
-						nodeState.mIndex = mDAG.updateNodeChild(nodeState.mIndex, childId, childNodeState.mIndex, mTrackEdits);
-					}
-				}
-				else
-				{
-					nodeState.mIndex = mDAG.updateNodeChild(nodeState.mIndex, childId, matId, mTrackEdits);
-				}
-
-				// Move up the tree to process parent node next, until we reach the root.
-				nodeHeight += 1;
-				if (nodeHeight > rootHeight)
-				{
-					break;
-				}
-			}
-		}
-
-		setRootNodeIndex(nodeStateStack[rootHeight].mIndex);
-	}
-
-	void Volume::fillBrush(const Brush& brush, MaterialId matId)
-	{
-		const int rootHeight = logBase2(VolumeSideLength);
-		int nodeHeight = rootHeight;
-		u32 newIndex = matId;
-
-		constexpr i32 rootLowerBound = std::numeric_limits<i32>::min();
-
-		u32 newRootNodeIndex = fillBrush(brush, matId, rootNodeIndex(), nodeHeight, rootLowerBound, rootLowerBound, rootLowerBound);
-		setRootNodeIndex(newRootNodeIndex);
-	}
-
-	u32 Volume::fillBrush(const Brush& brush, MaterialId matId, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ)
-	{
-		u32 childHeight = nodeHeight - 1;
-		//int tx = (x ^ (1UL << 31)); // Could precalculte these.
-		//int ty = (y ^ (1UL << 31));
-		//int tz = (z ^ (1UL << 31));
-
-		for (u32 childZ = 0; childZ <= 1; childZ++)
-		{
-			for (u32 childY = 0; childY <= 1; childY++)
-			{
-				for (u32 childX = 0; childX <= 1; childX++)
-				{
-					//u32 childX = (tx >> childHeight) & 0x01;
-					//u32 childY = (ty >> childHeight) & 0x01;
-					//u32 childZ = (tz >> childHeight) & 0x01;
-					u32 childId = childZ << 2 | childY << 1 | childX;
-
-					u32 childSideLength = 1 << (childHeight);
-					i32 childLowerX = nodeLowerX + (childSideLength * childX);
-					i32 childLowerY = nodeLowerY + (childSideLength * childY);
-					i32 childLowerZ = nodeLowerZ + (childSideLength * childZ);
-
-					i32 childUpperX = childLowerX + (childSideLength - 1);
-					i32 childUpperY = childLowerY + (childSideLength - 1);
-					i32 childUpperZ = childLowerZ + (childSideLength - 1);
-
-					Box3f childBounds(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }), vec3f({ static_cast<float>(childUpperX),static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
-
-					if (!overlaps(brush.bounds(), childBounds))
-					{
-						continue;
-					}
-
-					bool allCornersInsideBrush = true;
-					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
-
-					const bool nodeIsMaterial = isMaterialNode(nodeIndex);
-
-					// If current node is a material then just propergate it. Otherwise get the true child.
-					u32 childNodeIndex = nodeIsMaterial ? nodeIndex : mDAG[nodeIndex][childId];
-
-					// If the child node is set to the desired material then the voxel is already set.
-					if (childNodeIndex == matId) { continue; }
-
-					// Process children
-					u32 newChildNodeIndex = childNodeIndex;
-					//if (nodeHeight >= 2)
-					if(nodeHeight >= 2 && !allCornersInsideBrush)
-					{
-						newChildNodeIndex = fillBrush(brush, matId, childNodeIndex, nodeHeight - 1, childLowerX, childLowerY, childLowerZ);
-					}
-					else
-					{
-						if (allCornersInsideBrush)
-						{
-							newChildNodeIndex = matId;
-						}
-					}
-
-					// If the child has changed then we need to update the current node.
-					if (childNodeIndex != newChildNodeIndex)
-					{
-						nodeIndex = mDAG.updateNodeChild(nodeIndex, childId, newChildNodeIndex, mTrackEdits);
-					}
-				}
-			}
-		}
-
-		return nodeIndex;
-	}
-
-	void Volume::addVolume(const Volume& rhsVolume)
-	{
-		const int rootHeight = logBase2(VolumeSideLength);
-		int nodeHeight = rootHeight;
-
-		constexpr i32 rootLowerBound = std::numeric_limits<i32>::min();
-
-		u32 newRootNodeIndex = addVolume(rhsVolume, rhsVolume.rootNodeIndex(), rootNodeIndex(), nodeHeight, rootLowerBound, rootLowerBound, rootLowerBound);
+		u32 newRootNodeIndex = combine(rhsVolume, rhsVolume.rootNodeIndex(), rootNodeIndex(), combiner);
 		setRootNodeIndex(newRootNodeIndex);
 	}
 
 	// Fixme - This function can prbably be more efficient. Firstly through better early out when whole nodes are full/empty, and also
 	// if seperate volumes shared a common memory space it would be easier to copy node directly across (maybe in compressd space?).
-	u32 Volume::addVolume(const Volume& rhsVolume, u32 rhsNodeIndex, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ)
+	u32 Volume::combine(const Volume& rhsVolume, u32 rhsNodeIndex, u32 nodeIndex, const MaterialCombiner& combiner)
 	{
-		u32 childHeight = nodeHeight - 1;
-		//int tx = (x ^ (1UL << 31)); // Could precalculte these.
-		//int ty = (y ^ (1UL << 31));
-		//int tz = (z ^ (1UL << 31));
-
-		for (u32 childZ = 0; childZ <= 1; childZ++)
+		for (u32 childId = 0; childId < 8; childId++)
 		{
-			for (u32 childY = 0; childY <= 1; childY++)
+			const bool nodeIsMaterial = isMaterialNode(nodeIndex);
+			const bool rhsNodeIsMaterial = isMaterialNode(rhsNodeIndex);
+
+			// If current node is a material then just propergate it. Otherwise get the true child.
+			u32 childNodeIndex = mNodeStore.getNodeChild(nodeIndex, childId);
+			u32 rhsChildNodeIndex = rhsVolume.mNodeStore.getNodeChild(rhsNodeIndex, childId);
+
+			// Process children
+			u32 newChildNodeIndex = childNodeIndex;
+
+			if (isMaterialNode(childNodeIndex) && isMaterialNode(rhsChildNodeIndex))
 			{
-				for (u32 childX = 0; childX <= 1; childX++)
-				{
-					//u32 childX = (tx >> childHeight) & 0x01;
-					//u32 childY = (ty >> childHeight) & 0x01;
-					//u32 childZ = (tz >> childHeight) & 0x01;
-					u32 childId = childZ << 2 | childY << 1 | childX;
+				newChildNodeIndex = combiner(childNodeIndex, rhsChildNodeIndex);
+			}
+			else
+			{
+				newChildNodeIndex = combine(rhsVolume, rhsChildNodeIndex, childNodeIndex, combiner);
+			}
 
-					u32 childSideLength = 1 << (childHeight);
-					i32 childLowerX = nodeLowerX + (childSideLength * childX);
-					i32 childLowerY = nodeLowerY + (childSideLength * childY);
-					i32 childLowerZ = nodeLowerZ + (childSideLength * childZ);
-
-					i32 childUpperX = childLowerX + (childSideLength - 1);
-					i32 childUpperY = childLowerY + (childSideLength - 1);
-					i32 childUpperZ = childLowerZ + (childSideLength - 1);
-
-					Box3f childBounds(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) } ), vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
-
-					/*if (!overlaps(brush.bounds(), childBounds))
-					{
-						continue;
-					}*/
-
-					/*bool allCornersInsideBrush = true;
-					if (!brush.contains(vec3f(childLowerX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childLowerX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childLowerX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childLowerX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childUpperX, childLowerY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childUpperX, childLowerY, childUpperZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childUpperX, childUpperY, childLowerZ))) { allCornersInsideBrush = false; }
-					if (!brush.contains(vec3f(childUpperX, childUpperY, childUpperZ))) { allCornersInsideBrush = false; }*/
-
-					const bool nodeIsMaterial = isMaterialNode(nodeIndex);
-					const bool rhsNodeIsMaterial = isMaterialNode(rhsNodeIndex);
-
-					// If current node is a material then just propergate it. Otherwise get the true child.
-					u32 childNodeIndex = nodeIsMaterial ? nodeIndex : mDAG[nodeIndex][childId];
-					u32 rhsChildNodeIndex = rhsNodeIsMaterial ? rhsNodeIndex : rhsVolume.mDAG[rhsNodeIndex][childId];
-
-					// If the child node is set to the desired material then the voxel is already set.
-					if (isMaterialNode(childNodeIndex) && isMaterialNode(rhsChildNodeIndex) && (childNodeIndex == rhsChildNodeIndex)) { continue; }
-
-					// Process children
-					u32 newChildNodeIndex = childNodeIndex;
-
-					// We have to treat at least one material as empty space, otherwise we are just copying 
-					// every voxel from source to destination, which just result in a copy of the source. 
-					// Hard-code it to zero for now, but should think about how else it might be controlled.
-					MaterialId emptyMaterial = 0;
-					if (rhsChildNodeIndex != emptyMaterial)
-					{
-						if (isMaterialNode(rhsChildNodeIndex))
-						{
-							newChildNodeIndex = rhsChildNodeIndex;
-						}
-						else
-						{
-							newChildNodeIndex = addVolume(rhsVolume, rhsChildNodeIndex, childNodeIndex, nodeHeight - 1, childLowerX, childLowerY, childLowerZ);;
-						}
-					}
-
-					// If the child has changed then we need to update the current node.
-					if (childNodeIndex != newChildNodeIndex)
-					{
-						nodeIndex = mDAG.updateNodeChild(nodeIndex, childId, newChildNodeIndex, mTrackEdits);
-					}
-				}
+			// If the child has changed then we need to update the current node.
+			if (childNodeIndex != newChildNodeIndex)
+			{
+				nodeIndex = mNodeStore.setNodeChild(nodeIndex, childId, newChildNodeIndex);
 			}
 		}
 
@@ -655,38 +501,21 @@ namespace Cubiquity
 
 	MaterialId Volume::voxel(i32 x, i32 y, i32 z) const
 	{
+		// TODO: Consider starting from split point instead of root
 		u32 nodeIndex = rootNodeIndex();
-		u32 height = logBase2(VolumeSideLength);
 
-		// FIXME - think whether we need the line below - I think we do for empty/solid volumes?
-		//if (mDAG.isMaterialNode(mRootNodeIndex)) { return static_cast<MaterialId>(mRootNodeIndex); }
+		// Map to unsigned positions
+		u32 ux, uy, uz;
+		make_position_unsigned(x, y, z, ux, uy, uz);
 
-		while (height >= 1)
-		{			
-			// If we reach a full node then the requested voxel is occupied.
-			if (isMaterialNode(nodeIndex)) { return static_cast<MaterialId>(nodeIndex); }
-
-			// Otherwise find which subtree we are in.
-			// Optimization - Note that the code below requires shifting by a variable amount which can be slow.
-			// Alternatively I think we can simply shift x, y, and z by one bit per iteration, but this requires us
-			// to reverse the order of the bits at the start of this function. It would be a one-time cost for a
-			// faster loop, and testing is needed (on a real, large volume) to determine whether it is beneficial.
-			u32 childHeight = height - 1;
-			int tx = (x ^ (1UL << 31)); // Could precalculte these.
-			int ty = (y ^ (1UL << 31));
-			int tz = (z ^ (1UL << 31));
-			u32 childX = (tx >> childHeight) & 0x01;
-			u32 childY = (ty >> childHeight) & 0x01;
-			u32 childZ = (tz >> childHeight) & 0x01;
-			u32 childId = childZ << 2 | childY << 1 | childX;
-
-			// Prepare for next iteration.
-			nodeIndex = mDAG[nodeIndex][childId];
-			height--;
+		// Descend tree. Memory access is apparent bottleneck. Improve node
+		// ordering for better cache coherency or try memory prefetch?
+		while (!isMaterialNode(nodeIndex))
+		{
+			u32 childId = extract_next_child_id(ux, uy, uz); // Modifies params
+			nodeIndex = mNodeStore[nodeIndex][childId];
 		}
 
-		// We have reached a height of zero so the node must be a material node.
-		assert(height == 0 && isMaterialNode(nodeIndex));
 		return static_cast<MaterialId>(nodeIndex);
 	}
 
@@ -706,20 +535,12 @@ namespace Cubiquity
 
 		u32 rootNodeIndex;
 		file.read(reinterpret_cast<char*>(&rootNodeIndex), sizeof(rootNodeIndex));
-		//assert(rootNodeIndex == mDAG.arrayBegin());
-		//setRootNodeIndex(RefCountedNodeIndex(rootNodeIndex, &mDAG));
 
-		//mDAG.read(file);
-
-		// This fill is not required but can be useful for debugging
-		//const Node InvalidNode = makeNode(0xffffffff);
-		//std::fill(mDAG.mNodes.begin(), mDAG.mNodes.end(), InvalidNode);
-
-		mDAG.read(file);
+		mNodeStore.read(file);
 
 		if (rootNodeIndex >= MaterialCount)
 		{
-			rootNodeIndex += mDAG.bakedNodesBegin() - MaterialCount;
+			rootNodeIndex += mNodeStore.sharedNodesBegin() - MaterialCount;
 		}
 
 		setRootNodeIndex(rootNodeIndex);
@@ -729,30 +550,45 @@ namespace Cubiquity
 
 	void Volume::save(const std::string& filename)
 	{
-		bake();
+		bake(); // Possibly should be here, not part of saving?
 
 		u32 root = rootNodeIndex();
-		const Node& data = mDAG[mDAG.bakedNodesBegin()];
+		const Node& data = mNodeStore[mNodeStore.sharedNodesBegin()];
 
 		std::ofstream file;
 		file = std::ofstream(filename, std::ios::out | std::ios::binary);
 		file.write(reinterpret_cast<const char*>(&root), sizeof(root));
-		mDAG.write(file);
+		mNodeStore.write(file);
 		file.close();
+	}
+
+	void Volume::print(std::ostream& os)
+	{
+		mNodeStore.print(os);
+
+		os << "Root nodes: [";
+		for (const auto& rootNodeIndex : mRootNodeIndices)
+		{
+			os << rootNodeIndex << ", ";
+		}
+		os << "]\n";
+
+		os << "Current root index = " << mCurrentRoot << "\n";
+		os << "Current root value = " << mRootNodeIndices[mCurrentRoot] << "\n";
 	}
 
 	namespace Internals
 	{
 		/// This is an advanced function which should only be used if you
 		/// understand the internal memory layout of Cubiquity's volume data.
-		NodeDAG& getNodes(Volume& volume)
+		NodeStore& getNodes(Volume& volume)
 		{
-			return volume.mDAG;
+			return volume.mNodeStore;
 		}
 
-		const NodeDAG& getNodes(const Volume& volume)
+		const NodeStore& getNodes(const Volume& volume)
 		{
-			return volume.mDAG;
+			return volume.mNodeStore;
 		}
 
 		const u32 getRootNodeIndex(const Volume& volume)

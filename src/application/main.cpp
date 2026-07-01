@@ -15,6 +15,7 @@ this software. If not, see http://creativecommons.org/publicdomain/zero/1.0/.
 #include "license.h"
 #include "base/logging.h"
 #include "base/progress.h"
+#include "commands/combine/combine.h"
 #include "commands/export/export.h"
 #include "commands/generate/generate.h"
 #include "commands/import/import.h"
@@ -111,6 +112,39 @@ try
 	// copy of variables which can appear more than once, such as input/output
 	// path, to avoid overwriting each others data.
 
+	// ------------------------ Combine ------------------------
+	CLI::App* cmb_cmd = app.add_subcommand("combine",
+		"Combine two Cubiquity volumes");
+
+	Combiner cmb_combiner;
+	std::map<std::string, Combiner> cmb_combiner_map{
+		{"priority_union",  Combiner::priority_union}
+	};
+	cmb_cmd->add_option("--combiner", cmb_combiner, "Method of combining materials")
+		->required()
+		->transform(CLI::CheckedTransformer(cmb_combiner_map, CLI::ignore_case));
+
+	std::filesystem::path cmb_in_a_path;
+	cmb_cmd->add_option("--input-a,input-a", cmb_in_a_path,
+		"Path to the first file to combine")
+		->required()
+		->check(CLI::ExistingFile);
+
+	std::filesystem::path cmb_in_b_path;
+	cmb_cmd->add_option("--input-b,input-b", cmb_in_b_path,
+		"Path to the second file to combine")
+		->required()
+		->check(CLI::ExistingFile);
+
+	// If not specified it will be derived from the input filename.
+	std::filesystem::path cmb_out_path;
+	cmb_cmd->add_option("--output,output", cmb_out_path,
+		"Path to the resulting '.dag' file "
+		"(derived from input path if not specified)");
+
+	cmb_cmd->final_callback([&]() {
+		combine_volumes(cmb_combiner, cmb_in_a_path, cmb_in_b_path, cmb_out_path); });
+
 	// ------------------------ Export ------------------------
 	CLI::App* exp_cmd = app.add_subcommand("export",
 		"Export a Cubiquity volume as the specified format");
@@ -155,7 +189,8 @@ try
 	std::map<std::string, Algorithm> gen_algo_map{
 		{"fractal_noise",  Algorithm::fractal_noise},
 		{"menger_sponge",  Algorithm::menger_sponge},
-		{"worley_noise",   Algorithm::worley_noise }
+		{"worley_noise",   Algorithm::worley_noise },
+		{"checkerboard",   Algorithm::checkerboard }
 	};
 	gen_cmd->add_option("algorithm", gen_algo, "Algorithm to use")
 		->required()
@@ -186,7 +221,16 @@ try
 	imp_cmd->add_option("--input,input", imp_in_path,
 		"Path to the file to import")
 		->required()
-		->check(CLI::ExistingFile);
+		->check(CLI::ExistingFile | CLI::Validator(
+			[](const std::string& s) -> std::string {
+				return s == "-" ? "" : "Must be an existing file or '-' for stdin";
+			}, "EXISTING_FILE_OR_STDIN"));
+
+	std::filesystem::path imp_in_meta_path;
+	imp_cmd->add_option("--input-metadata", imp_in_meta_path,
+		"Path to the input metadata file (when applicable)."
+		"If not specified then this is derived from input path, "
+		"unless reading from stdin (in which case it must be specified).");
 
 	// If not specified it will be derived from the input filename.
 	std::filesystem::path imp_out_path;
@@ -195,7 +239,7 @@ try
 		"(derived from input path if not specified)");
 
 	imp_cmd->final_callback([&]() {
-		import_from(imp_fmt, imp_in_path, imp_out_path); });
+		import_from(imp_fmt, imp_in_path, imp_in_meta_path, imp_out_path); });
 
 	// ------------------------ Test ------------------------
 	CLI::App* test_cmd = app.add_subcommand("test", "Run tests");

@@ -29,7 +29,7 @@ namespace Cubiquity
 	class NodeCounter
 	{
 	public:
-		void operator()(NodeDAG& /*nodes*/, u32 nodeIndex, Box3i /*bounds*/)
+		void operator()(NodeStore& /*nodes*/, u32 nodeIndex, Box3i /*bounds*/)
 		{
 			mUniqueNodes.insert(nodeIndex);
 		}
@@ -50,7 +50,7 @@ namespace Cubiquity
 			mBounds.invalidate();
 		}
 
-		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeStore& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			if (isMaterialNode(nodeIndex))
 			{
@@ -138,7 +138,7 @@ namespace Cubiquity
 			return(a != 0) && (result / a != b); // True in case of overflow
 		}
 
-		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeStore& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			if (isMaterialNode(nodeIndex))
 			{

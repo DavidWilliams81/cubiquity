@@ -335,7 +335,7 @@ void PathtracingDemo::onCameraModified()
 void PathtracingDemo::onVolumeModified()
 {
 	subDAGs = Cubiquity::findSubDAGs(
-		Cubiquity::Internals::getNodes(volume()).nodes(), Cubiquity::getRootNodeIndex(volume()));
+		Cubiquity::Internals::getNodes(volume()), Cubiquity::getRootNodeIndex(volume()));
 
 	clear();
 }

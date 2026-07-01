@@ -8,6 +8,7 @@
 #include "extraction.h"
 #include "raytracing.h"
 #include "utility.h"
+#include "voxelization.h"
 
 #include <filesystem>
 #include <fstream>
@@ -30,14 +31,17 @@ Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 	mMetadata.load(metadata_path);
 	log_info("Done");
 
-	// FIXME - This cube doesn't pathtrace properly
+	// FIXME - This cube doesn't pathtrace properly, but it does if we make it a sphere
 	/*for (int z = -8; z < 7; z++)
 	{
 		for (int y = -8; y < 7; y++)
 		{
 			for (int x = -8; x < 7; x++)
 			{
-				mVolume.setVoxel(x, y, z, 250);
+				// if (x * x + y * y + z * z < 50) // Make sphere
+				{
+					mVolume.setVoxel(x, y, z, 250);
+				}
 			}
 		}
 	}*/
@@ -53,8 +57,6 @@ Viewer::Viewer(const std::string& volume_path, WindowType windowType)
 void Viewer::onInitialise()
 {
 	onVolumeModified();
-
-	mVolume.setTrackEdits(true);
 
 	Cubiquity::Timer timer;
 
@@ -154,15 +156,17 @@ void Viewer::onMouseButtonDown(const SDL_MouseButtonEvent& event)
 	{
 		Ray3f ray = static_cast<Ray3f>(mCamera.rayFromViewportPos(event.x, event.y, width(), height()));
 		Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(
-			Cubiquity::Internals::getNodes(volume()).nodes(), Cubiquity::getRootNodeIndex(volume()));
+			Cubiquity::Internals::getNodes(volume()), Cubiquity::getRootNodeIndex(volume()));
 		Cubiquity::RayVolumeIntersection intersection = intersectVolume(mVolume, subDAGs,
 			ray.mOrigin.x, ray.mOrigin.y, ray.mOrigin.z,
 			ray.mDir.x, ray.mDir.y, ray.mDir.z,
 			false);
 		if (intersection.hit)
 		{
+			mVolume.checkpoint();
+
 			Cubiquity::SphereBrush brush(intersection.position.x, intersection.position.y, intersection.position.z, 30);
-			mVolume.fillBrush(brush, 0);
+			fillBrush(mVolume, brush, 0);
 
 			onVolumeModified();
 		}

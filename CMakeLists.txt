@@ -104,6 +104,7 @@ find_package(SDL2 CONFIG)
 file(GLOB APPLICATION_SRCS
     src/application/*
     src/application/base/*
+    src/application/commands/combine/*
     src/application/commands/export/*
     src/application/commands/export/vox_writer/vox_writer.* # Skip example.cpp
     src/application/commands/generate/*
@@ -130,7 +131,14 @@ set_target_properties(Application PROPERTIES OUTPUT_NAME cubiquity)
 if (SDL2_FOUND)
     add_compile_definitions(CUBIQUITY_APP_ENABLE_VIEW)
     include_directories(${SDL2_INCLUDE_DIRS})
-    target_link_libraries(Application SDL2::SDL2main SDL2::SDL2-static)
+	
+	# Not sure how we statically link to SDL2 on MacOS.
+	if (APPLE)
+		target_link_libraries(Application SDL2::SDL2main SDL2::SDL2)
+	else()
+		target_link_libraries(Application SDL2::SDL2main SDL2::SDL2-static)
+	endif()
+	
     if (WIN32)
         # '-mconsole' is needed to get stdout/stderr output on Windows
         # See https://stackoverflow.com/a/54079540

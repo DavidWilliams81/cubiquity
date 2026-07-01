@@ -40,15 +40,13 @@ void GPUPathtracingViewer::onInitialise()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);
 
-	const Cubiquity::Internals::NodeStore& nodeStore = Cubiquity::Internals::getNodes(volume()).nodes();
-	Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(nodeStore, Cubiquity::getRootNodeIndex(volume()));
-
-	u32 nodeCount = Cubiquity::Internals::getNodes(volume()).bakedNodesEnd();
+	const Cubiquity::NodeStore& nodeDag = Cubiquity::Internals::getNodes(volume());
+	Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(nodeDag, Cubiquity::getRootNodeIndex(volume()));
 
 	GLuint dagData;
 	glGenBuffers(1, &dagData);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, dagData);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Cubiquity::Node) * nodeCount, nodeStore.data(), GL_STATIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, nodeDag.rawBytesCount(), nodeDag.rawBytesPtr(), GL_STATIC_DRAW);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, dagData);
 	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0); // unbind
 

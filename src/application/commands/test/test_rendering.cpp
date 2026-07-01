@@ -36,7 +36,7 @@ bool testRaytracingBehaviour()
 	Cubiquity::Timer timer;
 
 	Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(
-		Cubiquity::Internals::getNodes(*volume).nodes(), Cubiquity::getRootNodeIndex(*volume));
+		Cubiquity::Internals::getNodes(*volume), Cubiquity::getRootNodeIndex(*volume));
 
 	const uint rayCount = 1000;
 	for (uint i = 0; i < rayCount; i++)
@@ -91,7 +91,7 @@ bool testRaytracingPerformance()
 	Cubiquity::Timer timer;
 
 	Cubiquity::SubDAGArray subDAGs = Cubiquity::findSubDAGs(
-		Cubiquity::Internals::getNodes(*volume).nodes(), Cubiquity::getRootNodeIndex(*volume));
+		Cubiquity::Internals::getNodes(*volume), Cubiquity::getRootNodeIndex(*volume));
 
 	const uint rayCount = 1000000;
 	for (uint i = 0; i < rayCount; i++)
@@ -110,7 +110,7 @@ bool testRaytracingPerformance()
 
 	log_info("Traced {} rays in {} seconds", rayCount, timer.elapsedTimeInSeconds());
 	log_info("Hit count = {} out of {}", hitCount, rayCount);
-	check(hitCount, 124084);
+	check(hitCount, 124096);
 
 	return true;
 }

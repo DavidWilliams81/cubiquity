@@ -9,6 +9,7 @@ enum class ImportFormat {
 
 bool import_from(ImportFormat           format,
            const std::filesystem::path& input_path,
+                 std::filesystem::path& input_metadata_path,
                  std::filesystem::path  output_path);
 
 #endif // CUBIQUITY_APP_IMPORT_H

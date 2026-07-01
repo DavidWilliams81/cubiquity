@@ -11,6 +11,46 @@
 #include <memory>
 #include <utility>
 
+class InputHandle
+{
+public:
+	InputHandle(const std::string& path) {
+		namespace fs = std::filesystem;
+
+		if (path == "-") {
+			// NOTE: Untested on Windows (may require setting cin to binary mode)
+			log_debug("Reading from stdin");
+			use_stdin = true;
+		} else if (fs::is_fifo(path)) {
+			log_debug("Reading from FIFO {} (may block waiting for writer...)", path);
+			m_stream = std::make_unique<std::ifstream>(path, std::ios::in | std::ios::binary);
+			log_debug("Done constructing stream");
+		} else if (!fs::exists(path)) {
+			throw std::runtime_error(fmt::format("Path '{}' does not exist", path));
+		} else {
+			log_debug("Reading from regular file {}", path);
+			m_stream = std::make_unique<std::ifstream>(path, std::ios::in | std::ios::binary);
+		}
+
+		if(m_stream && (m_stream->bad() || m_stream->is_open() == false)) {
+			throw std::runtime_error("Error reading from " + path);
+		}
+	}
+
+	// Accessor
+	std::istream& get() {
+		assert(((use_stdin && m_stream) == false) && "Cannot both be active");
+		return use_stdin ? std::cin : *m_stream;
+	}
+
+	std::istream* operator->() { return &get(); }
+	std::istream& operator*()  { return get(); }
+
+private:
+	bool use_stdin = false;
+	std::unique_ptr<std::ifstream> m_stream;
+};
+
 class OutputHandle
 {
 public:

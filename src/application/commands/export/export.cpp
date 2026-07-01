@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <future>
 #include <memory>
 #include <filesystem>
 
@@ -43,19 +44,23 @@ R"(# Overview
 void write_volume_as_bin(Volume* volume, // FIXME - Should ideally be ref not ptr
 	                     const std::filesystem::path& output_path)
 {
-	OutputHandle file(output_path.string());
+	bool force = true; // Shuold get this from command line?
+	OutputHandle file(output_path.string(), force);
 
 	auto [lower_bound, upper_bound] = find_bounds(*volume);
 
+	std::vector< Cubiquity::MaterialId> buffer;
 	for (int z = lower_bound.z; z <= upper_bound.z; z++)
 	{
 		for (int y = lower_bound.y; y <= upper_bound.y; y++)
 		{
+			buffer.clear();
 			for (int x = lower_bound.x; x <= upper_bound.x; x++)
 			{
-				Cubiquity::MaterialId matId = volume->voxel(x, y, z);
-				file->write(reinterpret_cast<const char*>(&matId), sizeof(matId));
+				buffer.push_back(volume->voxel(x, y, z));
 			}
+			file->write(reinterpret_cast<const char*>(buffer.data()),
+				buffer.size() * sizeof(Cubiquity::MaterialId));
 		}
 
 		// A bit cheeky, but we can directly call our Cubiquity progress handling code for progress bar.
@@ -68,7 +73,8 @@ void write_metadata_as_txt(Volume* volume,  // FIXME - Should ideally be ref not
                            const Metadata& metadata,
 	                       const std::filesystem::path& metadata_path)
 {
-	OutputHandle metadata_file(metadata_path.string());
+	bool force = true; // Shuold get this from command line?
+	OutputHandle metadata_file(metadata_path.string(), force);
 	Metadata bin_metadata = metadata;
 	bin_metadata.header = bin_comment;
 	bin_metadata.dimensions = find_dimensions(*volume);
@@ -84,11 +90,11 @@ void export_as_bin(Volume& volume, const Metadata& metadata,
 	// reader, and we don't control in which order an external reader will read
 	// the files. If we get it wrong we'll have a deadlock, so it is safest to
 	// write both files in parallel.
-	std::thread t1(write_volume_as_bin, &volume, output_path);
-	std::thread t2(write_metadata_as_txt, &volume, metadata, metadata_path);
+	auto f1 = std::async(std::launch::async, write_volume_as_bin, &volume, output_path);
+	auto f2 = std::async(std::launch::async, write_metadata_as_txt, &volume, metadata, metadata_path);
 
-	t1.join();
-	t2.join();
+	f1.get();
+	f2.get();
 }
 
 void export_as_images(Volume& volume, const Metadata& metadata,

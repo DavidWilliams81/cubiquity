@@ -396,7 +396,7 @@ namespace Cubiquity
 	{
 		RayVolumeIntersection intersection = { false, 0, 0, {0, 0, 0}, {0, 0, 0} }; // Miss
 
-		const Internals::NodeStore& nodes = Internals::getNodes(volume).nodes();
+		const Internals::NodeStore& nodes = Internals::getNodes(volume);
 
 		const uint rootNodeIndex = Internals::getRootNodeIndex(volume);
 
@@ -475,7 +475,7 @@ namespace Cubiquity
 			mIntersection.distance = DBL_MAX; // Note: Might change type to float in the future?
 		}
 
-		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeStore& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			Box3d dilatedBounds = static_cast<Box3d>(bounds);
 			dilatedBounds.dilate(0.5);

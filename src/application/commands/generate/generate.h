@@ -6,6 +6,7 @@
 #include <filesystem>
 
 enum class Algorithm {
+    checkerboard, 
     fractal_noise,
     menger_sponge,
     worley_noise,

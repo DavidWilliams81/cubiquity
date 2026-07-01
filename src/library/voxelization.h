@@ -77,6 +77,56 @@ namespace Cubiquity
 
 	// Voxelize the mesh into the volume
 	void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background);
+
+	/**** Brush drawing ****/
+	class Brush
+	{
+	public:
+		virtual bool contains(const vec3f& point) const = 0;
+		virtual Box3f bounds() const = 0;
+
+		vec3f mCentre;
+	};
+
+	class SphereBrush : public Brush
+	{
+	public:
+		SphereBrush(float x, float y, float z, float radius)
+			:SphereBrush(vec3f(x, y, z), radius) {
+		}
+		SphereBrush(const vec3f& centre, float radius)
+			:mRadiusSquared(radius* radius)
+		{
+			mCentre = centre;
+			vec3f radiusAsVec = vec3f(radius);
+			mBounds = Box3f(centre - radiusAsVec, centre + radiusAsVec);
+		}
+
+		bool contains(const vec3f& point) const
+		{
+			// WARNING - Dubious precision here - these values can be huge!
+			float distX = point.x - mCentre.x;
+			float distY = point.y - mCentre.y;
+			float distZ = point.z - mCentre.z;
+
+			i64 distSq = (distX * distX + distY * distY + distZ * distZ);
+
+			return distSq < mRadiusSquared;
+		}
+
+		Box3f bounds() const
+		{
+			return mBounds;
+		}
+
+	public:
+
+		float mRadiusSquared;
+		Box3f mBounds;
+	};
+
+	void fillBrush(Volume& volume, const Brush& brush, MaterialId matId);
+	u32 fillBrush(Volume& volume, const Brush& brush, MaterialId matId, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ);
 }
 
 #endif //CUBIQUITY_VOXELIZATION_H

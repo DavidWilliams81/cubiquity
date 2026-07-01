@@ -39,28 +39,6 @@ namespace Cubiquity
 	// with something in instance_list.cpp in the wrapper appliation...
 	enum Severity { TRACE, DBG, INF, WARN, ERR };
 
-	//! An integer type used to represent a material.
-	/*!
-	    An environment in Cubiquity is stored as a 3D grid (see Volume) of material identifiers, with each one specifying the material
-		at a given point in space. That is, MaterialId is the type used for each voxel. The material identifiers are simple integer
-		values which the user is expected to map so a more complete material description via some application-specific method. For example,
-		an application might use [1='rock', 2='wood', 3='glass', ...], or might map striaght to colours [1='red', 2='yellow', 3='blue', ...].
-
-		The MaterialId is a 16-bit value but it is *not* expected that you use the entire 16-bit range. Most applications will only have a
-		small number of materials, perhaps up to a few hundred. The compression method used in Cubiquity works by identifying identical
-		regions in the scene and storing them only once, and using more materials will generally result in larger file sizes and/or higher
-		memory usage.
-
-		Given the above, it is reasonable to ask why an 8-bit data type is not used instead? There are a few potential resons why a 16 bit type is still useful:
-
-		* 256 is too few materials
-		* Encoding colours or other sparse values
-		* Perhaps spatially large volumes aren't needed.
-
-		Note typedef should not be changed to differnt integer type.
-	*/
-	typedef u8 MaterialId;
-
 	typedef void (*LogFuncPtr)(const char* message);
 	void setLogDebugFunc(LogFuncPtr logDebugFunc);
 	void setLogWarningFunc(LogFuncPtr logDebugFunc);

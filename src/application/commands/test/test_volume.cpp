@@ -26,7 +26,7 @@ using Cubiquity::Volume;
 
 bool checkIntegrity(Volume& volume)
 {
-	const Cubiquity::Internals::NodeStore& nodes = Cubiquity::Internals::getNodes(volume).nodes();
+	//const Cubiquity::Internals::NodeStore& nodes = Cubiquity::Internals::getNodes(volume).nodes();
 
 	// Reserved nodes always contain dummy data.
 	//for (u32 i = 0; i < MaterialCount; i++)
@@ -119,7 +119,7 @@ bool checkIntegrity(Volume& volume)
 
 std::set< std::pair<u32, u32> > mergeOpportunities(Volume& volume)
 {
-	Cubiquity::Internals::NodeDAG& nodes = Cubiquity::Internals::getNodes(volume);
+	Cubiquity::Internals::NodeStore& nodes = Cubiquity::Internals::getNodes(volume);
 
 	std::set< std::pair<u32, u32> > result;
 
@@ -505,7 +505,7 @@ bool testFractalNoise()
 				 validationResult.first, validationResult.second, volume->countNodes());
 
 		// Just another check that the node count is as expected
-		if (i == 0) { assert(volume->countNodes() == 22817); }
+		if (i == 0) { assert(volume->countNodes() == 47160); }
 	}
 
 	if(!checkIntegrity(*volume))
@@ -554,7 +554,7 @@ bool testMerging()
 			 validationResult.first, validationResult.second, volume->countNodes());
 
 	// Just another check that the node count is as expected
-	assert(volume->countNodes() == 67065);
+	assert(volume->countNodes() == 229712);
 
 	if(!checkIntegrity(*volume))
 	{
@@ -574,13 +574,15 @@ bool testSphere()
 bool testCSG()
 {
 	Volume building;
-	building.load("../data/voxelized.dag");
+	building.load("../data/examples/building.dag");
 	Volume shapes;
-	shapes.load("../data/shapes.dag");
+	shapes.load("../data/test/shapes.dag");
 
-	building.addVolume(shapes);
+	building.combine(shapes, [](Cubiquity::MaterialId a, Cubiquity::MaterialId b) -> Cubiquity::MaterialId {
+		return (b != 0) ? b : a; // New volume takes priority
+	});
 
-	building.save("../data/csg.dag");
+	building.save("csg.dag");
 
 	// Bounds may have changed as a result of CSG, so find and print them.
 	auto [lower, upper] = find_bounds(building);

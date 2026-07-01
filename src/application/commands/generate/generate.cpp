@@ -94,6 +94,11 @@ bool generateVolume(Algorithm algorithm,
 	std::function<u8(int, int, int)> func;
 	switch (algorithm)
 	{
+	case Algorithm::checkerboard:
+		func = [=](int x, int y, int z) {
+			return (x ^ y ^ z) & 0x1;
+			};
+		break;
 	case Algorithm::fractal_noise:
 		func = [=](int x, int y, int z) {
 			if (fractal_noise(x, y, z, octaves) > 0.0f) {

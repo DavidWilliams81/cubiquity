@@ -83,26 +83,26 @@ namespace Cubiquity
 	template<typename Functor>
 	void visitVolumeNodes(Cubiquity::Volume& volume, Functor&& callback)
 	{
-		Internals::NodeDAG& mDAG = Internals::getNodes(volume);
+		Internals::NodeStore& mNodeStore = Internals::getNodes(volume);
 		const u32 rootNodeIndex = Internals::getRootNodeIndex(volume);
 
 		const u32 rootHeight = 32; // FIXME - Make this a constant somewhere?
 		const Box3i rootBounds = Box3i::max();
 
 		// Call the handler on the root.
-		const bool processChildren = callback(mDAG, rootNodeIndex, rootBounds);
+		const bool processChildren = callback(mNodeStore, rootNodeIndex, rootBounds);
 
 		// Process the root's children if requested and possible.
 		const bool hasChildren = !Internals::isMaterialNode(rootNodeIndex);
 		if (hasChildren && processChildren)
 		{
-			visitChildNodes(mDAG, rootNodeIndex, rootBounds, rootHeight, callback);
+			visitChildNodes(mNodeStore, rootNodeIndex, rootBounds, rootHeight, callback);
 		}
 	}
 
 	// Call the callback on each child of the specified node.
 	template<typename Functor>
-	void visitChildNodes(Internals::NodeDAG& mDAG, u32 nodeIndex, const Box3i& bounds, u32 height, Functor&& callback)
+	void visitChildNodes(Internals::NodeStore& mNodeStore, u32 nodeIndex, const Box3i& bounds, u32 height, Functor&& callback)
 	{
 		// Determine which bit may need to be flipped
 		// to derive child bounds from parent bounds.
@@ -111,7 +111,7 @@ namespace Cubiquity
 
 		for(u32 childId = 0; childId < 8; childId++)
 		{
-			const u32 childNodeIndex = mDAG[nodeIndex][childId];
+			const u32 childNodeIndex = mNodeStore[nodeIndex][childId];
 
 			// Set the child bounds to be the same as the parent bounds and then collapse 
 			// three of the faces (selected via the child id). Note that we could actually
@@ -127,13 +127,13 @@ namespace Cubiquity
 			childBounds.mExtents[((~childId) >> 2) & 0x01][2] ^= bitToFlip;
 
 			// Call the handler on this child.
-			const bool processChildren = callback(mDAG, childNodeIndex, childBounds);
+			const bool processChildren = callback(mNodeStore, childNodeIndex, childBounds);
 
 			// Process this child's children if requested and possible.
 			const bool hasChildren = !Internals::isMaterialNode(childNodeIndex);
 			if (hasChildren && processChildren)
 			{
-				visitChildNodes(mDAG, childNodeIndex, childBounds, childHeight, callback);
+				visitChildNodes(mNodeStore, childNodeIndex, childBounds, childHeight, callback);
 			}
 		}
 	}

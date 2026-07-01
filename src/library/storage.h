@@ -17,6 +17,8 @@
 #include "geometry.h"
 
 #include <array>
+#include <climits>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -24,59 +26,67 @@
 
 namespace Cubiquity
 {
+	//! An integer type used to represent a material.
+	/*!
+		An environment in Cubiquity is stored as a 3D grid (see Volume) of material identifiers, with each one specifying the material
+		at a given point in space. That is, MaterialId is the type used for each voxel. The material identifiers are simple integer
+		values which the user is expected to map so a more complete material description via some application-specific method. For example,
+		an application might use [1='rock', 2='wood', 3='glass', ...], or might map striaght to colours [1='red', 2='yellow', 3='blue', ...].
+
+		The MaterialId is a 16-bit value but it is *not* expected that you use the entire 16-bit range. Most applications will only have a
+		small number of materials, perhaps up to a few hundred. The compression method used in Cubiquity works by identifying identical
+		regions in the scene and storing them only once, and using more materials will generally result in larger file sizes and/or higher
+		memory usage.
+
+		Given the above, it is reasonable to ask why an 8-bit data type is not used instead? There are a few potential resons why a 16 bit type is still useful:
+
+		* 256 is too few materials
+		* Encoding colours or other sparse values
+		* Perhaps spatially large volumes aren't needed.
+
+		Note typedef should not be changed to differnt integer type.
+	*/
+	typedef u8 MaterialId;
+
 	namespace Internals
 	{
 		constexpr MaterialId MinMaterial = std::numeric_limits< MaterialId>::min();
 		constexpr MaterialId MaxMaterial = std::numeric_limits< MaterialId>::max();
-		constexpr u32     MaterialCount = static_cast<u32>(MaxMaterial) + 1;
-		constexpr u64     VolumeSideLength = UINT64_C(1) << 32;
+		constexpr u32      MaterialCount = static_cast<u32>(MaxMaterial) + 1;
+		constexpr u64   VolumeSideLength = UINT64_C(1) << 32; // FIXME - Doesn't belong here?
 
-		bool isMaterialNode(u32 nodeIndex);
+		 // Reserving a node index costs almost nothing and it sometimes useful
+		const u32 InvalidNodeIndex = 0xffffffff;
 
+		// A node is just an array of child indices
 		typedef std::array<u32, 8> Node;
+		inline Node make_node(u32 i) { return Node{ i, i, i, i, i, i, i, i }; }
+		inline bool isMaterialNode(u32 nodeIndex) { return nodeIndex < MaterialCount; }
+		bool isMaterialNode(const Node& node);
+
+		// Container for our nodes
+		typedef std::vector<Node> NodeVector;
+		NodeVector make_node_vector(u32 count = MaterialCount);
 
 		class NodeStore
 		{
+
 		public:
-			NodeStore() { mData = new Node[size()]; }
-			~NodeStore() { delete[] mData; }
+			NodeStore();
 
 			// Non-copyable (deleted)
 			NodeStore(const NodeStore&) = delete;
 			NodeStore& operator=(const NodeStore&) = delete;
 
-			const Node& operator[](u32 index) const { return mData[index]; }
+			// Element access
+			const Node& operator[](u32 index) const { return mNodeVector[index]; }
+			u32 getNodeChild(u32 nodeIndex, u32 childId) const;
+			u32 setNodeChild(u32 nodeIndex, u32 childId, u32 newChildNodeIndex);
 
-			void setNode(u32 index, const Internals::Node& node);
-			void setNodeChild(u32 nodeIndex, u32 childId, u32 newChildIndex);
-			Node* data() const { return mData; }
-			u32 size() const { return 0x3FFFFFF; }
-			
-		private:
-			Node* mData = nullptr;
-		};
-
-		class NodeDAG
-		{
-		public:
-			NodeDAG();
-
-			// Non-copyable (deleted)
-			NodeDAG(const NodeDAG&) = delete;
-			NodeDAG& operator=(const NodeDAG&) = delete;
-
-			const Node& operator[](u32 index) const { return mNodes[index]; }
-
-			u32 bakedNodesBegin() const { return MaterialCount; }
-			u32 bakedNodesEnd() const { return mBakedNodesEnd; }
-			u32 editNodesBegin() const { return mEditNodesBegin; }
-			u32 editNodesEnd() const { return mNodes.size(); }
-
-			bool isBakedNode(u32 index) const { return index >= bakedNodesBegin() && index < bakedNodesEnd(); }
-			bool isEditNode(u32 index) const { return index >= editNodesBegin() && index < editNodesEnd(); }
-
-			NodeStore& nodes() { return mNodes; }
-			const NodeStore& nodes() const { return mNodes; }
+			u32 sharedNodesBegin() const { return MaterialCount; }
+			u32 sharedNodesEnd() const { return mSharedNodesEnd; }
+			u32 unsharedNodesBegin() const { return mSharedNodesEnd; } // As above
+			u32 unsharedNodesEnd() const { return mNodeVector.size(); }			
 
 			u32 countNodes(u32 startNodeIndex) const;
 			void countNodes(u32 startNodeIndex, std::unordered_set<u32>& usedIndices) const;
@@ -84,66 +94,25 @@ namespace Cubiquity
 			void read(std::ifstream& file);
 			void write(std::ofstream& file);
 
+			u32 merge(u32 index);
+			u32 merge_node(u32 nodeIndex, NodeVector& merged_node_vector);
 
-			bool isPrunable(const Node& node) const;
+			const void* rawBytesPtr() const { return mNodeVector.data(); }
+			u32 rawBytesCount() const { return mNodeVector.size() * sizeof(mNodeVector[0]); }
 
-			u32 insert(const Node& node);
-			u32 updateNodeChild(u32 nodeIndex, u32 childId, u32 newChildNodeIndex, bool forceCopy);
+			u32 cloneRoot(u32 rootIndex);
 
-			void merge(u32 index);
-			u32 mergeNode(u32 nodeIndex, std::unordered_map<Internals::Node, u32>& map, u32& nextSpace);
+			void print(std::ostream& os);
 
 		private:
-			NodeStore mNodes;
-			u32 mBakedNodesEnd = MaterialCount;
-			u32 mEditNodesBegin = 0;
+			u32 append(const Node& node);
+
+			bool isShared(u32 index) const { return index < sharedNodesEnd(); } // Includes material nodes
+
+			NodeVector mNodeVector;
+			u32 mSharedNodesEnd; // Also begining of unshared nodes
 		};
 	}
-
-	class Brush
-	{
-	public:
-		virtual bool contains(const vec3f& point) const = 0;
-		virtual Box3f bounds() const = 0;
-
-		vec3f mCentre;
-	};
-
-	class SphereBrush : public Brush
-	{
-	public:
-		SphereBrush(float x, float y, float z, float radius)
-			:SphereBrush(vec3f(x, y, z), radius) {}
-		SphereBrush(const vec3f& centre, float radius)
-			:mRadiusSquared(radius * radius)
-		{
-			mCentre = centre;
-			vec3f radiusAsVec = vec3f(radius);
-			mBounds = Box3f(centre - radiusAsVec, centre + radiusAsVec);
-		}
-
-		bool contains(const vec3f& point) const
-		{
-			// WARNING - Dubious precision here - these values can be huge!
-			float distX = point.x - mCentre.x;
-			float distY = point.y - mCentre.y;
-			float distZ = point.z - mCentre.z;
-
-			i64 distSq = (distX * distX + distY * distY + distZ * distZ);
-
-			return distSq < mRadiusSquared;
-		}
-
-		Box3f bounds() const
-		{
-			return mBounds;
-		}
-
-	public:
-		
-		float mRadiusSquared;
-		Box3f mBounds;
-	};
 
 	class Volume;
 	namespace Internals
@@ -154,11 +123,13 @@ namespace Cubiquity
 		// probably shouldn't be doing it.
 
 		/// Provides access to the raw node data.
-		NodeDAG& getNodes(Volume& volume);
-		const NodeDAG& getNodes(const Volume& volume);
+		NodeStore& getNodes(Volume& volume);
+		const NodeStore& getNodes(const Volume& volume);
 		//u32& getRootNodeIndex(Volume& volume);
 		const u32 getRootNodeIndex(const Volume& volume);
 	}
+
+	typedef std::function<MaterialId(MaterialId, MaterialId)> MaterialCombiner;
 
 	class Volume
 	{
@@ -183,22 +154,18 @@ namespace Cubiquity
 		u32 rootNodeIndex() const;
 		void setRootNodeIndex(u32 newRootNodeIndex);
 
-		void setTrackEdits(bool trackEdits);
-		bool undo();
-		bool redo();
+		void checkpoint();
+		void undo();
+		void redo();
 
-		void setVoxelRecursive(i32 x, i32 y, i32 z, MaterialId matId);
-		u32 setVoxelRecursive(u32 ux, u32 uy, u32 uz, MaterialId matId, u32 nodeIndex, int nodeHeight);
+		void setVoxel(i32 x, i32 y, i32 z, MaterialId matId);
+		u32 setVoxel(u32 ux, u32 uy, u32 uz, MaterialId matId, u32 nodeIndex, int nodeHeight);
 
 		template <typename ArrayType>
 		void setVoxel(const ArrayType& position, MaterialId matId);
-		void setVoxel(i32 x, i32 y, i32 z, MaterialId matId);
 
-		void fillBrush(const Brush& brush, MaterialId matId);
-		u32 fillBrush(const Brush& brush, MaterialId matId, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ);
-
-		void addVolume(const Volume& rhsVolume);
-		u32 addVolume(const Volume& rhsVolume, u32 rhsNodeIndex, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ);
+		void combine(const Volume& rhsVolume, const MaterialCombiner& combiner);
+		u32 combine(const Volume& rhsVolume, u32 rhsNodeIndex, u32 nodeIndex, const MaterialCombiner& combiner);
 
 		template <typename ArrayType>
 		MaterialId voxel(const ArrayType& position) const;
@@ -206,27 +173,26 @@ namespace Cubiquity
 
 		void bake();
 
-		u32 countNodes() const { return mDAG.countNodes(rootNodeIndex()); };
+		u32 countNodes() const { return mNodeStore.countNodes(rootNodeIndex()); };
 
 		bool load(const std::string& filename);
 		void save(const std::string& filename);
 
+		void print(std::ostream& os);
+
 	private:
 
-		friend Internals::NodeDAG& Internals::getNodes(Volume& volume);
-		friend const Internals::NodeDAG& Internals::getNodes(const Volume& volume);
+		friend Internals::NodeStore& Internals::getNodes(Volume& volume);
+		friend const Internals::NodeStore& Internals::getNodes(const Volume& volume);
 		//friend u32& Internals::getRootNodeIndex(Volume& volume);
 		friend const u32 Internals::getRootNodeIndex(const Volume& volume);
 		
-		Internals::NodeDAG mDAG;
+	public:
+		Internals::NodeStore mNodeStore;
 
-		// Note: The undo system is linear. If we apply operation A, undo it, and then apply operation B
-		// then A is lost. But it we wanted to we could still track it, because the appropriate edit still
-		// exists (it is jst unreferenced). But having such an undo history tree will probably be confusing
-		// for the user, moving forwards and backwards is probably enough.
-		bool mTrackEdits = false;
+	private:
 		std::vector<u32> mRootNodeIndices;
-		u32 mCurrentRoot = 0;
+		int mCurrentRoot = 0;
 	};
 
 	// Implementation of templatised accessors
@@ -243,16 +209,18 @@ namespace Cubiquity
 
 namespace std
 {
-	template<>
-	struct hash<Cubiquity::Internals::Node>
+	static Cubiquity::u64 fnv1a_64(const Cubiquity::u8* data, size_t size)
 	{
-		Cubiquity::u32 seed = 0;
-
-		std::size_t operator()(const Cubiquity::Internals::Node& node) const noexcept
-		{
-			return Cubiquity::Internals::murmurHash3(&(node[0]), sizeof(uint32_t) * 8, seed);
+		Cubiquity::u64 hash = UINT64_C(0xcbf29ce484222325);
+		for (size_t i = 0; i < size; i++) {
+			hash ^= data[i];
+			hash *= UINT64_C(0x00000100000001B3);
 		}
-	};
+		return hash;
+	}
+
+	template<>
+	struct hash<Cubiquity::Internals::Node>;
 }
 
 #endif //CUBIQUITY_VOLUME_H

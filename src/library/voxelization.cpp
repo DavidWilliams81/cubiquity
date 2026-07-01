@@ -551,7 +551,7 @@ public:
 		return Box3i(childLowerBound, childUpperBound);
 	}
 
-	bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& nodeBounds)
+	bool operator()(NodeStore& nodes, u32 nodeIndex, const Box3i& nodeBounds)
 	{
 		// Signal to stop traversing parts of the tree which do not overlap our voxelized object.
 		if (!overlaps(nodeBounds, mBounds)) { return false; }
@@ -605,7 +605,7 @@ std::vector<NodeToTest> findNodes(Volume& volume, Box3i bounds)
 	return nodeFinder.nodes();
 }
 
-void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, Mesh& mesh)
+void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeStore& /*nodeData*/, Mesh& mesh)
 {
 	int i = 0;
 	std::stringstream ss;
@@ -619,29 +619,6 @@ void classifyNodes(std::vector<NodeToTest>& nodesToTest, NodeDAG& /*nodeData*/, 
 
 		reportProgress(ss.str().c_str(), 0, i++, nodesToTest.size()-1);
 	});
-}
-
-u32 prune(NodeDAG& nodes, u32 nodeIndex)
-{
-	Node node = nodes[nodeIndex];
-	for (int i = 0; i < 8; i++)
-	{
-		u32 nodeChildIndex = node[i];
-		if (!isMaterialNode(nodeChildIndex))
-		{
-			node[i] = prune(nodes, nodeChildIndex);
-		}
-	}
-
-	return nodes.isPrunable(node) ? node[0] : nodes.insert(node);
-}
-
-void prune(Volume& volume)
-{
-	u32 rootNodeIndex = getRootNodeIndex(volume);
-	NodeDAG& nodes = getNodes(volume);
-	u32 newRootNodeIndex = prune(nodes, rootNodeIndex);
-	volume.setRootNodeIndex(newRootNodeIndex);
 }
 
 /***************************************************************************************************
@@ -665,21 +642,15 @@ void doPerNodeVoxelisation(Volume& volume, Mesh& mesh, MaterialId fill, Material
 	auto nodesToTest = findNodes(volume, voxelisationBounds);
 
 	// Classify all nodes according to which side of the surface they are on.
-	NodeDAG& nodeData = Internals::getNodes(volume);
+	NodeStore& nodeData = Internals::getNodes(volume);
 	classifyNodes(nodesToTest, nodeData, mesh);
 
 	// Apply the results to the volume
 	for (auto& toTest : nodesToTest)
 	{
 		MaterialId resultingMaterial = toTest.result ? fill : background;
-		nodeData.nodes().setNodeChild(toTest.index, toTest.childId, resultingMaterial);
+		nodeData.setNodeChild(toTest.index, toTest.childId, resultingMaterial);
 	}
-
-	// The voxelisation process can cause the volume to become unpruned, which we consider to be an invalid state.
-	// This might be because the shell voxelisaion is too thick, though I think we have avoided that. But even so,
-	// the mesh might represent a small box touching eight voxels, all of which are inside. These would be
-	// individually classified and would all get the same value, so they should be pruned and replaced by the parent.
-	prune(volume);
 }
 
 // A very slow approach to voxelisation which evaluates the winding number for every voxel It also
@@ -728,6 +699,8 @@ void voxelize(Volume& volume, Mesh& mesh, MaterialId fill, MaterialId background
 			// surface is high-frequency anyway, but if e.g. two surfaces come close together then a set of
 			// eight voxels can all be set which would then be pruned. The checkerboard does not prevent DAG
 			// deduplication, but that does not happen automatically anyway.
+			//
+			// FIXME - Note that pruning is no longer performed. Do we still need this checkerboard?
 			drawTriangles(mesh.triangles, mesh.materials, -1.0,
 				[&](i32 x, i32 y, i32 z, MaterialId matId) {
 					MaterialId checkerboard = ((x & 0x1) ^ (y & 0x1) ^ (z & 0x1));
@@ -838,6 +811,98 @@ void Mesh::build()
 		//std::ofstream file("tree.txt"); writePatch(*rootPatch, file);
 		//exportCollada(std::string("collada_") + name + ".dae", *rootPatch);
 	}
+}
+
+void fillBrush(Volume& volume, const Brush& brush, MaterialId matId)
+{
+	const int rootHeight = logBase2(VolumeSideLength);
+	int nodeHeight = rootHeight;
+	u32 newIndex = matId;
+
+	constexpr i32 rootLowerBound = std::numeric_limits<i32>::min();
+
+	u32 newRootNodeIndex = fillBrush(volume, brush, matId, volume.rootNodeIndex(), nodeHeight, rootLowerBound, rootLowerBound, rootLowerBound);
+	volume.setRootNodeIndex(newRootNodeIndex);
+}
+
+u32 fillBrush(Volume& volume, const Brush& brush, MaterialId matId, u32 nodeIndex, int nodeHeight, i32 nodeLowerX, i32 nodeLowerY, i32 nodeLowerZ)
+{
+	u32 childHeight = nodeHeight - 1;
+	//int tx = (x ^ (1UL << 31)); // Could precalculte these.
+	//int ty = (y ^ (1UL << 31));
+	//int tz = (z ^ (1UL << 31));
+
+	for (u32 childZ = 0; childZ <= 1; childZ++)
+	{
+		for (u32 childY = 0; childY <= 1; childY++)
+		{
+			for (u32 childX = 0; childX <= 1; childX++)
+			{
+				//u32 childX = (tx >> childHeight) & 0x01;
+				//u32 childY = (ty >> childHeight) & 0x01;
+				//u32 childZ = (tz >> childHeight) & 0x01;
+				u32 childId = childZ << 2 | childY << 1 | childX;
+
+				u32 childSideLength = 1 << (childHeight);
+				i32 childLowerX = nodeLowerX + (childSideLength * childX);
+				i32 childLowerY = nodeLowerY + (childSideLength * childY);
+				i32 childLowerZ = nodeLowerZ + (childSideLength * childZ);
+
+				i32 childUpperX = childLowerX + (childSideLength - 1);
+				i32 childUpperY = childLowerY + (childSideLength - 1);
+				i32 childUpperZ = childLowerZ + (childSideLength - 1);
+
+				Box3f childBounds(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }), vec3f({ static_cast<float>(childUpperX),static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }));
+
+				if (!overlaps(brush.bounds(), childBounds))
+				{
+					continue;
+				}
+
+				bool allCornersInsideBrush = true;
+				if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childLowerX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childLowerY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childLowerZ) }))) { allCornersInsideBrush = false; }
+				if (!brush.contains(vec3f({ static_cast<float>(childUpperX), static_cast<float>(childUpperY), static_cast<float>(childUpperZ) }))) { allCornersInsideBrush = false; }
+
+				const bool nodeIsMaterial = isMaterialNode(nodeIndex);
+
+				// If current node is a material then just propergate it. Otherwise get the true child.
+				NodeStore& nodeStore = Internals::getNodes(volume);
+				u32 childNodeIndex = nodeStore.getNodeChild(nodeIndex, childId);
+
+				// If the child node is set to the desired material then the voxel is already set.
+				if (childNodeIndex == matId) { continue; }
+
+				// Process children
+				u32 newChildNodeIndex = childNodeIndex;
+				//if (nodeHeight >= 2)
+				if (nodeHeight >= 2 && !allCornersInsideBrush)
+				{
+					newChildNodeIndex = fillBrush(volume, brush, matId, childNodeIndex, nodeHeight - 1, childLowerX, childLowerY, childLowerZ);
+				}
+				else
+				{
+					if (allCornersInsideBrush)
+					{
+						newChildNodeIndex = matId;
+					}
+				}
+
+				// If the child has changed then we need to update the current node.
+				if (childNodeIndex != newChildNodeIndex)
+				{
+					nodeIndex = nodeStore.setNodeChild(nodeIndex, childId, newChildNodeIndex);
+				}
+			}
+		}
+	}
+
+	return nodeIndex;
 }
 
 } // namespace Cubiquity

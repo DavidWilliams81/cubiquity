@@ -52,7 +52,9 @@ void voxelizeSurface(Mesh& mesh, Volume& volume)
 
 	Volume temp;
 	voxelize(temp, mesh, mainMaterial, 0);
-	volume.addVolume(temp);
+	volume.combine(temp, [](Cubiquity::MaterialId a, Cubiquity::MaterialId b) -> Cubiquity::MaterialId {
+		return (b != 0) ? b : a; // New volume takes priority
+	});
 	volume.bake();
 	log_info("");
 }

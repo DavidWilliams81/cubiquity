@@ -69,7 +69,7 @@ namespace Cubiquity
 		{
 		}
 
-		bool operator()(NodeDAG& nodes, u32 nodeIndex, const Box3i& bounds)
+		bool operator()(NodeStore& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
 			if ((isMaterialNode(nodeIndex)) && (nodeIndex > 0)) // Non-empty leaf node
 			{
