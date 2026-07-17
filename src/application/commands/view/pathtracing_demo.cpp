@@ -38,7 +38,7 @@ float PathtracingDemo::positionBasedNoise(const vec3& position)
 	// Because the intersectionl lies exactly between two voxels a proper round to
 	// nearest suffers from floating point problems. Therefore we apply a tiny offset.
 	ivec3 roundedIntesectionPosition = static_cast<ivec3>(position + vec3(0.499));
-	u32 hash = Cubiquity::murmurHash3(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
+	u32 hash = Cubiquity::Internals::fnv1a(&roundedIntesectionPosition, sizeof(roundedIntesectionPosition));
 	return (hash & 0xff) / 255.0f; // 0.0 to 1.0
 }
 
@@ -64,7 +64,7 @@ vec3 PathtracingDemo::randomPointInUnitSphere()
 	vec3 result;
 	do
 	{
-		nextPointInUnitSphere = Cubiquity::mixBits(nextPointInUnitSphere);
+		nextPointInUnitSphere = static_cast<u32>(Cubiquity::bit_mix(nextPointInUnitSphere));
 		result[0] = nextPointInUnitSphere & 0x3FF;
 		result[1] = (nextPointInUnitSphere >> 10) & 0x3FF;
 		result[2] = (nextPointInUnitSphere >> 20) & 0x3FF;
@@ -235,7 +235,7 @@ void PathtracingDemo::onUpdate(float deltaTime)
 	// Update the pathtraced image
 	Cubiquity::Timer timer;
 	raytrace(camera());
-	log_info("Rendered frame in {}ms", timer.elapsedTimeInMilliSeconds());
+	log_info("Rendered frame in {:.3f}ms", timer.elapsed_milliseconds());
 
 	// Copy from floating point image to 24-bit RGB SDL surface
 	float* src = &(mImage[0][0]);

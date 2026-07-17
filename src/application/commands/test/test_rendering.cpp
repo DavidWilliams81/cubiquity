@@ -31,6 +31,7 @@ bool testRaytracingBehaviour()
 
 	uint hitCount = 0;
 	uint hitCountRef = 0;
+	bool allMaterialsCorrect = true;
 	float maxError = 0.0f;
 
 	Cubiquity::Timer timer;
@@ -62,17 +63,20 @@ bool testRaytracingBehaviour()
 			float error = std::abs(intersection.distance - intersectionRef.distance);
 			maxError = std::max(error, maxError);
 
-			check(intersection.material, intersectionRef.material);
+			if(intersection.material != intersectionRef.material) {
+				allMaterialsCorrect = false;
+			}
 		}
 	}
 
-	log_info("{} seconds", timer.elapsedTimeInSeconds());
+	log_info("{:.3f} seconds", timer.elapsed_seconds());
 
 	log_info("Hit count = {} out of {}", hitCount, rayCount);
-	check(hitCount, hitCountRef);
+	check("Hit count vs reference", hitCount, hitCountRef);
 
 	log_info("Max error = {}", maxError);
-	check((maxError < 0.001f), true);
+	check("Intersection distance error within tolerance", (maxError < 0.001f), true);
+	check("All Materials Correct", allMaterialsCorrect, true);
 
 	return (hitCount == hitCountRef) && ((maxError < 0.001f));
 }
@@ -108,9 +112,9 @@ bool testRaytracingPerformance()
 		if (intersection.hit) { hitCount++; }
 	}
 
-	log_info("Traced {} rays in {} seconds", rayCount, timer.elapsedTimeInSeconds());
+	log_info("Traced {} rays in {:.3f} seconds", rayCount, timer.elapsed_seconds());
 	log_info("Hit count = {} out of {}", hitCount, rayCount);
-	check(hitCount, 124096);
+	check("Hit count", hitCount, 124096);
 
 	return true;
 }

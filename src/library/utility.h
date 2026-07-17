@@ -17,66 +17,43 @@
 #include "geometry.h"
 #include "storage.h"
 
-#include <chrono>
-#include <iostream>
+#include <cinttypes>
 #include <map>
 #include <memory>
-#include <string>
 
 namespace Cubiquity
 {
-	// A little utility class useful for debugging and profiling.
+	// For debugging and profiling (usually instantiated as a global)
 	class Counter
 	{
 	public:
-		Counter(const std::string& name) : mName(name) {}
-		~Counter()
-		{
-			std::cout << mName << " = " << mValue << std::endl;
-		}
+		// 'name' is not copied, so it must outlive the Counter (e.g. a string literal).
+		Counter(const char* name) : mName(name) {}
+		~Counter() { Internals::log_debug("%s = %" PRIu64, mName, mValue); }
 		void inc() { mValue++; }
 	private:
-		std::string mName;
+		const char* mName;
 		u64 mValue = 0;
 	};
 
+	// Simple timer class for profiling
 	class Timer
 	{
 	public:
 		Timer(bool bAutoStart = true)
 		{
-			if (bAutoStart)
-			{
+			if (bAutoStart)	{
 				start();
 			}
 		}
 
-		void start(void)
-		{
-			m_start = clock::now();
-		}
-
-		float elapsedTimeInSeconds(void)
-		{
-			std::chrono::duration<float> elapsed_seconds = clock::now() - m_start;
-			return elapsed_seconds.count();
-		}
-
-		float elapsedTimeInMilliSeconds(void)
-		{
-			std::chrono::duration<float, std::milli> elapsed_milliseconds = clock::now() - m_start;
-			return elapsed_milliseconds.count();
-		}
-
-		float elapsedTimeInMicroSeconds(void)
-		{
-			std::chrono::duration<float, std::micro> elapsed_microseconds = clock::now() - m_start;
-			return elapsed_microseconds.count();
-		}
+		void start(void) { m_start = seconds_since_epoch(); };
+		double elapsed_seconds(void) { return seconds_since_epoch() - m_start; };
+		double elapsed_milliseconds(void) { return elapsed_seconds() * 1000.0; };
 
 	private:
-		typedef std::chrono::system_clock clock;
-		std::chrono::time_point<clock> m_start;
+		double m_start = 0; // Plain double so we don't need <chrono>
+		double seconds_since_epoch();
 	};
 
 	// FIXME - Can we make this take a const volume reference?

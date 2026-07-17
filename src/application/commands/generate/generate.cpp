@@ -173,7 +173,7 @@ bool generateVolume(Algorithm algorithm,
 			}
 		}
 	});
-	log_info("Generated in {} seconds", timer.elapsedTimeInSeconds());
+	log_info("Generated in {:.3f} seconds", timer.elapsed_seconds());
 
 	saveVolume(output_path, volume, metadata);
 

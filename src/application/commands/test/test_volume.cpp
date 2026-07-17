@@ -427,7 +427,7 @@ bool testRandomAccess()
 
 	log_info("Node count = {}", volume->countNodes());
 
-	log_info("Completed test in {} seconds", timer.elapsedTimeInSeconds());
+	log_info("Completed test in {:.3f} seconds", timer.elapsed_seconds());
 
 	return true;
 }
@@ -513,7 +513,7 @@ bool testFractalNoise()
 		log_error("Integrity check failed!!!");
 	}
 
-	log_info("Completed test in {} seconds", timer.elapsedTimeInSeconds());
+	log_info("Completed test in {:.3f} seconds", timer.elapsed_seconds());
 
 	return true;
 }
@@ -539,10 +539,10 @@ bool testMerging()
 
 	applyFunction(volume.get(), lower, upper, noise_func, true, 3);
 
-	log_info("{} : Wrote data", timer.elapsedTimeInSeconds());
+	log_info("{:.3f} : Wrote data", timer.elapsed_seconds());
 
 	volume->bake();
-	log_info("{} : Baked", timer.elapsedTimeInSeconds());
+	log_info("{:.3f} : Baked", timer.elapsed_seconds());
 
 	volume->save("fractalNoise.dag");
 
@@ -561,7 +561,7 @@ bool testMerging()
 		log_error("Integrity check failed!!!");
 	}
 
-	log_info("{} : Completed", timer.elapsedTimeInSeconds());
+	log_info("{:.3f} : Completed", timer.elapsed_seconds());
 
 	return true;
 }

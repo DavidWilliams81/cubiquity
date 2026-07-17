@@ -18,9 +18,9 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <iostream>
 #include <random>
 #include <span>
+#include <type_traits>
 
 namespace Cubiquity
 {
@@ -68,11 +68,11 @@ struct Vec3
 		return *((&x) + index);
 	}
 
-	friend std::ostream& operator<<(std::ostream& os, const Vec3& v)
+	/*friend std::ostream& operator<<(std::ostream& os, const Vec3& v)
 	{
 		os << "[" << v.x << ", " << v.y << ", " << v.z << "]";
 		return os;
-	}
+	}*/
 
 	// Unary negation returns by value - see https://stackoverflow.com/a/2155307
 	Vec3 operator-() const { return { -x, -y, -z }; }
@@ -211,6 +211,19 @@ typedef Vec3<u32> vec3u;
 typedef Vec3<bool> vec3b;
 typedef Vec3<float> vec3f;
 typedef Vec3<double> vec3d;
+
+template <typename VecType>
+struct Vec3Hasher
+{
+	u64 operator()(const VecType& vec) const noexcept
+	{
+		u64 running_hash = 0;
+		running_hash = Internals::hash_combine(running_hash, Internals::hash_value(vec.x));
+		running_hash = Internals::hash_combine(running_hash, Internals::hash_value(vec.y));
+		running_hash = Internals::hash_combine(running_hash, Internals::hash_value(vec.z));
+		return running_hash;
+	}
+};
 
 template <class VecType>
 class Ray3

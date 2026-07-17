@@ -14,33 +14,14 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdarg>
+#include <cstdio>
 
 namespace Cubiquity
 {
 	namespace Internals
 	{
-		////////////////////////////////////////////////////////////////////////////////////////////
-		//   _   _ _   _ _ _ _                                                                    //
-		//  | | | | | (_) (_) |                                                                   //
-		//  | | | | |_ _| |_| |_ _   _                                                            //
-		//  | | | | __| | | | __| | | |                                                           //
-		//  | |_| | |_| | | | |_| |_| |                                                           //
-		//   \___/ \__|_|_|_|\__|\__, |                                                           //
-		//                        __/ |                                                           //
-		//                       |___/                                                            //
-		////////////////////////////////////////////////////////////////////////////////////////////
-		//                                                                                        //
-		// Various useful low-level/bitwise operations                                            //
-		//                                                                                        //
-		////////////////////////////////////////////////////////////////////////////////////////////
-
-		// See https://stackoverflow.com/a/1898487
-		bool isAligned(const void *ptr, unsigned int alignment)
-		{
-			return reinterpret_cast<uintptr_t>(ptr) % alignment == 0;
-		}
-
-		bool isPowerOf2(u32 uInput)
+		bool is_power_of_2(u32 uInput)
 		{
 			if (uInput == 0)
 				return false;
@@ -48,28 +29,14 @@ namespace Cubiquity
 				return ((uInput & (uInput - 1)) == 0);
 		}
 
-		// Impementation of GLSL's findMSB() for *unsigned* parameter.
-		// The behaviour of the signed version is more complex.
-		int findMSB(u32 value)
-		{
-			int result = -1;
-			while (value) {
-				result++;
-				value >>= 1;
-			}
-			return result;
-		}
-
-		// Simple brute-force approach to computing the log base 2. There are
-		// faster but more complex approaches with public domain implementations
-		// at https://graphics.stanford.edu/~seander/bithacks.html if needed.
-		u32 logBase2(u64 value)
+		// See https://graphics.stanford.edu/~seander/bithacks.html#IntegerLogObvious
+		// Faster but more complex approaches also available on that page.
+		u32 log_base_2(u64 value)
 		{
 			assert(value != 0); // Log of zero is undefined
 
 			u32 result = 0;
-			while (value >>= static_cast<u64>(1))
-			{
+			while (value >>= static_cast<u64>(1)) {
 				result++;
 			}
 			return result;
@@ -77,8 +44,10 @@ namespace Cubiquity
 
 		// See https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
 		// Alternatively there are intrinsic instructions to count leading zeros.
-		u32 roundUpToPowerOf2(u32 value)
+		u32 next_power_of_2(u32 value)
 		{
+			assert(value != 0); // Would silently wrap around to 0
+
 			value--;
 			value |= value >> 1;
 			value |= value >> 2;
@@ -89,218 +58,76 @@ namespace Cubiquity
 			return value;
 		}
 
-		////////////////////////////////////////////////////////////////////////////////////////////
-		//  ___  ___                                _   _           _      _____                  //
-		//  |  \/  |                               | | | |         | |    |____ |                 //
-		//  | .  . |_   _ _ __ _ __ ___  _   _ _ __| |_| | __ _ ___| |__      / /                 //
-		//  | |\/| | | | | '__| '_ ` _ \| | | | '__|  _  |/ _` / __| '_ \     \ \                 //
-		//  | |  | | |_| | |  | | | | | | |_| | |  | | | | (_| \__ \ | | |.___/ /                 //
-		//  \_|  |_/\__,_|_|  |_| |_| |_|\__,_|_|  \_| |_/\__,_|___/_| |_|\____/                  //
-		//                                                                                        //
-		////////////////////////////////////////////////////////////////////////////////////////////
-		//                                                                                        //
-		// The hashing functionality below is from MurmurHash3 by Austin Appleby. This function   //
-		// was chosen because it's one of the fastest available and its (relatively simple)       //
-		// reference implementation is in the public domain. There may be faster alternatives     //
-		// which can be evaluated in the future if the need arises.                               //
-		//                                                                                        //
-		// The original MurmurHash3 reference implementation is avaiable here:                    //
-		//                                                                                        //
-		//     https://github.com/aappleby/smhasher                                               //
-		//                                                                                        //
-		////////////////////////////////////////////////////////////////////////////////////////////
-
-		// Supress warnings in third-party (MurmurHash3) code below
-#if defined(__GNUC__)
-		#pragma GCC diagnostic push
-		#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
-#endif // __GNUC__
-
-		// Platform-specific functions and macros
-
-		// Microsoft Visual Studio
-
-		#if defined(_MSC_VER)
-
-		#define FORCE_INLINE	__forceinline
-
-		#include <stdlib.h>
-
-		#define ROTL32(x,y)	_rotl(x,y)
-		#define ROTL64(x,y)	_rotl64(x,y)
-
-		#define BIG_CONSTANT(x) (x)
-
-		// Other compilers
-
-		#else	// defined(_MSC_VER)
-
-		#define	FORCE_INLINE inline __attribute__((always_inline))
-
-		inline u32 rotl32(u32 x, i8 r)
+		// Implementation of FNV-1a hash function (64-bit version)
+		u64 fnv1a(const void* data, i64 length, u64 seed)
 		{
-			return (x << r) | (x >> (32 - r));
-		}
-
-		inline u64 rotl64(u64 x, i8 r)
-		{
-			return (x << r) | (x >> (64 - r));
-		}
-
-		#define	ROTL32(x,y)	rotl32(x,y)
-		#define ROTL64(x,y)	rotl64(x,y)
-
-		#define BIG_CONSTANT(x) (x##LLU)
-
-		#endif // !defined(_MSC_VER)
-
-		//-----------------------------------------------------------------------------
-		// Block read - if your platform needs to do endian-swapping or can only
-		// handle aligned reads, do the conversion here
-
-		FORCE_INLINE u32 getblock32(const u32 * p, int i)
-		{
-			return p[i];
-		}
-
-		FORCE_INLINE u64 getblock64(const u64 * p, int i)
-		{
-			return p[i];
-		}
-
-		//-----------------------------------------------------------------------------
-		// Finalization mix - force all bits of a hash block to avalanche
-
-		FORCE_INLINE u32 fmix32(u32 h)
-		{
-			h ^= h >> 16;
-			h *= 0x85ebca6b;
-			h ^= h >> 13;
-			h *= 0xc2b2ae35;
-			h ^= h >> 16;
-
-			return h;
-		}
-
-		//----------
-
-		FORCE_INLINE u64 fmix64(u64 k)
-		{
-			k ^= k >> 33;
-			k *= BIG_CONSTANT(0xff51afd7ed558ccd);
-			k ^= k >> 33;
-			k *= BIG_CONSTANT(0xc4ceb9fe1a85ec53);
-			k ^= k >> 33;
-
-			return k;
-		}
-
-		//-----------------------------------------------------------------------------
-
-		void MurmurHash3_x86_32(const void * key, int len,
-			u32 seed, void * out)
-		{
-			const u8 * data = (const u8*)key;
-			const int nblocks = len / 4;
-
-			u32 h1 = seed;
-
-			const u32 c1 = 0xcc9e2d51;
-			const u32 c2 = 0x1b873593;
-
-			//----------
-			// body
-
-			const u32 * blocks = (const u32 *)(data + nblocks * 4);
-
-			for (int i = -nblocks; i; i++)
-			{
-				u32 k1 = getblock32(blocks, i);
-
-				k1 *= c1;
-				k1 = ROTL32(k1, 15);
-				k1 *= c2;
-
-				h1 ^= k1;
-				h1 = ROTL32(h1, 13);
-				h1 = h1 * 5 + 0xe6546b64;
+			for (i64 i = 0; i < length; i++) {
+				seed ^= static_cast<const u8*>(data)[i];
+				seed *= UINT64_C(0x00000100000001B3);
 			}
-
-			//----------
-			// tail
-
-			const u8 * tail = (const u8*)(data + nblocks * 4);
-
-			u32 k1 = 0;
-
-			switch (len & 3)
-			{
-			case 3: k1 ^= tail[2] << 16;
-			case 2: k1 ^= tail[1] << 8;
-			case 1: k1 ^= tail[0];
-				k1 *= c1; k1 = ROTL32(k1, 15); k1 *= c2; h1 ^= k1;
-			};
-
-			//----------
-			// finalization
-
-			h1 ^= len;
-
-			h1 = fmix32(h1);
-
-			*(u32*)out = h1;
+			return seed;
 		}
 
-		// Restore warnings for our own code.
-#if defined(__GNUC__)
-		#pragma GCC diagnostic pop
-#endif // __GNUC__
-
-		// Slightly nicer C++ wrapper functions (not part of the MurmurHash3 reference impementation)
-		u32 mixBits(u32 value)
+		// Jon Maiga's 'xmxmx' mixer as used by Boost
+		u64 bit_mix(u64 bits)
 		{
-			return fmix32(value); // Force inlined
+			bits = ((bits >> 32) ^ bits) * UINT64_C(0x0e9846af9b1a615d);
+			bits = ((bits >> 32) ^ bits) * UINT64_C(0x0e9846af9b1a615d);
+			return ((bits >> 28) ^ bits);
 		}
 
-		u32 murmurHash3(const void * key, int len, u32 seed)
+		// Matches behaviour of Boost hash_combine()
+		u64 hash_combine(u64 hash_1, u64 hash_2)
 		{
-			u32 result;
-			MurmurHash3_x86_32(key, len, seed, &result);
-			return result;
+			return bit_mix(hash_1 + 0x9e3779b9 + hash_2);
 		}
 	}
 
-	LogFuncPtr gLogDebugFunc = nullptr;
-	LogFuncPtr gLogWarningFunc = nullptr;
+	MessageHandlerPtr g_debug_handler = nullptr;
+	MessageHandlerPtr g_warning_handler = nullptr;
 
-	void setLogDebugFunc(LogFuncPtr debugLogFunc)
+	void set_debug_handler(MessageHandlerPtr debug_handler)
 	{
-		gLogDebugFunc = debugLogFunc;
+		g_debug_handler = debug_handler;
 	}
 
-	void setLogWarningFunc(LogFuncPtr warningLogFunc)
+	void set_warning_handler(MessageHandlerPtr warning_handler)
 	{
-		gLogWarningFunc = warningLogFunc;
+		g_warning_handler = warning_handler;
 	}
 
-	void Internals::log_debug(const std::string& msg)
+	void Internals::log_debug(const char* fmt, ...)
 	{
-		if (gLogDebugFunc) {
-			(*gLogDebugFunc)(msg.c_str());
+		char buffer[1024];
+
+		va_list args;
+		va_start(args, fmt);
+		std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+		va_end(args);
+
+		if (g_debug_handler) {
+			(*g_debug_handler)(buffer);
 		}
 	}
 
-	void Internals::log_warning(const std::string& msg)
+	void Internals::log_warning(const char* fmt, ...)
 	{
-		if (gLogWarningFunc) {
-			(*gLogWarningFunc)(msg.c_str());
+		char buffer[1024];
+
+		va_list args;
+		va_start(args, fmt);
+		std::vsnprintf(buffer, sizeof(buffer), fmt, args);
+		va_end(args);
+
+		if (g_warning_handler) {
+			(*g_warning_handler)(buffer);
 		}
 	}
 
-	ProgressHandlerPtr gProgressHandler = NULL;
-	void setProgressHandler(ProgressHandlerPtr progressHandler)
+	ProgressHandlerPtr g_progress_handler = NULL;
+	void setProgressHandler(ProgressHandlerPtr progress_handler)
 	{
-		gProgressHandler = progressHandler;
+		g_progress_handler = progress_handler;
 	}
 
 	// When using this function keep in mind that a task with N steps will have N + 1 states.
@@ -313,20 +140,20 @@ namespace Cubiquity
 	// In any case, ensure that the first call for a given string has current step set to first
 	// step and that the final call has current step set to last step as the user may depend
 	// on these behaviours to drive their progress display.
-	void Internals::reportProgress(const char* taskDesc, int firstStep, int currentStep, int lastStep)
+	void Internals::reportProgress(const char* task_desc, int first_step, int current_step, int last_step)
 	{
-		assert(firstStep < lastStep && "First step is greater than last step");
-		assert(currentStep >= firstStep && "Current step is less than first step");
-		assert(currentStep <= lastStep && "Current step is greater than last step");
+		assert(first_step < last_step && "First step is greater than last step");
+		assert(current_step >= first_step && "Current step is less than first step");
+		assert(current_step <= last_step && "Current step is greater than last step");
 
-		if (gProgressHandler) {
+		if (g_progress_handler) {
 			// Make sure that we call the handler for the first and last step
 			// (as the user may do something special with these events), as
 			// well as an appropriate number of interim steps (but not too many).
 			const int updates = 100;
-			const int interval = ::std::max((lastStep - firstStep) / updates, 1);
-			if (currentStep == firstStep || currentStep == lastStep || currentStep % interval == 0) {
-				(*gProgressHandler)(taskDesc, firstStep, currentStep, lastStep);
+			const int interval = ::std::max((last_step - first_step) / updates, 1);
+			if (current_step == first_step || current_step == last_step || current_step % interval == 0) {
+				(*g_progress_handler)(task_desc, first_step, current_step, last_step);
 			}
 		}
 	}

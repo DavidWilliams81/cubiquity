@@ -14,10 +14,12 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <cinttypes>
+#include <cstdint>
 #include <fstream>
 #include <set>
 #include <string>
-
 #include <sstream>
 
 using namespace std;
@@ -25,6 +27,12 @@ using namespace std;
 namespace Cubiquity
 {
 	using namespace Internals;
+
+	double Timer::seconds_since_epoch()
+	{
+		const auto now = std::chrono::system_clock::now().time_since_epoch();
+		return std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() / 1e9;
+	}
 
 	class NodeCounter
 	{
@@ -52,6 +60,9 @@ namespace Cubiquity
 
 		bool operator()(NodeStore& nodes, u32 nodeIndex, const Box3i& bounds)
 		{
+			if (mBounds.contains(bounds)) {
+				return false;
+			}
 			if (isMaterialNode(nodeIndex))
 			{
 				MaterialId matId = static_cast<MaterialId>(nodeIndex);
@@ -96,9 +107,7 @@ namespace Cubiquity
 		}
 		u16 outsideMaterialId = mostPositiveVoxel;
 
-		std::stringstream ss;
-		ss << "Outside material = " << outsideMaterialId;
-		log_debug(ss.str());
+		log_debug("Outside material = %u", outsideMaterialId);
 
 		Box3i bounds = computeBounds(volume, outsideMaterialId);
 
@@ -180,16 +189,11 @@ namespace Cubiquity
 		{
 			if (entry.second.overflow)
 			{
-				std::stringstream ss;
-				ss << "Material " << static_cast<u16>(entry.first) << ": Too many to count! (64-bit overflow)";
-				log_debug(ss.str());
+				log_debug("Material %u: Too many to count! (64-bit overflow)", entry.first);
 			}
 			else
 			{
-				std::stringstream ss;
-				// Static cast to avoid 8-bit matId being treated as ASCII char.
-				ss << "Material " << static_cast<u16>(entry.first) << ": " << entry.second.count << " voxels";
-				log_debug(ss.str());
+				log_debug("Material %u: %" PRIu64 "voxels", entry.first, entry.second.count);
 			}
 		}
 	}

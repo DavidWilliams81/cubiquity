@@ -170,7 +170,7 @@ void export_as_vox(Volume& volume, const Metadata& metadata,
 	try {		
 		volume_vox_writer writer(volume, metadata);
 		writer.write(output_path.string(), false);
-		log_info("Exported .vox in {} seconds", timer.elapsedTimeInSeconds());
+		log_info("Exported .vox in {:.3f} seconds", timer.elapsed_seconds());
 	} catch (std::exception& e) {;
 		log_error("Failed to write .vox file ({}).", e.what());
 	}

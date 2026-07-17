@@ -63,6 +63,7 @@ namespace Cubiquity
 		inline Node make_node(u32 i) { return Node{ i, i, i, i, i, i, i, i }; }
 		inline bool isMaterialNode(u32 nodeIndex) { return nodeIndex < MaterialCount; }
 		bool isMaterialNode(const Node& node);
+		struct NodeHasher;
 
 		// Container for our nodes
 		typedef std::vector<Node> NodeVector;
@@ -205,22 +206,6 @@ namespace Cubiquity
 	{
 		setVoxel(position[0], position[1], position[2], matId);
 	}
-}
-
-namespace std
-{
-	static Cubiquity::u64 fnv1a_64(const Cubiquity::u8* data, size_t size)
-	{
-		Cubiquity::u64 hash = UINT64_C(0xcbf29ce484222325);
-		for (size_t i = 0; i < size; i++) {
-			hash ^= data[i];
-			hash *= UINT64_C(0x00000100000001B3);
-		}
-		return hash;
-	}
-
-	template<>
-	struct hash<Cubiquity::Internals::Node>;
 }
 
 #endif //CUBIQUITY_VOLUME_H

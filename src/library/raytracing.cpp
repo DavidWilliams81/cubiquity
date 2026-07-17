@@ -11,6 +11,18 @@ namespace Cubiquity
 	// The full DAG has 33 levels, from zero (for leaves) to 32 (for the root).
 	const int RootNodeHeight = 32;
 
+	// Impementation of GLSL's findMSB() for *unsigned* parameter.
+	// The behaviour of the signed version is more complex.
+	int findMSB(u32 value)
+	{
+		int result = -1;
+		while (value) {
+			result++;
+			value >>= 1;
+		}
+		return result;
+	}
+
 	ivec3 childIdToIVec3(int childId)
 	{
 		return ivec3({(childId) & 0x1, (childId >> 1) & 0x1, (childId >> 2) & 0x1});

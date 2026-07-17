@@ -100,7 +100,7 @@ void InstancingDemo::onUpdate(float deltaTime)
 
 		mGlyphCount = extractGlyphs(const_cast<Cubiquity::Volume&>(volume()), subdivideMaterialNodes, mGlyphs, MaxGlyphCount);
 
-		log_debug("Found {} glyphs in {}ms", mGlyphCount, timer.elapsedTimeInMilliSeconds());
+		log_debug("Found {} glyphs in {:.3f}ms", mGlyphCount, timer.elapsed_milliseconds());
 		assert(mGlyphCount <= MaxGlyphCount);
 
 		// Update the buffers that OpenGL uses for rendering.

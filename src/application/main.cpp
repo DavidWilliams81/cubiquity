@@ -37,12 +37,12 @@ this software. If not, see http://creativecommons.org/publicdomain/zero/1.0/.
 #include "CLI11.hpp"
 
 // Cubiquity logging functions
-void log_debug_func(const char* message)
+void debug_handler(const char* message)
 {
 	log_debug("{}", message);
 }
 
-void log_warning_func(const char* message)
+void warning_handler(const char* message)
 {
 	log_warning("{}", message);
 }
@@ -51,8 +51,8 @@ int main(int argc, char** argv)
 try
 {
 	// Connect Cubiquity to this application's logging/progress system
-	Cubiquity::setLogDebugFunc(&log_debug_func);
-	Cubiquity::setLogWarningFunc(&log_warning_func);
+	Cubiquity::set_debug_handler(&debug_handler);
+	Cubiquity::set_warning_handler(&warning_handler);
 	Cubiquity::setProgressHandler(&cubiquityProgressHandler);
 
 	// ================ Configure top-level application ================

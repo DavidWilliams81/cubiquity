@@ -19,7 +19,7 @@ public:
         mTaskName = name;
 
         mTimer.start();
-        lastElapsedTime = mTimer.elapsedTimeInSeconds();
+        lastElapsedTime = mTimer.elapsed_seconds();
     }
 
     void setProgress(int minimum, int current, int maximum, bool throttle)
@@ -27,7 +27,7 @@ public:
         assert(!mTaskName.empty() && "setProgress() called with no task active");
         assert(minimum < maximum&& current >= minimum && current <= maximum);
 
-        float elapsedTime = mTimer.elapsedTimeInSeconds();
+        float elapsedTime = mTimer.elapsed_seconds();
         if (!throttle || (elapsedTime - lastElapsedTime > 1.0f))
         {
             // Work out progress
@@ -43,7 +43,7 @@ public:
             log_info_no_newline("] ");
 
             // Write the time with fixed precision to make sure it overwrites the previous value.
-            log_info_no_newline("{:.3f}s", mTimer.elapsedTimeInSeconds());
+            log_info_no_newline("{:.3f}s", mTimer.elapsed_seconds());
 
             // '\r' without '\n' goes back to start of the line
             log_info_no_newline("\r");

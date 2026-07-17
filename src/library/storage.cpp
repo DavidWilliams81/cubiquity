@@ -29,48 +29,6 @@
 #include <execution>
 #endif // CUBIQUITY_USE_POOLSTL
 
-namespace std
-{
-	template<>
-	struct hash<Cubiquity::Internals::Node>
-	{
-		Cubiquity::u32 seed = 0;
-
-		std::size_t operator()(const Cubiquity::Internals::Node& node) const noexcept
-		{
-			//Cubiquity::u32 hash = Cubiquity::Internals::murmurHash3(&(node[0]), sizeof(uint32_t) * 8, seed);
-			//return hash;
-
-			//auto ptr = &(node[0]);
-			//return fnv1a_64((Cubiquity::u8*)ptr, sizeof(uint32_t) * 8);
-
-			// Constants with good avalanche properties picked from popular hashes.
-			Cubiquity::u32 hash = 0;
-			hash ^= (node[0] * 0x9e3779b9);
-			hash ^= (node[1] * 0x85ebca6b);
-			hash ^= (node[2] * 0xc2b2ae35);
-			hash ^= (node[3] * 0x27d4eb2f);
-			hash ^= (node[4] * 0x165667b1);
-			hash ^= (node[5] * 0xd3a2646c);
-			hash ^= (node[6] * 0xcc9e2d51);
-			hash ^= (node[7] * 0x1b873593);
-
-			return hash;
-
-			/*const uint64_t* k64 = (const uint64_t*)node.data();
-			uint64_t h = k64[0];
-			h = (h ^ k64[1]) * 0x87c37b91114253d5ULL;
-			h = (h ^ k64[2]) * 0x4cf5ad432745937fULL;
-			h = (h ^ k64[3]) * 0xff51afd7ed558ccdULL;
-			// final avalanche
-			h ^= h >> 31;
-			h *= 0xc4ceb9fe1a85ec53ULL;
-			h ^= h >> 31;
-			return h;*/
-		}
-	};
-}
-
 namespace Cubiquity
 {
 	using namespace Internals;
@@ -115,6 +73,29 @@ namespace Cubiquity
 			std::all_of(node.begin(), node.end(),
 				[&](int x) { return x == node[0]; });
 	}
+
+	// Not allowed to be an std::hash specialisation as Node is just a typedef.
+	struct Internals::NodeHasher
+	{
+		u64 operator()(const Internals::Node& node) const noexcept
+		{
+			// Reference version baed on FNV-1a
+			// return Internals::fnv1a(node.data(), sizeof(node));
+
+			// Simple XOR-multiply hash with constants picked from MurmurHash3.
+			Cubiquity::u64 hash = 0;
+			hash = (hash ^ node[0]) * 0x87c37b91114253d5ULL;
+			hash = (hash ^ node[1]) * 0x4cf5ad432745937fULL;
+			hash = (hash ^ node[2]) * 0xff51afd7ed558ccdULL;
+			hash = (hash ^ node[3]) * 0xc4ceb9fe1a85ec53ULL;
+			hash = (hash ^ node[4]) * 0x87c37b91114253d5ULL;
+			hash = (hash ^ node[5]) * 0x4cf5ad432745937fULL;
+			hash = (hash ^ node[6]) * 0xff51afd7ed558ccdULL;
+			hash = (hash ^ node[7]) * 0xc4ceb9fe1a85ec53ULL;
+			hash = bit_mix(hash);
+			return hash;
+		}
+	};
 
 	// We populate the node vector with material nodes in which the children
 	// point at themselves. This has a few uses:
@@ -282,7 +263,7 @@ namespace Cubiquity
 		}
 		else {
 			// Determine first index (skipping material node slots)
-			newNodeIndex = std::hash<Node>{}(node);
+			newNodeIndex = static_cast<u32>(NodeHasher{}(node));
 			newNodeIndex %= (merged_node_vector.size() - MaterialCount);
 			newNodeIndex += MaterialCount;
 
@@ -408,10 +389,8 @@ namespace Cubiquity
 		Cubiquity::Timer timer;
 		u32 newRootIndex = mNodeStore.merge(rootNodeIndex());
 		setRootNodeIndex(newRootIndex);
-		std::stringstream ss;
-		ss << std::endl << "Baked " << mNodeStore.unsharedNodesEnd() <<
-			" nodes in " << timer.elapsedTimeInSeconds() << " seconds";
-		log_debug(ss.str());
+		log_debug("Baked %u nodes in %.3f seconds",
+			mNodeStore.unsharedNodesEnd(), timer.elapsed_seconds());
 	}
 
 	void Volume::setVoxel(i32 x, i32 y, i32 z, MaterialId matId)
@@ -420,7 +399,7 @@ namespace Cubiquity
 		u32 ux, uy, uz;
 		make_position_unsigned(x, y, z, ux, uy, uz);
 
-		const int rootHeight = logBase2(VolumeSideLength);
+		const int rootHeight = log_base_2(VolumeSideLength);
 		u32 newRootNodeIndex = setVoxel(ux, uy, uz, matId, rootNodeIndex(), rootHeight);
 		setRootNodeIndex(newRootNodeIndex);
 	}

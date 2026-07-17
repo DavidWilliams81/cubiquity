@@ -271,7 +271,17 @@ float computeWindingNumber(const vec3f& queryPoint, const Patch& patch)
 TriangleList computeClosingTriangles(TriangleSpan triangles)
 {
 	typedef std::pair<vec3f, vec3f> TriangleEdge;
-	std::unordered_map<TriangleEdge, i32, Internals::MurmurHash3<TriangleEdge> > edgeCounts;
+
+	struct TriangleEdgeHasher
+	{
+		u64 operator()(const TriangleEdge& key) const
+		{
+			Vec3Hasher<vec3f> vec3f_hasher;
+			return hash_combine(vec3f_hasher(key.first), vec3f_hasher(key.second));
+		}
+	};
+
+	std::unordered_map<TriangleEdge, i32, TriangleEdgeHasher > edgeCounts;
 
 	edgeCounts.max_load_factor(1.0); // Default anyway, changing it doesn't seem to help?
 	edgeCounts.reserve(triangles.size() * 3);
@@ -782,9 +792,8 @@ void Mesh::build()
 			const bool isExcessive = absWindingNumber > (1.0f + tolerance);
 
 			if (!isSufficient || isExcessive) {
-				std::stringstream ss;
-				ss << "Absolute winding number of " << absWindingNumber << " found at position " << point;
-				log_warning(ss.str());
+				log_warning("Absolute winding number of %f found at position (%f, %f, %f)",
+					absWindingNumber, point.x, point.y, point.z);
 				if (!isSufficient) {
 					log_warning("\t(This indicates the mesh is not closed or has inconsistant winding)");
 					allValid = false;
@@ -815,7 +824,7 @@ void Mesh::build()
 
 void fillBrush(Volume& volume, const Brush& brush, MaterialId matId)
 {
-	const int rootHeight = logBase2(VolumeSideLength);
+	const int rootHeight = log_base_2(VolumeSideLength);
 	int nodeHeight = rootHeight;
 	u32 newIndex = matId;
 

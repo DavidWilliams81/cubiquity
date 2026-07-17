@@ -307,14 +307,14 @@ bool voxelize(const std::filesystem::path& in_path,
 		log_error("Unrecognised extension '{}'", extension);
 	}
 
-	log_info("Voxelized in {} seconds", timer.elapsedTimeInSeconds());
+	log_info("Voxelized in {:.3f} seconds", timer.elapsed_seconds());
 	log_info("Node count before merging = {}", volume.countNodes());
 
 	log_info("Calculating volume dimensions... ");
 	timer.start();
 	auto dimensions = find_dimensions(volume);
-	log_info("Calculated volume dimensions in {} seconds",
-		timer.elapsedTimeInSeconds());
+	log_info("Calculated volume dimensions in {:.3f} seconds",
+		timer.elapsed_seconds());
 	log_info("\tDimensions = {}", dimensions);
 
 	// Save the result

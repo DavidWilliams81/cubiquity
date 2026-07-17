@@ -223,7 +223,7 @@ void GPUPathtracingViewer::onUpdate(float deltaTime)
 	const int groupSize = 100;
 	if (frameNumber() % groupSize == 0)
 	{
-		log_info("Frame time = {} ms", mTimer.elapsedTimeInMilliSeconds() / groupSize);
+		log_info("Frame time = {:.3f} ms", mTimer.elapsed_milliseconds() / groupSize);
 		mTimer.start(); // Reset
 	}
 }
